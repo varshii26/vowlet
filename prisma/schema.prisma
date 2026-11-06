@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// All money is integer cents. Dates are stored in UTC.
+// Due dates are never stored: lib/schedule.ts computes them from anchor + offsetDays.
+
+enum VendorStatus {
+  active
+  cancelled
+}
+
+enum ClauseKind {
+  payment
+  cancellation
+  date_change
+  other
+}
+
+enum PaymentAnchor {
+  wedding_date
+  signing_date
+  fixed
+}
+
+enum PaymentStatus {
+  scheduled
+  due
+  paid
+  refund_requested
+  refunded
+  void
+}
+
+enum ProposalKind {
+  pay
+  reschedule
+  refund_request
+  message
+}
+
+enum ProposalStatus {
+  pending
+  approved
+  dismissed
+}
+
+model Wedding {
+  id          String     @id @default(cuid())
+  coupleNames String
+  date        DateTime
+  budget      Int // cents
+  vendors     Vendor[]
+  proposals   Proposal[]
+  events      EventLog[]
+}
+
+model Vendor {
+  id           String       @id @default(cuid())
+  weddingId    String
+  wedding      Wedding      @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  name         String
+  category     String
+  paypalEmail  String
+  contractPath String
+  signingDate  DateTime // resolves the `signing_date` payment anchor
+  totalCost    Int // cents
+  status       VendorStatus @default(active)
+  clauses      Clause[]
+  payments     Payment[]
+  terms        Terms?
+
+  @@index([weddingId])
+}
+
+model Clause {
+  id        String     @id @default(cuid())
+  vendorId  String
+  vendor    Vendor     @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  kind      ClauseKind
+  text      String
+  page      Int
+  summary   String
+  payments  Payment[]
+  proposals Proposal[]
+
+  @@index([vendorId])
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  vendorId      String
+  vendor        Vendor        @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  label         String
+  amount        Int // cents
+  anchor        PaymentAnchor
+  offsetDays    Int           @default(0)
+  fixedDate     DateTime?
+  status        PaymentStatus @default(scheduled)
+  clauseId      String?
+  clause        Clause?       @relation(fields: [clauseId], references: [id], onDelete: SetNull)
+  paypalOrderId String?
+  captureId     String?
+  paidAt        DateTime?
+
+  @@index([vendorId])
+}
+
+model Terms {
+  vendorId          String @id
+  vendor            Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  cancellationRules Json // CancellationRule[]  (see lib/rules.ts)
+  dateChangeRules   Json // DateChangeRule[]    (see lib/rules.ts)
+  clauseIds         Json // string[]
+}
+
+model Proposal {
+  id        String         @id @default(cuid())
+  weddingId String
+  wedding   Wedding        @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  kind      ProposalKind
+  payload   Json
+  clauseId  String?
+  clause    Clause?        @relation(fields: [clauseId], references: [id], onDelete: SetNull)
+  status    ProposalStatus @default(pending)
+  createdAt DateTime       @default(now())
+
+  @@index([weddingId])
+}
+
+model EventLog {
+  id        String   @id @default(cuid())
+  weddingId String
+  wedding   Wedding  @relation(fields: [weddingId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  createdAt DateTime @default(now())
+
+  @@index([weddingId])
+}
