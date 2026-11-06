@@ -1,0 +1,42 @@
+import type { PrismaClient } from "@/generated/prisma/client";
+import type { TimelineInput } from "@/lib/timeline";
+
+/**
+ * Load the wedding, its vendors and their payments for the timeline. Returns
+ * null when there is no wedding yet. Server only: it reads the database.
+ */
+export async function loadTimelineInput(prisma: PrismaClient): Promise<TimelineInput | null> {
+  const wedding = await prisma.wedding.findFirst({
+    include: {
+      vendors: {
+        orderBy: { name: "asc" },
+        include: {
+          payments: { include: { clause: true }, orderBy: { label: "asc" } },
+        },
+      },
+    },
+  });
+  if (!wedding) return null;
+
+  return {
+    wedding: { coupleNames: wedding.coupleNames, date: wedding.date },
+    vendors: wedding.vendors.map((vendor) => ({
+      id: vendor.id,
+      name: vendor.name,
+      status: vendor.status,
+      signingDate: vendor.signingDate,
+      payments: vendor.payments.map((payment) => ({
+        id: payment.id,
+        label: payment.label,
+        amountCents: payment.amount,
+        anchor: payment.anchor,
+        offsetDays: payment.offsetDays,
+        fixedDate: payment.fixedDate,
+        status: payment.status,
+        clause: payment.clause
+          ? { id: payment.clause.id, summary: payment.clause.summary, page: payment.clause.page }
+          : null,
+      })),
+    })),
+  };
+}

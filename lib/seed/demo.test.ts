@@ -1,10 +1,5 @@
-import { execSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { createPrismaClient } from "@/lib/db";
 import {
   cancellationRulesSchema,
   clauseIdsSchema,
@@ -12,22 +7,17 @@ import {
 } from "@/lib/rules";
 import { VENDORS } from "@/lib/seed/demo-data";
 import { ensureSeeded, seedDemo } from "@/lib/seed/demo";
+import { createTestDatabase } from "@/lib/test-utils/db";
 
 // Real SQLite database in a temp dir, built from the committed migrations.
-let dir: string;
 let prisma: PrismaClient;
+let cleanup: () => Promise<void>;
 
 beforeAll(() => {
-  dir = mkdtempSync(path.join(tmpdir(), "vowlet-seed-"));
-  const url = `file:${path.join(dir, "test.db").replace(/\\/g, "/")}`;
-  execSync("npx prisma migrate deploy", { env: { ...process.env, DATABASE_URL: url }, stdio: "pipe" });
-  prisma = createPrismaClient(url);
+  ({ prisma, cleanup } = createTestDatabase());
 }, 60_000);
 
-afterAll(async () => {
-  await prisma.$disconnect();
-  rmSync(dir, { recursive: true, force: true });
-});
+afterAll(async () => cleanup());
 
 describe("seedDemo / ensureSeeded", () => {
   it("seeds an empty database and reports it", async () => {
