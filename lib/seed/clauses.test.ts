@@ -9,7 +9,7 @@ describe("paymentClause", () => {
 
   it("describes offsets before and after the event, singular and plural", () => {
     const before = paymentClause({ label: "Balance", amountCents: 150_050, anchor: "wedding_date", offsetDays: -30 });
-    expect(before.text).toContain("$1,500.5");
+    expect(before.text).toContain("$1,500.50");
     expect(before.text).toContain("no later than 30 days before the Event Date");
 
     const oneDay = paymentClause({ label: "Pay", amountCents: 100, anchor: "wedding_date", offsetDays: -1 });
