@@ -1,10 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { cancellationClause, dateChangeClause, paymentClause } from "@/lib/seed/clauses";
+import {
+  STYLE_COUNT,
+  buildVendorClauses,
+  cancellationClause,
+  dateChangeClause,
+  paymentClause,
+  vendorStyle,
+  type Style,
+} from "@/lib/seed/clauses";
+import { VENDORS } from "@/lib/seed/demo-data";
+
+const styles: Style[] = [0, 1, 2];
 
 describe("paymentClause", () => {
-  it("describes a deposit due at signing", () => {
-    const c = paymentClause({ label: "Venue deposit", amountCents: 300_000, anchor: "signing_date" });
-    expect(c.text).toBe("The Client shall pay $3,000 (Venue deposit) upon signing this agreement.");
+  const deposit = { label: "Venue deposit", amountCents: 300_000, anchor: "signing_date" as const };
+
+  it("words the same payment three different ways", () => {
+    expect(paymentClause(deposit, 0).text).toBe("The Client shall pay $3,000 (Venue deposit) upon signing this agreement.");
+    expect(paymentClause(deposit, 1).text).toBe("Venue deposit: $3,000 is payable upon signing this agreement.");
+    expect(paymentClause(deposit, 2).text).toBe("A payment of $3,000 (Venue deposit) falls due upon signing this agreement.");
+  });
+
+  it("defaults to style 0", () => {
+    expect(paymentClause(deposit).text).toBe(paymentClause(deposit, 0).text);
   });
 
   it("describes offsets before and after the event, singular and plural", () => {
@@ -26,28 +44,78 @@ describe("paymentClause", () => {
     const c = paymentClause({ label: "Booking", amountCents: 50_000, anchor: "fixed", fixedDate: "2026-12-01" });
     expect(c.text).toContain("on or before 2026-12-01");
   });
+
+  it("uses deliberately ambiguous wording when given, but keeps the confirmed summary", () => {
+    const c = paymentClause(
+      { label: "Suit", amountCents: 110_000, anchor: "wedding_date", offsetDays: -30, ambiguousText: "Due about a month before." },
+      1,
+    );
+    expect(c.text).toBe("Due about a month before.");
+    expect(c.summary).toBe("$1,100 suit, due no later than 30 days before the Event Date");
+  });
 });
 
 describe("cancellationClause", () => {
-  it("lists tiers from longest notice to shortest and mentions flat fees", () => {
-    const c = cancellationClause([
-      { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
-      { minNoticeDays: 60, refundPercent: 100, flatFee: 10_000 },
-    ]);
-    expect(c.text.indexOf("60 days")).toBeLessThan(c.text.indexOf("no refund"));
-    expect(c.text).toContain("$100 administrative fee");
-    expect(c.summary).toBe("60+ days: 100% refund, 0+ days: 0% refund");
+  const rules = [
+    { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
+    { minNoticeDays: 60, refundPercent: 100, flatFee: 10_000 },
+  ];
+
+  it("lists tiers from longest notice to shortest in every style", () => {
+    for (const style of styles) {
+      const { text } = cancellationClause(rules, style);
+      expect(text.indexOf("60")).toBeGreaterThan(-1);
+      expect(text.indexOf("60")).toBeLessThan(text.search(/no refund|forfeits/));
+      expect(text).toContain("$100");
+      expect(text).toContain("non-refundable");
+    }
+  });
+
+  it("is worded differently in each style, with one shared summary", () => {
+    const results = styles.map((s) => cancellationClause(rules, s));
+    expect(new Set(results.map((r) => r.text)).size).toBe(3);
+    expect(new Set(results.map((r) => r.summary))).toEqual(new Set(["60+ days: 100% refund, 0+ days: 0% refund"]));
   });
 });
 
 describe("dateChangeClause", () => {
-  it("says no fee applies for free tiers and combines percent and flat fees", () => {
-    const c = dateChangeClause([
-      { minNoticeDays: 90, feePercent: 0, flatFee: 0 },
-      { minNoticeDays: 0, feePercent: 15, flatFee: 15_000 },
-    ]);
-    expect(c.text).toContain("no fee applies");
-    expect(c.text).toContain("15% of the total contract price plus a flat fee of $150");
-    expect(c.summary).toBe("90+ days: 0%, 0+ days: 15% + $150");
+  const rules = [
+    { minNoticeDays: 90, feePercent: 0, flatFee: 0 },
+    { minNoticeDays: 0, feePercent: 15, flatFee: 15_000 },
+  ];
+
+  it("states free tiers and combines percent and flat fees in every style", () => {
+    for (const style of styles) {
+      const { text } = dateChangeClause(rules, style);
+      expect(text).toMatch(/no fee applies|no charge/);
+      expect(text).toContain("15% of the total contract price plus a flat fee of $150");
+    }
+  });
+
+  it("is worded differently in each style, with one shared summary", () => {
+    const results = styles.map((s) => dateChangeClause(rules, s));
+    expect(new Set(results.map((r) => r.text)).size).toBe(3);
+    expect(new Set(results.map((r) => r.summary))).toEqual(new Set(["90+ days: 0%, 0+ days: 15% + $150"]));
+  });
+});
+
+describe("vendorStyle and buildVendorClauses", () => {
+  it("spreads the vendors across all wording styles", () => {
+    const used = new Set(VENDORS.map((v) => vendorStyle(v, VENDORS)));
+    expect(used.size).toBe(STYLE_COUNT);
+  });
+
+  it("rejects a vendor that is not in the list", () => {
+    expect(() => vendorStyle({ ...VENDORS[0] }, VENDORS)).toThrow(/Unknown vendor/);
+  });
+
+  it("puts payments on page 1, date changes on page 2 and cancellation on page 2 or the addendum", () => {
+    for (const spec of VENDORS) {
+      const clauses = buildVendorClauses(spec, vendorStyle(spec, VENDORS));
+      expect(clauses.payments).toHaveLength(spec.payments.length);
+      expect(clauses.payments.every((c) => c.page === 1)).toBe(true);
+      expect(clauses.dateChange.page).toBe(2);
+      expect(clauses.cancellation.page).toBe(spec.cancellationInAddendum ? 3 : 2);
+    }
   });
 });

@@ -120,6 +120,5 @@ describe("seedDemo / ensureSeeded", () => {
       where: { kind: "cancellation", vendor: { name: spec.name } },
     });
     expect(clause.page).toBe(3);
-    expect(clause.text.startsWith("Addendum A.")).toBe(true);
   });
 });

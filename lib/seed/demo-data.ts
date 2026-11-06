@@ -18,6 +18,12 @@ export type PaymentSpec = {
   anchor: "wedding_date" | "signing_date" | "fixed";
   offsetDays?: number; // days from the anchor; negative = before
   fixedDate?: string; // ISO date, only for anchor "fixed"
+  /**
+   * Deliberately vague contract wording. When set it is the clause text, and
+   * the anchor/offset above are the reading the couple confirmed. Extraction
+   * should flag it as low confidence.
+   */
+  ambiguousText?: string;
 };
 
 export type VendorSpec = {
@@ -181,7 +187,16 @@ export const VENDORS: VendorSpec[] = [
     category: "attire",
     paypalEmail: email(4),
     signingDate: "2026-09-10",
-    payments: [{ label: "Suit full payment", amountCents: dollars(1100), anchor: "wedding_date", offsetDays: -30 }],
+    payments: [
+      {
+        label: "Suit full payment",
+        amountCents: dollars(1100),
+        anchor: "wedding_date",
+        offsetDays: -30,
+        // The one deliberately ambiguous clause: "approximately one month".
+        ambiguousText: "The balance of $1,100 (Suit full payment) is due approximately one month before the Event Date.",
+      },
+    ],
     cancellation: CANCEL_TIERED,
     dateChange: DATE_FREE_60,
   },
