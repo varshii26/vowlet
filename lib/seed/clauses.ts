@@ -1,8 +1,6 @@
+import { formatCents as money } from "@/lib/money";
 import type { CancellationRule, DateChangeRule } from "@/lib/rules";
 import type { PaymentSpec } from "@/lib/seed/demo-data";
-
-const money = (cents: number) =>
-  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
 const sortDesc = <T extends { minNoticeDays: number }>(rules: T[]) =>
   [...rules].sort((a, b) => b.minNoticeDays - a.minNoticeDays);
