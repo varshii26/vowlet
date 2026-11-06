@@ -64,6 +64,22 @@ npm run make-contracts    # regenerate all 14 from lib/seed/demo-data.ts
 - Non-refundable amounts are modeled as a flat fee withheld from the refund (`flatFee` in the cancellation rules).
 - Output is byte-for-byte reproducible (fixed dates, standard fonts), so diffs show only real changes.
 
+### Quote verification
+
+Claude quotes the clause behind every fact it extracts; `verifyQuote(pages, quote)` in `lib/quotes.ts` checks that the
+quote really appears in the PDF and returns the page it was found on (which may differ from the page the model
+claimed). Extraction (#6) treats an unverified quote as confidence 0 and flags it for the user to confirm.
+
+- Forgiven: case, whitespace and line breaks, curly vs straight quotes, dash styles, ligatures, invisible characters,
+  and a word hyphenated across a line break.
+- **Not** forgiven: any other character. Punctuation inside numbers matters, so `$1,000` does not match `$1000`,
+  `$10.00` or the start of `$1,000.50`. A quote cannot start or stop in the middle of a word or number.
+- `...` (or `…`) skips text; the pieces must appear in order on one page.
+- Quotes shorter than 12 characters never verify, so a stray word cannot match anywhere.
+- Limit: a quote that runs across a page break is not found, so quotes should stay within one page.
+
+Page text comes from `extractPdfPages()` in `lib/pdf-text.ts`.
+
 ### Due dates
 
 Due dates are never stored. Each payment keeps an anchor (`wedding_date`, `signing_date` or `fixed`) and an offset in
