@@ -44,6 +44,26 @@ PayPal is sandbox only. No real money moves.
 
 The demo data lives in `lib/seed/demo-data.ts`.
 
+### Sample contracts
+
+`seed/contracts/*.pdf` holds 14 fictional vendor contracts (2-3 pages each) for the demo. They are committed, so a fresh
+clone and the hosted demo need no extra step.
+
+```bash
+npm run make-contracts    # regenerate all 14 from lib/seed/demo-data.ts
+```
+
+- The PDFs and the seeded `Clause` rows come from the same code (`lib/seed/clauses.ts`), so every clause in the
+  database appears word for word in its PDF, on the page the database records. A test checks this with real PDF text
+  extraction, and another fails if the committed PDFs go stale. After editing the demo data, rerun the command above.
+- The wording varies: three styles for payment, cancellation and date-change clauses.
+- The contracts include fixed-date and signing-date payments, tiered cancellation refunds, free date changes with 60+
+  days' notice, one contract whose cancellation terms sit on an addendum page (DJ Marlow Sound), and one deliberately
+  vague payment clause ("approximately one month before the Event Date", Dapper & Co Tailoring) that extraction
+  should flag as low confidence.
+- Non-refundable amounts are modeled as a flat fee withheld from the refund (`flatFee` in the cancellation rules).
+- Output is byte-for-byte reproducible (fixed dates, standard fonts), so diffs show only real changes.
+
 ### Due dates
 
 Due dates are never stored. Each payment keeps an anchor (`wedding_date`, `signing_date` or `fixed`) and an offset in

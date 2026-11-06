@@ -3,7 +3,7 @@ import {
   cancellationRulesSchema,
   dateChangeRulesSchema,
 } from "@/lib/rules";
-import { cancellationClause, dateChangeClause, paymentClause } from "@/lib/seed/clauses";
+import { buildVendorClauses, vendorStyle } from "@/lib/seed/clauses";
 import { VENDORS, WEDDING, vendorTotalCents } from "@/lib/seed/demo-data";
 
 const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -46,10 +46,12 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
         },
       });
 
-      for (const p of spec.payments) {
-        const { text, summary } = paymentClause(p);
+      // The same wording the contract PDFs contain, so quotes match the PDF.
+      const clauses = buildVendorClauses(spec, vendorStyle(spec, VENDORS));
+
+      for (const { payment: p, text, summary, page } of clauses.payments) {
         const clause = await tx.clause.create({
-          data: { vendorId: vendor.id, kind: "payment", text, page: 1, summary },
+          data: { vendorId: vendor.id, kind: "payment", text, page, summary },
         });
         // Deposits due at signing are already paid in the demo story.
         const paid = p.anchor === "signing_date";
@@ -68,19 +70,11 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
         });
       }
 
-      const cancel = cancellationClause(cancellationRules);
       const cancelClause = await tx.clause.create({
-        data: {
-          vendorId: vendor.id,
-          kind: "cancellation",
-          text: spec.cancellationInAddendum ? `Addendum A. ${cancel.text}` : cancel.text,
-          page: spec.cancellationPage ?? 2,
-          summary: cancel.summary,
-        },
+        data: { vendorId: vendor.id, kind: "cancellation", ...clauses.cancellation },
       });
-      const change = dateChangeClause(dateChangeRules);
       const changeClause = await tx.clause.create({
-        data: { vendorId: vendor.id, kind: "date_change", text: change.text, page: 2, summary: change.summary },
+        data: { vendorId: vendor.id, kind: "date_change", ...clauses.dateChange },
       });
 
       await tx.terms.create({

@@ -13,7 +13,8 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
-    "db:reset": "prisma migrate reset --force"
+    "db:reset": "prisma migrate reset --force",
+    "make-contracts": "tsx scripts/make-contracts.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
@@ -21,13 +22,16 @@
     "@prisma/client": "^7.10.1",
     "dotenv": "^18.0.9",
     "next": "16.4.5",
+    "pdfkit": "^0.20.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "unpdf": "^2.1.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.5",
     "@types/node": "^24.19.2",
+    "@types/pdfkit": "^0.17.7",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10.14.0",
