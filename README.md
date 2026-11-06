@@ -55,6 +55,21 @@ nothing else.
   `refund_requested`, `refunded`, `void`, `overdue` (due before today), `due_soon` (due today through 14 days out) or
   `scheduled`. "Today" is passed in, which keeps it testable.
 
+### Contract terms math
+
+`lib/terms.ts` computes what a date change costs (`dateChangeCost`) and what a cancellation refunds (`refundOwed`).
+The model never does this arithmetic.
+
+- Terms are tiers: the rule with the largest `minNoticeDays` that is at or below the notice given applies. A date
+  change is measured from today to the **original** wedding date; a cancellation from the cancellation date to the
+  wedding. Notice below zero counts as zero.
+- Date-change fee = `feePercent` of the contract total + `flatFee`. Cancellation refund = `refundPercent` of the amount
+  **paid**, less `flatFee`, never below zero. Only payments with status `paid` count.
+- If the **vendor** cancels, everything paid is owed back with no fees. This is an assumption; a contract that says
+  otherwise needs its own rule.
+- If no tier applies, the cost or refund is 0 and the row says so, rather than implying the change is free.
+- Money is integer cents; percentages round half up (`lib/money.ts`).
+
 ### Checks
 
 ```bash
