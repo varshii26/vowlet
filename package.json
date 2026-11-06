@@ -21,6 +21,7 @@
     "@bryntum/core-community": "^8.0.0",
     "@bryntum/gantt-community": "^8.0.0",
     "@bryntum/gantt-react-community": "^8.0.0",
+    "@paypal/paypal-server-sdk": "^2.0.0",
     "@paypal/react-paypal-js": "^10.6.1",
     "@prisma/adapter-better-sqlite3": "^7.10.1",
     "@prisma/client": "^7.10.1",

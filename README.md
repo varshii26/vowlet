@@ -27,7 +27,6 @@ Copy `.env.example` to `.env.local`. Never commit `.env.local`.
 | Variable | Needed for | Default in `.env.example` |
 |---|---|---|
 | `DATABASE_URL` | database | `file:./dev.db` |
-| `PAYPAL_API_BASE` | PayPal sandbox calls | `https://api-m.sandbox.paypal.com` |
 | `ANTHROPIC_API_KEY` | contract extraction, agent | empty |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | payments | empty |
 | `PAYPAL_WEBHOOK_ID` | webhook verification | empty |
