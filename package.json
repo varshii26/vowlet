@@ -14,13 +14,14 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
-    "make-contracts": "tsx scripts/make-contracts.ts"
+    "make-contracts": "tsx scripts/make-contracts.ts",
+    "llm:bench": "tsx scripts/llm-bench.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.6.0",
     "@bryntum/core-community": "^8.0.0",
     "@bryntum/gantt-community": "^8.0.0",
     "@bryntum/gantt-react-community": "^8.0.0",
+    "@google/genai": "^3.0.0",
     "@paypal/paypal-server-sdk": "^2.0.0",
     "@paypal/react-paypal-js": "^10.6.1",
     "@prisma/adapter-better-sqlite3": "^7.10.1",

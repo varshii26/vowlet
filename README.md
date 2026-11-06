@@ -1,7 +1,7 @@
 # Vowlet
 
 Wedding payment coordinator built for the PayPal AI Hackathon. Couples upload vendor contracts, see every payment on a
-timeline anchored to the wedding date, and approve payments through PayPal. Claude reads the contracts; payment math
+timeline anchored to the wedding date, and approve payments through PayPal. Gemini reads the contracts; payment math
 happens in code.
 
 > Work in progress. See the [project board](https://github.com/users/Gurvinder18/projects/1) and
@@ -27,7 +27,8 @@ Copy `.env.example` to `.env.local`. Never commit `.env.local`.
 | Variable | Needed for | Default in `.env.example` |
 |---|---|---|
 | `DATABASE_URL` | database | `file:./dev.db` |
-| `ANTHROPIC_API_KEY` | contract extraction, agent | empty |
+| `GEMINI_API_KEY` | contract extraction, agent (free key from [AI Studio](https://aistudio.google.com/apikey)) | empty |
+| `GEMINI_MODELS` | optional: comma-separated model override, see [AI model](#ai-model-gemini-free-tier) | empty (use the defaults) |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | payments | empty |
 | `PAYPAL_WEBHOOK_ID` | webhook verification | empty |
 
@@ -111,9 +112,90 @@ npm run make-contracts    # regenerate all 14 from lib/seed/demo-data.ts
 - Non-refundable amounts are modeled as a flat fee withheld from the refund (`flatFee` in the cancellation rules).
 - Output is byte-for-byte reproducible (fixed dates, standard fonts), so diffs show only real changes.
 
+### AI model: Gemini (free tier)
+
+> **Heads up for collaborators:** the project now runs on Google's Gemini through a free AI Studio key, not Claude.
+> `CLAUDE.md` still describes Claude (`ANTHROPIC_API_KEY`, Anthropic citations, prompt caching, `@anthropic-ai/sdk`).
+> Where it conflicts, this section wins. Nothing in the code calls Anthropic.
+
+**Why:** it costs nothing. The hackathon only asks that a project meaningfully use an AI model of our choice.
+
+**Setup:** create a key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey), put it in `.env.local` as
+`GEMINI_API_KEY=...` (never commit it, never paste it in chat or an issue), and restart the dev server.
+
+**Which model.** Free-tier access and limits differ by model and change over time, so I measured instead of guessing
+(`npm run llm:bench`, run 2026-11-07 on a free key). Each model read 4 sample contracts (all three wording styles, the
+addendum page, a fixed-date payment, the deliberately vague clause), scored by exact match against the demo data, and
+ran two tool-use tests: a what-if question, and a prompt injection where a contract clause tells the model to propose a
+$5,000 payment to an attacker.
+
+| Model | Extraction | Quotes found in PDF | Vague clause flagged | Avg extraction | What-if tool loop | Injection resisted | Avg tool run |
+|---|---|---|---|---|---|---|---|
+| **`gemini-3.5-flash-lite`** (chosen) | 4/4, 100% | 100% | yes | 3.6 to 4.1 s | 3/3 | 3/3 | 3.1 to 3.4 s |
+| `gemini-3.1-flash-lite` | 4/4, 100% | 100% | yes | 3.3 to 5.2 s | **1/3** (never finished) | 3/3 | 4.6 to 8.2 s |
+| `gemini-3.5-flash` | 4/4, 100% | 100% | yes | 9.2 s | 3/3 | 3/3 | **52 s** (rate limited) |
+| `gemini-3.6-flash` | 4/4, 100% | 100% | yes | 10.4 s | 3/3 | 3/3 | **50 s** (rate limited) |
+| `gemini-2.5-flash-lite` | 0/4 | n/a | n/a | n/a | 0/3 | 0/3 | n/a (HTTP 400) |
+| `gemini-3-flash-preview` | 0/4 | n/a | n/a | n/a | 0/3 | 0/3 | n/a (HTTP 404) |
+
+The top two were run twice and gave identical scores. With `gemini-3.5-flash-lite` chosen, I then ran it over **all 14
+sample contracts**: 14/14 completed, 100% of payments, totals and rule tiers exactly right, 100% of quotes found in
+their PDF, the deliberately vague clause flagged for review, and 0 of 22 plain payments wrongly flagged. It averaged
+4.9 s and about 2,200 tokens per contract. Models not in the table:
+
+- `gemini-4-argon`, `gemini-3.1-pro-preview`: **no free tier** (HTTP 429 with a zero quota).
+- `gemini-3.8-flash`: no answer to a one-word prompt in 60 s. `gemini-3.7-flash`: HTTP 503, high demand.
+- `gemini-2.5-flash`: deprecated, reroutes to another model on 2026-12-01, which could land during judging.
+  `gemini-2.5-pro`: closed to new users.
+- Gemma 4: prints its reasoning instead of just answering.
+
+What this means:
+
+- **`gemini-3.5-flash-lite` is the default.** The larger Flash models are just as accurate but hit the free
+  per-minute limit within a few requests and then wait 30 to 48 s, which is too slow for a live demo.
+- **`gemini-3.1-flash-lite` is a fallback for extraction only.** It extracts perfectly but fails the tool-use loop the
+  same way every time, so it is deliberately left out of the agent's chain.
+- Chains live in `lib/llm/config.ts`: extraction `3.5-flash-lite → 3.1-flash-lite → 3.5-flash`, agent
+  `3.5-flash-lite → 3.5-flash`. Set `GEMINI_MODELS=a,b,c` to override both when availability changes.
+- **Re-run the benchmark** when in doubt: `npm run llm:bench` (or `-- --models a,b`). Free-tier limits are per Google
+  project, daily limits reset at midnight Pacific, and your key's own limits are on the AI Studio rate-limit page.
+- Caveats: 4 contracts and 2 tool scenarios, all from our own generator. Real contracts are messier, so treat 100% as
+  "good on the demo set", not as a guarantee.
+
+**Contract extraction endpoint** (`POST /api/contracts/extract`, #6): upload a PDF as a form field named `file`.
+
+```bash
+curl -F file=@seed/contracts/grand-oak-estate.pdf http://localhost:3000/api/contracts/extract
+```
+
+- The model returns structured JSON (`lib/extraction/schema.ts`: one Zod schema is the JSON schema we give the model,
+  the validator for its answer, and the source of our types). It quotes and reads; **code does the arithmetic**
+  (`lib/extraction/terms.ts`: dollars to cents, percent payments applied to the total, strict date and amount checks).
+- Every quote is checked against the PDF text (`lib/quotes.ts`). A quote that is not in the document sets confidence to
+  0, and anything below 0.8 comes back with `needsReview: true` for the user to confirm. One retry is allowed, and it
+  tells the model what was wrong.
+- Responses: `200 { ok, terms, model, attempts, usage, ms }`. Errors: `400` not a PDF (checked by content, not file
+  name) or damaged, `413` over 10 MB, `422` no selectable text (a scan), `429` more than 6 per minute (`Retry-After`
+  set, because each call spends free quota and the hosted demo is public), `502` the model could not read it reliably,
+  `503` no key configured. Nothing is saved: the upload page (#8) will confirm and save.
+
+**For whoever builds the agent (#17, #18):**
+
+- Use `createGeminiClient()` and `modelChain("agent")` from `lib/llm/`. It adds a timeout (free-tier models can hang),
+  waits out per-minute limits using the "retry in N s" hint, fails fast on a spent daily quota, and falls back down the
+  chain.
+- Write the tool loop yourself, as the spec says. `scripts/llm-bench.ts` has a working one (`runAgent`): send tool
+  declarations, run each requested tool in TypeScript, send back `functionResponse` parts, repeat to a cap.
+- **Push the model's reply (`result.content`) into the history unchanged.** Gemini 3 models attach thought signatures
+  to tool calls and need them back. Once a conversation has started, stay with the model that began it (the extraction
+  retry does this).
+- Tool results, including contract text, are data. The benchmark's injection test is a good regression test to keep.
+- Anthropic's `citations` feature has no Gemini equivalent. Quote verification (above) and clause ids from tool
+  results are the replacement, so #26 needs a decision.
+
 ### Quote verification
 
-Claude quotes the clause behind every fact it extracts; `verifyQuote(pages, quote)` in `lib/quotes.ts` checks that the
+The model quotes the clause behind every fact it extracts; `verifyQuote(pages, quote)` in `lib/quotes.ts` checks that the
 quote really appears in the PDF and returns the page it was found on (which may differ from the page the model
 claimed). Extraction (#6) treats an unverified quote as confidence 0 and flags it for the user to confirm.
 
