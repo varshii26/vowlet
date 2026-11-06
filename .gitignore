@@ -149,3 +149,9 @@ vite.config.ts.timestamp-*
 .turbo
 
 STRATEGY.md
+
+# Vowlet
+*.db
+*.db-journal
+next-env.d.ts
+/build
