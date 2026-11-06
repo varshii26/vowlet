@@ -42,8 +42,18 @@ PayPal is sandbox only. No real money moves.
 | `npm run db:seed` | wipe the database and reload the demo data |
 | `npm run db:reset` | **destructive:** drop the database and re-apply migrations. The demo reloads on the next app start (or run `db:seed`). Development databases only. |
 
-The demo data lives in `lib/seed/demo-data.ts`. Due dates are never stored: each payment keeps an anchor and an offset,
-so moving the wedding date moves every payment.
+The demo data lives in `lib/seed/demo-data.ts`.
+
+### Due dates
+
+Due dates are never stored. Each payment keeps an anchor (`wedding_date`, `signing_date` or `fixed`) and an offset in
+days, and `lib/schedule.ts` computes the date, so moving the wedding date moves every wedding-anchored payment and
+nothing else.
+
+- All dates are UTC calendar days, so time zones and daylight saving can't shift a result.
+- `getDisplayStatus()` turns a payment's stored status plus its due date into what the UI shows: `paid`,
+  `refund_requested`, `refunded`, `void`, `overdue` (due before today), `due_soon` (due today through 14 days out) or
+  `scheduled`. "Today" is passed in, which keeps it testable.
 
 ### Checks
 
