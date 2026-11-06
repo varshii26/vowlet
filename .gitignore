@@ -155,3 +155,6 @@ STRATEGY.md
 *.db-journal
 next-env.d.ts
 /build
+
+# Prisma generated client
+/generated/prisma
