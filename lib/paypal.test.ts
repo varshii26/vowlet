@@ -1,53 +1,70 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPayPalClient, PayPalError, TOKEN_REFRESH_MARGIN_MS } from "@/lib/paypal";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createPayPalClient, PayPalError, TOKEN_REFRESH_MARGIN_S } from "@/lib/paypal";
 
 const API = "https://api-m.sandbox.paypal.com";
 
-type Call = { url: string; init: RequestInit };
+type Call = { url: string; method: string; headers: Record<string, string>; data: string | undefined };
 type Reply = { status?: number; body?: unknown; headers?: Record<string, string> };
 
-/** Fake fetch: token requests get a token; other requests are answered from `routes` in order. */
+/**
+ * Fake HTTP layer injected into the SDK's axios client: the SDK's real token caching,
+ * request building and response mapping all run; only the network is replaced.
+ * Token requests get a fresh token; other requests are answered from `routes` in order.
+ */
 function setup(routes: Reply[] = [], opts: { expiresIn?: number; webhookId?: string } = {}) {
   const calls: Call[] = [];
-  let clock = 1_000_000;
   let tokenCount = 0;
   const queue = [...routes];
-  const fetchMock = vi.fn(async (url: string | URL | Request, init: RequestInit = {}) => {
-    calls.push({ url: String(url), init });
-    if (String(url).endsWith("/v1/oauth2/token")) {
+  const adapter = async (config: {
+    url?: string;
+    method?: string;
+    data?: unknown;
+    headers?: { toJSON?: () => Record<string, unknown> } & Record<string, unknown>;
+  }) => {
+    const raw = config.headers?.toJSON ? config.headers.toJSON() : (config.headers ?? {});
+    const headers = Object.fromEntries(Object.entries(raw).map(([k, v]) => [k.toLowerCase(), String(v)]));
+    const call: Call = {
+      url: String(config.url),
+      method: String(config.method).toUpperCase(),
+      headers,
+      data: typeof config.data === "string" ? config.data : undefined,
+    };
+    calls.push(call);
+    if (call.url.endsWith("/v1/oauth2/token")) {
       tokenCount++;
-      return json({ access_token: `tok-${tokenCount}`, token_type: "Bearer", expires_in: opts.expiresIn ?? 32400 });
+      return response(config, {
+        body: { access_token: `tok-${tokenCount}`, token_type: "Bearer", expires_in: opts.expiresIn ?? 32400 },
+      });
     }
     const reply = queue.shift();
-    if (!reply) throw new Error(`Unexpected request to ${url}`);
-    return json(reply.body ?? null, reply.status ?? 200, reply.headers);
-  });
+    if (!reply) throw new Error(`Unexpected request to ${call.url}`);
+    return response(config, reply);
+  };
   const client = createPayPalClient({
     clientId: "cid",
     clientSecret: "secret",
-    apiBase: API,
     webhookId: opts.webhookId,
-    fetch: fetchMock as unknown as typeof fetch,
-    now: () => clock,
+    httpClientOverrides: { adapter },
   });
   return {
     client,
     calls,
     apiCalls: () => calls.filter((c) => !c.url.endsWith("/v1/oauth2/token")),
     tokenCalls: () => calls.filter((c) => c.url.endsWith("/v1/oauth2/token")),
-    advance: (ms: number) => (clock += ms),
   };
 }
 
-function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
-  return new Response(body === null ? "" : JSON.stringify(body), {
-    status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
+function response(config: unknown, reply: Reply) {
+  return {
+    data: reply.body === undefined ? "" : JSON.stringify(reply.body),
+    status: reply.status ?? 200,
+    statusText: "",
+    headers: { "content-type": "application/json", ...reply.headers },
+    config,
+  };
 }
 
-const header = (c: Call, name: string) => (c.init.headers as Record<string, string>)[name];
-const bodyOf = (c: Call) => JSON.parse(String(c.init.body));
+const bodyOf = (c: Call) => JSON.parse(String(c.data));
 
 const orderReply = {
   body: {
@@ -75,65 +92,64 @@ const captureReply = {
 const payment = { id: "pay_1", label: "Deposit", amount: 150_050 };
 const vendor = { name: "Bloom & Vine", paypalEmail: "florist@example.com" };
 
-describe("OAuth token cache", () => {
-  it("requests a token with client credentials and Basic auth", async () => {
-    const t = setup();
-    expect(await t.client.getAccessToken()).toBe("tok-1");
-    const [call] = t.tokenCalls();
-    expect(call.url).toBe(`${API}/v1/oauth2/token`);
-    expect(call.init.method).toBe("POST");
-    expect(call.init.body).toBe("grant_type=client_credentials");
-    expect(header(call, "Authorization")).toBe(`Basic ${Buffer.from("cid:secret").toString("base64")}`);
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe("OAuth token (managed by the SDK)", () => {
+  it("requests a client-credentials token with Basic auth and sends it as Bearer", async () => {
+    const t = setup([orderReply]);
+    await t.client.createOrder(payment, vendor);
+    const [tokenCall] = t.tokenCalls();
+    expect(tokenCall.url).toBe(`${API}/v1/oauth2/token`);
+    expect(tokenCall.method).toBe("POST");
+    expect(tokenCall.data).toContain("grant_type=client_credentials");
+    expect(tokenCall.headers.authorization).toBe(`Basic ${Buffer.from("cid:secret").toString("base64")}`);
+    expect(t.apiCalls()[0].headers.authorization).toBe("Bearer tok-1");
   });
 
   it("reuses the token across calls until near expiry, then refreshes", async () => {
-    const t = setup([orderReply, orderReply, orderReply], { expiresIn: 3600 });
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2027-01-01T00:00:00Z"));
+    const t = setup([orderReply, orderReply, orderReply, orderReply], { expiresIn: 3600 });
+
     await t.client.createOrder(payment, vendor);
     await t.client.createOrder(payment, vendor);
     expect(t.tokenCalls()).toHaveLength(1);
-    expect(t.apiCalls().map((c) => header(c, "Authorization"))).toEqual(["Bearer tok-1", "Bearer tok-1"]);
 
-    // Still valid just outside the refresh margin.
-    t.advance(3600_000 - TOKEN_REFRESH_MARGIN_MS - 1);
-    expect(await t.client.getAccessToken()).toBe("tok-1");
+    // Still outside the refresh margin: reused.
+    vi.setSystemTime(new Date(Date.now() + (3600 - TOKEN_REFRESH_MARGIN_S - 60) * 1000));
+    await t.client.createOrder(payment, vendor);
+    expect(t.tokenCalls()).toHaveLength(1);
 
-    // Inside the margin: refresh before PayPal would reject it.
-    t.advance(1);
+    // Past the refresh margin: refreshed before PayPal would reject it.
+    vi.setSystemTime(new Date(Date.now() + 120 * 1000));
     await t.client.createOrder(payment, vendor);
     expect(t.tokenCalls()).toHaveLength(2);
-    expect(header(t.apiCalls()[2], "Authorization")).toBe("Bearer tok-2");
+    expect(t.apiCalls().map((c) => c.headers.authorization)).toEqual([
+      "Bearer tok-1",
+      "Bearer tok-1",
+      "Bearer tok-1",
+      "Bearer tok-2",
+    ]);
   });
 
-  it("shares one token request between concurrent callers", async () => {
-    const t = setup();
-    const tokens = await Promise.all([t.client.getAccessToken(), t.client.getAccessToken(), t.client.getAccessToken()]);
-    expect(tokens).toEqual(["tok-1", "tok-1", "tok-1"]);
+  it("shares one token request between concurrent calls", async () => {
+    const t = setup([orderReply, orderReply, orderReply]);
+    await Promise.all([
+      t.client.createOrder(payment, vendor),
+      t.client.createOrder(payment, vendor),
+      t.client.createOrder(payment, vendor),
+    ]);
     expect(t.tokenCalls()).toHaveLength(1);
   });
 
-  it("drops the cached token and retries once on 401", async () => {
-    const t = setup([{ status: 401, body: { error: "invalid_token" } }, orderReply]);
-    const order = await t.client.createOrder(payment, vendor);
-    expect(order.orderId).toBe("ORDER-1");
-    expect(t.tokenCalls()).toHaveLength(2);
-    expect(t.apiCalls().map((c) => header(c, "Authorization"))).toEqual(["Bearer tok-1", "Bearer tok-2"]);
-  });
-
-  it("does not cache a malformed token response", async () => {
-    const calls: string[] = [];
-    let n = 0;
-    const client = createPayPalClient({
-      clientId: "cid",
-      clientSecret: "secret",
-      apiBase: API,
-      fetch: (async (url: string) => {
-        calls.push(url);
-        n++;
-        return json(n === 1 ? { token_type: "Bearer" } : { access_token: "good", token_type: "Bearer", expires_in: 100 });
-      }) as unknown as typeof fetch,
-    });
-    await expect(client.getAccessToken()).rejects.toThrow(PayPalError);
-    expect(await client.getAccessToken()).toBe("good");
+  it("uses the same cached token for webhook verification", async () => {
+    const t = setup([orderReply, { body: { verification_status: "SUCCESS" } }], { webhookId: "WHID" });
+    await t.client.createOrder(payment, vendor);
+    await t.client.verifyWebhookSignature(webhookHeaders(), webhookBody);
+    expect(t.tokenCalls()).toHaveLength(1);
+    expect(t.apiCalls()[1].headers.authorization).toBe("Bearer tok-1");
   });
 });
 
@@ -167,7 +183,7 @@ describe("createOrder", () => {
 
   it("rejects a response without an order id", async () => {
     const t = setup([{ body: { status: "CREATED" } }]);
-    await expect(t.client.createOrder(payment, vendor)).rejects.toThrow(/Unexpected PayPal create order response/);
+    await expect(t.client.createOrder(payment, vendor)).rejects.toThrow(PayPalError);
   });
 
   it("surfaces PayPal error details and debug id", async () => {
@@ -178,6 +194,7 @@ describe("createOrder", () => {
         body: {
           name: "UNPROCESSABLE_ENTITY",
           message: "The requested action could not be performed.",
+          debug_id: "dbg123",
           details: [{ issue: "PAYEE_ACCOUNT_INVALID", description: "Payee account is invalid." }],
         },
       },
@@ -192,8 +209,7 @@ describe("createOrder", () => {
 describe("captureOrder", () => {
   it("captures with an idempotency key and returns the capture id and cents", async () => {
     const t = setup([captureReply]);
-    const result = await t.client.captureOrder("ORDER-1");
-    expect(result).toEqual({
+    expect(await t.client.captureOrder("ORDER-1")).toEqual({
       orderId: "ORDER-1",
       status: "COMPLETED",
       captureId: "CAP-1",
@@ -202,7 +218,7 @@ describe("captureOrder", () => {
     });
     const [call] = t.apiCalls();
     expect(call.url).toBe(`${API}/v2/checkout/orders/ORDER-1/capture`);
-    expect(header(call, "PayPal-Request-Id")).toBe("capture-ORDER-1");
+    expect(call.headers["paypal-request-id"]).toBe("capture-ORDER-1");
   });
 
   it("rejects a response with no captures", async () => {
@@ -225,6 +241,7 @@ describe("refundCapture", () => {
     const [call] = t.apiCalls();
     expect(call.url).toBe(`${API}/v2/payments/captures/CAP-1/refund`);
     expect(bodyOf(call)).toEqual({ amount: { currency_code: "USD", value: "250.00" } });
+    expect(call.headers["paypal-request-id"]).toBe("refund-CAP-1-25000");
   });
 
   it("sends an empty body for a full refund", async () => {
@@ -232,25 +249,32 @@ describe("refundCapture", () => {
     expect(await t.client.refundCapture("CAP-1")).toEqual({ refundId: "REF-2", status: "COMPLETED", amount: null });
     expect(bodyOf(t.apiCalls()[0])).toEqual({});
   });
+
+  it("rejects an invalid amount without calling PayPal", async () => {
+    const t = setup();
+    await expect(t.client.refundCapture("CAP-1", -5)).rejects.toThrow(PayPalError);
+    expect(t.calls).toHaveLength(0);
+  });
 });
 
-describe("verifyWebhookSignature", () => {
-  const rawBody = '{"id":"WH-1","event_type":"PAYMENT.CAPTURE.COMPLETED","resource":{"id":"CAP-1","amount":{"value":"1500.50"}}}';
-  const headers = () =>
-    new Headers({
-      "paypal-auth-algo": "SHA256withRSA",
-      "paypal-cert-url": "https://api.sandbox.paypal.com/cert.pem",
-      "paypal-transmission-id": "tx-1",
-      "paypal-transmission-sig": "sig",
-      "paypal-transmission-time": "2027-01-01T00:00:00Z",
-    });
+const webhookBody =
+  '{"id":"WH-1","event_type":"PAYMENT.CAPTURE.COMPLETED","resource":{"id":"CAP-1","amount":{"value":"1500.50"}}}';
+const webhookHeaders = () =>
+  new Headers({
+    "paypal-auth-algo": "SHA256withRSA",
+    "paypal-cert-url": "https://api.sandbox.paypal.com/cert.pem",
+    "paypal-transmission-id": "tx-1",
+    "paypal-transmission-sig": "sig",
+    "paypal-transmission-time": "2027-01-01T00:00:00Z",
+  });
 
+describe("verifyWebhookSignature", () => {
   it("posts the headers, webhook id and the raw event body unchanged", async () => {
     const t = setup([{ body: { verification_status: "SUCCESS" } }], { webhookId: "WHID" });
-    expect(await t.client.verifyWebhookSignature(headers(), rawBody)).toBe(true);
+    expect(await t.client.verifyWebhookSignature(webhookHeaders(), webhookBody)).toBe(true);
     const [call] = t.apiCalls();
     expect(call.url).toBe(`${API}/v1/notifications/verify-webhook-signature`);
-    expect(String(call.init.body).endsWith(`"webhook_event":${rawBody}}`)).toBe(true);
+    expect(String(call.data).endsWith(`"webhook_event":${webhookBody}}`)).toBe(true);
     expect(bodyOf(call)).toMatchObject({
       auth_algo: "SHA256withRSA",
       cert_url: "https://api.sandbox.paypal.com/cert.pem",
@@ -258,31 +282,41 @@ describe("verifyWebhookSignature", () => {
       transmission_sig: "sig",
       transmission_time: "2027-01-01T00:00:00Z",
       webhook_id: "WHID",
-      webhook_event: JSON.parse(rawBody),
+      webhook_event: JSON.parse(webhookBody),
     });
   });
 
   it("returns false on a FAILURE verdict", async () => {
     const t = setup([{ body: { verification_status: "FAILURE" } }], { webhookId: "WHID" });
-    expect(await t.client.verifyWebhookSignature(headers(), rawBody)).toBe(false);
+    expect(await t.client.verifyWebhookSignature(webhookHeaders(), webhookBody)).toBe(false);
   });
 
   it("returns false without calling PayPal when headers are missing or the body is not JSON", async () => {
     const t = setup([], { webhookId: "WHID" });
-    const partial = headers();
+    const partial = webhookHeaders();
     partial.delete("paypal-transmission-sig");
-    expect(await t.client.verifyWebhookSignature(partial, rawBody)).toBe(false);
-    expect(await t.client.verifyWebhookSignature(headers(), "not json")).toBe(false);
+    expect(await t.client.verifyWebhookSignature(partial, webhookBody)).toBe(false);
+    expect(await t.client.verifyWebhookSignature(webhookHeaders(), "not json")).toBe(false);
     expect(t.calls).toHaveLength(0);
   });
 
   it("throws when PAYPAL_WEBHOOK_ID is not configured", async () => {
     const t = setup();
-    await expect(t.client.verifyWebhookSignature(headers(), rawBody)).rejects.toThrow(/PAYPAL_WEBHOOK_ID/);
+    await expect(t.client.verifyWebhookSignature(webhookHeaders(), webhookBody)).rejects.toThrow(/PAYPAL_WEBHOOK_ID/);
   });
 
   it("rejects an unexpected verification response", async () => {
     const t = setup([{ body: { verification_status: "MAYBE" } }], { webhookId: "WHID" });
-    await expect(t.client.verifyWebhookSignature(headers(), rawBody)).rejects.toThrow(PayPalError);
+    await expect(t.client.verifyWebhookSignature(webhookHeaders(), webhookBody)).rejects.toThrow(PayPalError);
+  });
+
+  it("maps an HTTP error from the verify endpoint to PayPalError", async () => {
+    const t = setup([{ status: 400, body: { name: "VALIDATION_ERROR", message: "Invalid request" } }], {
+      webhookId: "WHID",
+    });
+    await expect(t.client.verifyWebhookSignature(webhookHeaders(), webhookBody)).rejects.toMatchObject({
+      status: 400,
+      issue: "VALIDATION_ERROR",
+    });
   });
 });

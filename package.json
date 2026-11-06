@@ -19,6 +19,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^1.6.0",
     "@bryntum/gantt-react-community": "^8.0.0",
+    "@paypal/paypal-server-sdk": "^2.0.0",
     "@prisma/adapter-better-sqlite3": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "dotenv": "^18.0.9",

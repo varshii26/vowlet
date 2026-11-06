@@ -41,9 +41,13 @@ Demo persona: **Priya & Sam**, wedding on 2027-04-17, 14 vendors, ~$31,000, ~23 
   `document` content blocks. Features used: structured outputs (extraction), native tool use (agent loop),
   citations (agent answers), prompt caching (contracts), streaming (agent progress in the UI).
 - **PayPal Agent Toolkit: optional.** Only for read-only PayPal tools in the agent (e.g. order status), and only if it
-  plugs into the Anthropic SDK cleanly in under ~2 hours. Otherwise call the REST API from our own tool functions.
-- **PayPal REST APIs, sandbox only**: Orders v2, Payments (capture, refund), Webhooks. PayPal JS SDK for the approve button.
-  Use the **APIMatic Context Plugin** in Claude Code when writing PayPal code.
+  plugs into the Anthropic SDK cleanly in under ~2 hours. Otherwise use `lib/paypal.ts` from our own tool functions.
+- **PayPal Server SDK (`@paypal/paypal-server-sdk`), sandbox only**: Orders v2, Payments (capture, refund), via the SDK's
+  `OrdersController` / `PaymentsController`. Don't hand-roll `fetch` calls to PayPal endpoints the SDK covers. For endpoints
+  it doesn't cover (webhook signature verification), use the SDK client's request builder
+  (`client.getRequestBuilderFactory()`) so the call shares the SDK's base URL and cached token. PayPal JS SDK for the approve button.
+  Use the **APIMatic Context Plugin** (context-matic MCP: `fetch_api` → `ask` / `endpoint_search` / `model_search`) in
+  Claude Code when writing PayPal code.
 - **SQLite + Prisma**. Seed demo data on startup if the DB is empty, so restarts and redeploys never break the demo.
 - **Render** for hosting (free tier sleeps when idle; mention the cold start in the README).
 
@@ -54,7 +58,6 @@ ANTHROPIC_API_KEY=
 PAYPAL_CLIENT_ID=
 PAYPAL_CLIENT_SECRET=
 PAYPAL_WEBHOOK_ID=
-PAYPAL_API_BASE=https://api-m.sandbox.paypal.com
 NEXT_PUBLIC_PAYPAL_CLIENT_ID=
 DATABASE_URL=file:./dev.db
 ```
@@ -95,7 +98,7 @@ app/
 components/                Gantt wrapper, PayButton, ClauseViewer, WhatIfPanel, CancelModal,
                            AgentPanel (chat + live step list), ProposalCard
 lib/
-  paypal.ts                OAuth token (fetch + cache until expiry; never hardcode tokens), orders, capture, refund, webhook verify
+  paypal.ts                PayPal Server SDK wrapper: orders, capture, refund, webhook verify (SDK manages the OAuth token)
   claude.ts                extraction call (structured outputs) + shared client
   agent/loop.ts            the tool-use loop (see "Agent" below)
   agent/tools.ts           tool JSON schemas + implementations (thin wrappers over lib/*)
@@ -112,7 +115,8 @@ scripts/make-contracts.ts  generates the sample PDFs
 
 ## PayPal details
 
-- Get an OAuth token from client id/secret on the server; cache it and refresh before expiry.
+- Use `paypal()` from `lib/paypal.ts` (one SDK `Client`, `Environment.Sandbox`). The SDK fetches the client-credentials
+  token, caches it and refreshes it 5 minutes before expiry; never hardcode tokens. Zod-validate SDK results anyway.
 - Create the order with `intent: CAPTURE` and `purchase_units[0].payee.email_address = vendor.paypalEmail`.
 - The couple approves in the PayPal popup (this is the human-approval step), then the server captures.
 - Webhook `PAYMENT.CAPTURE.COMPLETED` marks the payment `paid`; verify the signature using `PAYPAL_WEBHOOK_ID`.

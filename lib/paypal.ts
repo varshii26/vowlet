@@ -1,13 +1,25 @@
 /**
- * Server-only PayPal REST client (sandbox). Orders v2, capture, refund, webhook verification.
+ * Server-only PayPal client (sandbox), built on the official `@paypal/paypal-server-sdk`.
  *
- * - OAuth client-credentials token is cached and reused until shortly before it expires.
- * - Every PayPal response is validated with Zod before we trust it.
- * - Money goes in and out as integer cents; PayPal's decimal strings are converted at the edge.
+ * - Orders, capture and refund go through the SDK's OrdersController / PaymentsController.
+ * - The SDK owns the OAuth client-credentials token: one cached token per client, refreshed
+ *   TOKEN_REFRESH_MARGIN_S before expiry. We only add de-duplication of concurrent token requests.
+ * - Webhook signature verification isn't in the SDK, so it goes through the SDK's own request
+ *   builder: same base URL, same cached token.
+ * - Every SDK result is validated with Zod before we trust it. Money crosses the boundary as integer cents.
  *
  * Nothing here is exposed to the agent: paying only happens after the couple approves in the
  * PayPal popup, and the capture route calls `captureOrder` afterwards.
  */
+import {
+  ApiError,
+  CheckoutPaymentIntent,
+  Client,
+  Environment,
+  type OAuthToken,
+  OrdersController,
+  PaymentsController,
+} from "@paypal/paypal-server-sdk";
 import { z } from "zod";
 import { centsToDecimalString, decimalStringToCents } from "@/lib/money";
 
@@ -15,61 +27,44 @@ if (typeof window !== "undefined") {
   throw new Error("lib/paypal.ts is server-only; never import it from client components.");
 }
 
-/** Refresh the token this long before PayPal says it expires. */
-export const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
+/** The SDK refreshes the token this many seconds before PayPal says it expires. */
+export const TOKEN_REFRESH_MARGIN_S = 5 * 60;
 const CURRENCY = "USD";
 
 // ---------------------------------------------------------------------------
-// Response schemas (only the fields we use; PayPal sends many more)
+// Result schemas (only the fields we use; the SDK maps PayPal's JSON to camelCase)
 // ---------------------------------------------------------------------------
 
-const tokenResponseSchema = z.object({
-  access_token: z.string().min(1),
-  token_type: z.string(),
-  expires_in: z.number().int().positive(), // seconds
-});
+const moneySchema = z.object({ currencyCode: z.string(), value: z.string() });
 
-const moneySchema = z.object({
-  currency_code: z.string(),
-  value: z.string(),
-});
-
-const linkSchema = z.object({ href: z.string(), rel: z.string(), method: z.string().optional() });
-
-const orderResponseSchema = z.object({
+const createdOrderSchema = z.object({
   id: z.string().min(1),
   status: z.string(),
-  links: z.array(linkSchema).optional(),
+  links: z.array(z.object({ href: z.string(), rel: z.string() })).optional(),
 });
 
-const captureSchema = z.object({
+const capturedOrderSchema = z.object({
   id: z.string().min(1),
   status: z.string(),
-  amount: moneySchema.optional(),
-});
-
-const captureResponseSchema = z.object({
-  id: z.string().min(1),
-  status: z.string(),
-  purchase_units: z
+  purchaseUnits: z
     .array(
       z.object({
-        reference_id: z.string().optional(),
-        payments: z.object({ captures: z.array(captureSchema).min(1) }),
+        payments: z.object({
+          captures: z.array(z.object({ id: z.string().min(1), status: z.string(), amount: moneySchema.optional() })).min(1),
+        }),
       }),
     )
     .min(1),
 });
 
-const refundResponseSchema = z.object({
+const refundSchema = z.object({
   id: z.string().min(1),
   status: z.string(),
   amount: moneySchema.optional(),
 });
 
-const verifyResponseSchema = z.object({
-  verification_status: z.enum(["SUCCESS", "FAILURE"]),
-});
+// Not an SDK model: raw JSON from /v1/notifications/verify-webhook-signature.
+const verifyResponseSchema = z.object({ verification_status: z.enum(["SUCCESS", "FAILURE"]) });
 
 const errorBodySchema = z
   .object({
@@ -77,6 +72,7 @@ const errorBodySchema = z
     message: z.string().optional(),
     error: z.string().optional(),
     error_description: z.string().optional(),
+    debug_id: z.string().optional(),
     details: z.array(z.object({ issue: z.string().optional(), description: z.string().optional() })).optional(),
   })
   .passthrough();
@@ -88,12 +84,10 @@ const errorBodySchema = z
 export type PayPalConfig = {
   clientId: string;
   clientSecret: string;
-  apiBase: string;
+  environment?: Environment;
   webhookId?: string;
-  /** Injected for tests; defaults to global fetch. */
-  fetch?: typeof fetch;
-  /** Injected for tests; defaults to Date.now. */
-  now?: () => number;
+  /** Passed to the SDK's HTTP client (axios config). Tests inject an `adapter` here. */
+  httpClientOverrides?: Record<string, unknown>;
 };
 
 /** The fields of a Payment / Vendor row that createOrder needs. */
@@ -130,68 +124,27 @@ export class PayPalError extends Error {
 // ---------------------------------------------------------------------------
 
 export function createPayPalClient(config: PayPalConfig) {
-  const doFetch = config.fetch ?? fetch;
-  const now = config.now ?? Date.now;
-  const apiBase = config.apiBase.replace(/\/+$/, "");
-
-  let cached: { token: string; expiresAt: number } | null = null;
-  let inFlight: Promise<string> | null = null;
-
-  async function fetchToken(): Promise<string> {
-    const basic = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString("base64");
-    const res = await doFetch(`${apiBase}/v1/oauth2/token`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${basic}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
+  // The SDK caches the token but lets concurrent calls each fetch one when none is cached;
+  // share a single in-flight token request instead.
+  let tokenInFlight: Promise<OAuthToken> | null = null;
+  const client = new Client({
+    environment: config.environment ?? Environment.Sandbox,
+    timeout: 30_000,
+    clientCredentialsAuthCredentials: {
+      oAuthClientId: config.clientId,
+      oAuthClientSecret: config.clientSecret,
+      oAuthClockSkew: TOKEN_REFRESH_MARGIN_S,
+      oAuthTokenProvider: (last, manager) => {
+        tokenInFlight ??= manager.updateToken(last).finally(() => {
+          tokenInFlight = null;
+        });
+        return tokenInFlight;
       },
-      body: "grant_type=client_credentials",
-      cache: "no-store",
-    });
-    const body = await readJson(res);
-    if (!res.ok) throw toPayPalError(res, body, "OAuth token request failed");
-    const parsed = parse(tokenResponseSchema, body, "OAuth token");
-    cached = { token: parsed.access_token, expiresAt: now() + parsed.expires_in * 1000 };
-    return parsed.access_token;
-  }
-
-  /** Cached token, refreshed when within TOKEN_REFRESH_MARGIN_MS of expiry. Concurrent callers share one request. */
-  async function getAccessToken(): Promise<string> {
-    if (cached && now() < cached.expiresAt - TOKEN_REFRESH_MARGIN_MS) return cached.token;
-    if (!inFlight) {
-      inFlight = fetchToken().finally(() => {
-        inFlight = null;
-      });
-    }
-    return inFlight;
-  }
-
-  /** Authenticated JSON call. Retries once with a fresh token if PayPal rejects the cached one. */
-  async function api(
-    method: "GET" | "POST",
-    path: string,
-    options: { body?: string; requestId?: string } = {},
-  ): Promise<unknown> {
-    for (let attempt = 0; ; attempt++) {
-      const token = await getAccessToken();
-      const headers: Record<string, string> = {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Prefer: "return=representation",
-      };
-      if (options.requestId) headers["PayPal-Request-Id"] = options.requestId;
-      const res = await doFetch(`${apiBase}${path}`, { method, headers, body: options.body, cache: "no-store" });
-      const body = await readJson(res);
-      if (res.status === 401 && attempt === 0) {
-        cached = null;
-        continue;
-      }
-      if (!res.ok) throw toPayPalError(res, body, `PayPal ${method} ${path} failed`);
-      return body;
-    }
-  }
+    },
+    unstable_httpClientOptions: config.httpClientOverrides,
+  });
+  const orders = new OrdersController(client);
+  const payments = new PaymentsController(client);
 
   /**
    * Create a CAPTURE order paying the vendor directly (vendor is the payee).
@@ -201,31 +154,35 @@ export function createPayPalClient(config: PayPalConfig) {
     if (!Number.isSafeInteger(payment.amount) || payment.amount <= 0) {
       throw new PayPalError(`Payment ${payment.id} has invalid amount ${payment.amount}`, null);
     }
-    const body = {
-      intent: "CAPTURE",
-      purchase_units: [
-        {
-          reference_id: payment.id,
-          custom_id: payment.id,
-          description: `${vendor.name}: ${payment.label}`.slice(0, 127),
-          amount: { currency_code: CURRENCY, value: centsToDecimalString(payment.amount) },
-          payee: { email_address: vendor.paypalEmail },
+    const { result } = await call(() =>
+      orders.createOrder({
+        body: {
+          intent: CheckoutPaymentIntent.Capture,
+          purchaseUnits: [
+            {
+              referenceId: payment.id,
+              customId: payment.id,
+              description: `${vendor.name}: ${payment.label}`.slice(0, 127),
+              amount: { currencyCode: CURRENCY, value: centsToDecimalString(payment.amount) },
+              payee: { emailAddress: vendor.paypalEmail },
+            },
+          ],
         },
-      ],
-    };
-    const raw = await api("POST", "/v2/checkout/orders", { body: JSON.stringify(body) });
-    const order = parse(orderResponseSchema, raw, "create order");
+        prefer: "return=representation",
+      }),
+    );
+    const order = parse(createdOrderSchema, result, "create order");
     const approve = order.links?.find((l) => l.rel === "approve" || l.rel === "payer-action");
     return { orderId: order.id, status: order.status, approveUrl: approve?.href ?? null };
   }
 
   /** Capture an order the couple has approved in the PayPal popup. Idempotent per order id. */
   async function captureOrder(orderId: string): Promise<CapturedOrder> {
-    const raw = await api("POST", `/v2/checkout/orders/${encodeURIComponent(orderId)}/capture`, {
-      requestId: `capture-${orderId}`,
-    });
-    const order = parse(captureResponseSchema, raw, "capture order");
-    const capture = order.purchase_units[0].payments.captures[0];
+    const { result } = await call(() =>
+      orders.captureOrder({ id: orderId, paypalRequestId: `capture-${orderId}`, prefer: "return=representation" }),
+    );
+    const order = parse(capturedOrderSchema, result, "capture order");
+    const capture = order.purchaseUnits[0].payments.captures[0];
     return {
       orderId: order.id,
       status: order.status,
@@ -243,19 +200,22 @@ export function createPayPalClient(config: PayPalConfig) {
     if (amount !== undefined && (!Number.isSafeInteger(amount) || amount <= 0)) {
       throw new PayPalError(`Invalid refund amount ${amount}`, null);
     }
-    const body = amount === undefined ? {} : { amount: { currency_code: CURRENCY, value: centsToDecimalString(amount) } };
-    const raw = await api("POST", `/v2/payments/captures/${encodeURIComponent(captureId)}/refund`, {
-      body: JSON.stringify(body),
-      requestId: `refund-${captureId}-${amount ?? "full"}`,
-    });
-    const refund = parse(refundResponseSchema, raw, "refund capture");
+    const { result } = await call(() =>
+      payments.refundCapturedPayment({
+        captureId,
+        paypalRequestId: `refund-${captureId}-${amount ?? "full"}`,
+        prefer: "return=representation",
+        body: amount === undefined ? {} : { amount: { currencyCode: CURRENCY, value: centsToDecimalString(amount) } },
+      }),
+    );
+    const refund = parse(refundSchema, result, "refund capture");
     return { refundId: refund.id, status: refund.status, amount: refund.amount ? toCents(refund.amount) : null };
   }
 
   /**
    * Verify a webhook delivery with PayPal. `rawBody` must be the exact request body text:
    * it is spliced into the request unparsed, because re-serializing the event can break the signature.
-   * Returns false (never throws) for missing headers or a FAILURE verdict.
+   * Returns false (never throws) for missing headers, a non-JSON body or a FAILURE verdict.
    */
   async function verifyWebhookSignature(headers: Headers, rawBody: string): Promise<boolean> {
     if (!config.webhookId) throw new PayPalError("PAYPAL_WEBHOOK_ID is not set", null);
@@ -274,11 +234,22 @@ export function createPayPalClient(config: PayPalConfig) {
     }
     const prefix = JSON.stringify({ ...h, webhook_id: config.webhookId });
     const body = `${prefix.slice(0, -1)},"webhook_event":${rawBody}}`;
-    const raw = await api("POST", "/v1/notifications/verify-webhook-signature", { body });
-    return parse(verifyResponseSchema, raw, "verify webhook").verification_status === "SUCCESS";
+
+    const req = client.getRequestBuilderFactory()("POST", "/v1/notifications/verify-webhook-signature");
+    req.header("Content-Type", "application/json");
+    req.text(body);
+    req.authenticate([{ oauth2: true }]);
+    const { result } = await call(() => req.callAsText());
+    let json: unknown;
+    try {
+      json = JSON.parse(result);
+    } catch {
+      json = result;
+    }
+    return parse(verifyResponseSchema, json, "verify webhook").verification_status === "SUCCESS";
   }
 
-  return { getAccessToken, createOrder, captureOrder, refundCapture, verifyWebhookSignature };
+  return { createOrder, captureOrder, refundCapture, verifyWebhookSignature };
 }
 
 export type PayPalClient = ReturnType<typeof createPayPalClient>;
@@ -299,7 +270,7 @@ export function paypal(): PayPalClient {
     defaultClient = createPayPalClient({
       clientId,
       clientSecret,
-      apiBase: process.env.PAYPAL_API_BASE || "https://api-m.sandbox.paypal.com",
+      environment: Environment.Sandbox, // sandbox only; see CLAUDE.md
       webhookId: process.env.PAYPAL_WEBHOOK_ID || undefined,
     });
   }
@@ -310,14 +281,32 @@ export function paypal(): PayPalClient {
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function readJson(res: Response): Promise<unknown> {
-  const text = await res.text();
-  if (!text) return null;
+/** Run an SDK call, turning SDK errors into PayPalError with PayPal's issue code and debug id. */
+async function call<T>(fn: () => Promise<T>): Promise<T> {
   try {
-    return JSON.parse(text);
-  } catch {
-    return text;
+    return await fn();
+  } catch (err) {
+    if (err instanceof ApiError) throw fromApiError(err);
+    if (err instanceof PayPalError) throw err;
+    throw new PayPalError(`PayPal request failed: ${err instanceof Error ? err.message : String(err)}`, null);
   }
+}
+
+function fromApiError(err: ApiError<unknown>): PayPalError {
+  let body: unknown = err.result;
+  if (body === undefined && typeof err.body === "string") {
+    try {
+      body = JSON.parse(err.body);
+    } catch {
+      body = undefined;
+    }
+  }
+  const parsed = errorBodySchema.safeParse(body);
+  const b = parsed.success ? parsed.data : {};
+  const issue = b.details?.[0]?.issue ?? b.name ?? b.error ?? null;
+  const message = b.details?.[0]?.description ?? b.message ?? b.error_description ?? err.message;
+  const debugId = err.headers?.["paypal-debug-id"] ?? b.debug_id ?? null;
+  return new PayPalError(`${message} (HTTP ${err.statusCode})`, err.statusCode, debugId, issue);
 }
 
 function parse<T>(schema: z.ZodType<T>, data: unknown, what: string): T {
@@ -329,16 +318,8 @@ function parse<T>(schema: z.ZodType<T>, data: unknown, what: string): T {
 }
 
 function toCents(money: z.infer<typeof moneySchema>): number {
-  if (money.currency_code !== CURRENCY) {
-    throw new PayPalError(`Unexpected currency ${money.currency_code}`, null);
+  if (money.currencyCode !== CURRENCY) {
+    throw new PayPalError(`Unexpected currency ${money.currencyCode}`, null);
   }
   return decimalStringToCents(money.value);
-}
-
-function toPayPalError(res: Response, body: unknown, fallback: string): PayPalError {
-  const parsed = errorBodySchema.safeParse(body);
-  const b = parsed.success ? parsed.data : {};
-  const issue = b.details?.[0]?.issue ?? b.name ?? b.error ?? null;
-  const message = b.details?.[0]?.description ?? b.message ?? b.error_description ?? fallback;
-  return new PayPalError(`${message} (HTTP ${res.status})`, res.status, res.headers.get("paypal-debug-id"), issue);
 }
