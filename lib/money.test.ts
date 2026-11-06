@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatCents, percentOf } from "@/lib/money";
+import { centsToDecimalString, decimalStringToCents, formatCents, percentOf } from "@/lib/money";
 
 describe("formatCents", () => {
   it("drops decimals for whole dollars and groups thousands", () => {
@@ -36,5 +36,28 @@ describe("percentOf", () => {
 
   it("always returns an integer", () => {
     expect(Number.isInteger(percentOf(12_345, 33.33))).toBe(true);
+  });
+});
+
+describe("centsToDecimalString / decimalStringToCents", () => {
+  it("formats cents as a two-decimal string without floats", () => {
+    expect(centsToDecimalString(150_050)).toBe("1500.50");
+    expect(centsToDecimalString(5)).toBe("0.05");
+    expect(centsToDecimalString(0)).toBe("0.00");
+    expect(centsToDecimalString(300_000)).toBe("3000.00");
+  });
+
+  it("rejects negative or fractional cents", () => {
+    expect(() => centsToDecimalString(-1)).toThrow();
+    expect(() => centsToDecimalString(1.5)).toThrow();
+  });
+
+  it("parses decimal strings back to cents", () => {
+    expect(decimalStringToCents("1500.50")).toBe(150_050);
+    expect(decimalStringToCents("1500.5")).toBe(150_050);
+    expect(decimalStringToCents("3000")).toBe(300_000);
+    expect(decimalStringToCents("0.05")).toBe(5);
+    expect(() => decimalStringToCents("1.234")).toThrow();
+    expect(() => decimalStringToCents("-1.00")).toThrow();
   });
 });
