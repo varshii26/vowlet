@@ -44,6 +44,25 @@ PayPal is sandbox only. No real money moves.
 
 The demo data lives in `lib/seed/demo-data.ts`.
 
+### Payment timeline
+
+The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://bryntum.com/products/gantt/) timeline
+(MIT licensed, so there is no trial key to expire).
+
+- One row per vendor, each payment a milestone under it at its due date, and every payment linked to a "Wedding day"
+  milestone. Milestones are coloured by status: paid, due soon, overdue, refund requested (plus scheduled, refunded and
+  void). Hover a milestone for its amount, due date, status and the contract clause it comes from.
+- **The chart never decides a date.** `lib/timeline.ts` turns the database rows into Gantt data using
+  `lib/schedule.ts`, and payment tasks are manually scheduled, so Bryntum's scheduling engine cannot move them. The
+  dependency lines are visual only.
+- **To recolour a milestone, set the task's `eventColor`** (`STATUS_COLOR` in `lib/timeline.ts`). Bryntum builds each
+  bar's colour palette on its wrapper element, so a CSS class or variable on the bar itself has no effect. A test
+  checks the wrapper gets the right `b-color-*` class, and that every colour name exists in Bryntum's stylesheet.
+- The page reads the database on every request (`force-dynamic`) and Bryntum only renders in the browser (loaded with
+  `next/dynamic`, SSR off), so a paid payment shows up on the next render and a build never freezes the data.
+- Community has no "today" line, so there is none yet.
+- Code: `lib/timeline.ts` (pure data), `components/Gantt/` (chart, tooltip, styles), `lib/timeline-data.ts` (query).
+
 ### Sample contracts
 
 `seed/contracts/*.pdf` holds 14 fictional vendor contracts (2-3 pages each) for the demo. They are committed, so a fresh

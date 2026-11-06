@@ -1,0 +1,75 @@
+/*
+ * Milestone colours are NOT set here. Bryntum builds each bar's palette on its
+ * wrapper element, so colour comes from the task's `eventColor` field
+ * (see STATUS_COLOR in lib/timeline.ts). This file styles only what that
+ * mechanism does not reach.
+ */
+
+/* Status badge colours in the tooltip. Keep in step with STATUS_COLOR. */
+.vw-status-paid {
+  --vw-status: #16a34a;
+}
+.vw-status-due_soon {
+  --vw-status: #d97706;
+}
+.vw-status-overdue {
+  --vw-status: #dc2626;
+}
+.vw-status-refund_requested {
+  --vw-status: #7c3aed;
+}
+.vw-status-scheduled {
+  --vw-status: #2563eb;
+}
+.vw-status-refunded {
+  --vw-status: #0d9488;
+}
+.vw-status-void {
+  --vw-status: #78716c;
+}
+
+/* Void payments fade on the chart. The task's cls lands on the bar itself. */
+.b-gantt-task.payment-void {
+  opacity: 0.55;
+}
+
+/* Every payment links to one wedding day, so keep the dependency lines light. */
+.b-sch-dependency {
+  --b-dependency-color: #cbd5e1;
+}
+
+/* Tooltip content (see components/Gantt/tooltip.ts). */
+.vw-tip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 20rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+}
+.vw-tip-title {
+  font-weight: 600;
+}
+.vw-tip-amount {
+  font-size: 1rem;
+  font-weight: 600;
+}
+.vw-tip-muted {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+.vw-tip-clause {
+  margin-top: 0.25rem;
+  padding-left: 0.5rem;
+  border-left: 3px solid #cbd5e1;
+  font-style: italic;
+}
+.vw-tip-status {
+  display: inline-block;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 9999px;
+  color: #fff;
+  background: var(--vw-status);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
