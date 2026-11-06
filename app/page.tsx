@@ -1,9 +1,11 @@
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
+import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
 import { prisma } from "@/lib/db";
+import { selectUpcomingPayments } from "@/lib/payments/upcoming";
 import { buildTimeline } from "@/lib/timeline";
 import { loadTimelineInput } from "@/lib/timeline-data";
 
-// Read the database on every request, so the timeline is never frozen at build.
+// Read the database on every request, so the page is never frozen at build.
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
@@ -18,15 +20,20 @@ export default async function Home() {
     );
   }
 
-  const timeline = buildTimeline(input, new Date());
+  const now = new Date();
+  const timeline = buildTimeline(input, now);
+  const upcoming = selectUpcomingPayments(input, now);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-4 p-8">
-      <h1 className="text-3xl font-semibold">Vowlet</h1>
-      <p className="text-neutral-600">
-        {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
-      </p>
+    <main className="mx-auto w-full max-w-7xl space-y-8 p-8">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold">Vowlet</h1>
+        <p className="text-neutral-600">
+          {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
+        </p>
+      </header>
       <PaymentGantt data={timeline} />
+      <UpcomingPayments payments={upcoming} />
     </main>
   );
 }

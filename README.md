@@ -63,6 +63,35 @@ The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://b
 - Community has no "today" line, so there is none yet.
 - Code: `lib/timeline.ts` (pure data), `components/Gantt/` (chart, tooltip, styles), `lib/timeline-data.ts` (query).
 
+### Paying a vendor (PayPal sandbox)
+
+The "Upcoming payments" list under the timeline has a PayPal button for each unpaid payment. **Sandbox only: no real
+money moves.** The PayPal popup is the human approval; nothing on the page, and nothing the agent can do, approves for
+the couple.
+
+1. The button asks `POST /api/payments/[id]/order` to create a PayPal order with the **vendor as the payee**.
+2. The couple approves in the PayPal popup.
+3. The button sends the order id to `POST /api/payments/[id]/capture`, which captures it, marks the payment paid
+   (`captureId`, `paidAt`) and writes an activity-log entry. The page then refreshes, so the timeline and list update.
+
+Rules enforced on the server (`lib/payments/service.ts`):
+
+- Only the order created for that payment can be captured, and a payment is never paid twice. Repeating a capture
+  (double click, retry) is a no-op, and a second, different order is refused.
+- A payment is only marked paid when PayPal reports the capture `COMPLETED` **and** the amount matches. A different
+  amount is logged and not recorded. A `PENDING` capture stays unpaid until it completes (the webhook, #13).
+- Failures come back with a message the couple can read: not approved, declined, not payable, or a PayPal error. PayPal
+  debug details never reach the browser, and a failed or cancelled payment leaves the status unchanged.
+
+Browser SDK: `@paypal/react-paypal-js`'s default (v5-style) `PayPalScriptProvider` and `PayPalButtons`, which need only
+`NEXT_PUBLIC_PAYPAL_CLIENT_ID`. The package's newer v6 API (`/sdk-v6`) also needs a server-issued client token, so it
+was left for later.
+
+**To try a real payment:** the seeded vendors use placeholder emails (`sb-vendorN@business.example.com` in
+`lib/seed/demo-data.ts`). PayPal accepts those when an order is created but cannot complete a payment to them. Replace
+them with your sandbox **business** account emails, run `npm run db:seed`, then pay as your sandbox **personal**
+account.
+
 ### Sample contracts
 
 `seed/contracts/*.pdf` holds 14 fictional vendor contracts (2-3 pages each) for the demo. They are committed, so a fresh
