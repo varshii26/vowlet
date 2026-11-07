@@ -23,6 +23,7 @@ const SERVER_ONLY = [
   /^@\/lib\/timeline-data$/,
   /^@\/lib\/whatif\/(service|handler|explain)$/,
   /^@\/lib\/pdf-text$/,
+  /^@\/lib\/vendors\/(contract-file|page-data)$/,
   /^@\/generated\//,
   /^node:/,
   /^@google\/genai$/,
@@ -45,7 +46,7 @@ const isTest = (file: string) => /\.test\.tsx?$/.test(file) || file.endsWith("te
 describe("browser code stays out of server code", () => {
   const components = walk(path.join(ROOT, "components")).filter((f) => /\.tsx?$/.test(f) && !isTest(f));
   // lib files the browser imports directly.
-  const browserLib = ["lib/agent/client.ts", "lib/agent/sse.ts", "lib/agent/limits.ts", "lib/payments/client.ts", "lib/proposals/client.ts", "lib/proposals/view.ts", "lib/proposals/payloads.ts", "lib/whatif/client.ts"].map((f) => path.join(ROOT, f));
+  const browserLib = ["lib/agent/client.ts", "lib/agent/sse.ts", "lib/agent/limits.ts", "lib/payments/client.ts", "lib/proposals/client.ts", "lib/proposals/view.ts", "lib/proposals/payloads.ts", "lib/whatif/client.ts", "lib/vendors/highlight.ts", "lib/vendors/links.ts"].map((f) => path.join(ROOT, f));
 
   it("found the files to check", () => {
     expect(components.length).toBeGreaterThan(8);

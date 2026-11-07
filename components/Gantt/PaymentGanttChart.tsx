@@ -5,6 +5,7 @@ import type { TaskModel } from "@bryntum/gantt-community";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData } from "@/lib/timeline";
+import { clauseHref } from "@/lib/vendors/links";
 
 import "@bryntum/core-community/fontawesome/css/fontawesome.css";
 import "@bryntum/core-community/fontawesome/css/solid.css";
@@ -16,7 +17,7 @@ export type PaymentSelection = Extract<TaskDetail, { kind: "payment" }>;
 
 type Props = {
   data: TimelineData;
-  /** Called when a payment milestone is clicked. */
+  /** Called when a payment milestone is clicked. Without it, the click opens the payment's contract clause. */
   onPaymentSelect?: (payment: PaymentSelection) => void;
   /**
    * Called with the new day (`YYYY-MM-DD`) when the "Wedding day" milestone is
@@ -122,7 +123,10 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       },
       onTaskClick: ({ taskRecord }: { taskRecord: TaskModel }) => {
         const detail = detailOf(taskRecord);
-        if (detail?.kind === "payment") selectRef.current?.(detail);
+        if (detail?.kind !== "payment") return;
+        // Without a select handler, a payment opens the clause it comes from.
+        if (selectRef.current) selectRef.current(detail);
+        else if (detail.clauseId) window.location.assign(clauseHref(detail.vendorId, detail.clauseId));
       },
     };
   }, [canDragWedding]);
