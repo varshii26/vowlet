@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createSseParser, encodeSse, type StreamEvent } from "@/lib/agent/sse";
 
 const usage = { inputTokens: 1, outputTokens: 2, thinkingTokens: 3, cachedTokens: 0 };
-const answer: StreamEvent = { type: "answer", text: "Line one\nLine two, café ☕ and \"quotes\"", proposals: [], model: "m1", iterations: 2, truncated: false, usage };
+const answer: StreamEvent = { type: "answer", text: "Line one\nLine two, café ☕ and \"quotes\"", proposals: [], model: "m1", iterations: 2, truncated: false, usage, sources: [] };
 const events: StreamEvent[] = [
   { type: "thinking", label: "Understanding your question…" },
   { type: "step", tool: "get_wedding", ok: true, label: "Checking the wedding date and budget…" },

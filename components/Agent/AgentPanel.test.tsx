@@ -12,6 +12,7 @@ const answer = (text: string, over: Partial<Extract<StreamEvent, { type: "answer
   type: "answer",
   text,
   proposals: [],
+  sources: [],
   model: "m1",
   iterations: 1,
   truncated: false,

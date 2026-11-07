@@ -1,6 +1,7 @@
 import { FunctionCallingConfigMode, type Content, type Part } from "@google/genai";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { agentSystemPrompt } from "@/lib/agent/prompt";
+import { collectSources, type CitationSource } from "@/lib/agent/sources";
 import { describeStep, type AgentStep } from "@/lib/agent/steps";
 import { executeTool, toolDeclarations } from "@/lib/agent/tools";
 import { addUsage, LlmError, ZERO_USAGE, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
@@ -43,6 +44,8 @@ export type AgentEvent =
       /** True when the answer is incomplete: a step limit, the time limit, or a failure part way. */
       truncated: boolean;
       usage: LlmUsage;
+      /** The clause citations tools returned during the run: the only ones the answer may turn into chips. */
+      sources: CitationSource[];
     }
   | { type: "error"; message: string };
 
@@ -101,6 +104,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
   const tools = [{ functionDeclarations: toolDeclarations() }];
 
   const proposalSummaries = new Map<string, string>();
+  const sources = new Map<string, CitationSource>();
   let model: string | null = null;
   let usage = ZERO_USAGE;
   let iterations = 0;
@@ -121,7 +125,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
 
     const notes = note ? [NOTES[note], ...(proposals.length > 0 ? [NOTES.proposals] : [])] : [];
     const full = [text.trim(), ...notes.map((n) => `(${n})`)].filter(Boolean).join("\n\n");
-    return { type: "answer", text: full, proposals, model, iterations, truncated: note !== null, usage };
+    return { type: "answer", text: full, proposals, model, iterations, truncated: note !== null, usage, sources: [...sources.values()] };
   }
 
   for (let i = 1; i <= maxIterations; i++) {
@@ -174,6 +178,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
     for (const call of result.functionCalls) {
       const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today });
       yield { type: "step", ...describeStep(call.name, call.args, outcome) };
+      if (outcome.ok) collectSources(outcome.output, sources);
 
       if (outcome.ok && call.name === "propose_action") {
         const out = outcome.output as { proposalId?: unknown; summary?: unknown };

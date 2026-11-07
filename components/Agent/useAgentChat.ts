@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamAgent } from "@/lib/agent/client";
 import type { ChatTurn } from "@/lib/agent/loop";
+import type { CitationSource } from "@/lib/agent/sources";
 import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS, MAX_TURN_CHARS } from "@/lib/agent/limits";
 
 export type ChatMessage = {
@@ -17,6 +18,8 @@ export type ChatMessage = {
   proposalCount: number;
   /** What the assistant did to get this answer, in order. */
   steps: string[];
+  /** Clause citations the tools returned, shown as chips where the answer quotes them. */
+  sources: CitationSource[];
 };
 
 export type LiveStep = { label: string; ok: boolean };
@@ -29,6 +32,7 @@ const message = (id: number, role: ChatMessage["role"], text: string, over: Part
   truncated: false,
   proposalCount: 0,
   steps: [],
+  sources: [],
   ...over,
 });
 
@@ -89,7 +93,7 @@ export function useAgentChat({ onProposals }: { onProposals?: () => void } = {})
             case "answer":
               setMessages((prev) => [
                 ...prev,
-                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, steps: [...done] }),
+                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, steps: [...done], sources: event.sources ?? [] }),
               ]);
               if (event.proposals.length > 0) onProposals?.();
               break;

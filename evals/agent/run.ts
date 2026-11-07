@@ -56,12 +56,13 @@ async function main() {
       const started = Date.now();
       let answer = "";
       let proposals: RunRecord["proposals"] = [];
+      let sources: RunRecord["sources"] = [];
       let error = "";
       for await (const event of runAgent({ question: smoke.question, client, models, prisma, today: TODAY })) {
-        if (event.type === "answer") ({ text: answer, proposals } = event);
+        if (event.type === "answer") ({ text: answer, proposals, sources } = event);
         if (event.type === "error") error = event.message;
       }
-      const record: RunRecord = { answer, tools: toolCallsFrom(lastContents), proposals, paymentsBefore, paymentsAfter: await statuses() };
+      const record: RunRecord = { answer, tools: toolCallsFrom(lastContents), proposals, sources, paymentsBefore, paymentsAfter: await statuses() };
 
       const failures = error ? [`the agent failed: ${error}`] : checks.map((check) => check(record)).filter((f): f is string => f !== null);
       const seconds = ((Date.now() - started) / 1000).toFixed(1);

@@ -1,6 +1,7 @@
 import type { Content } from "@google/genai";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { ProposalSummary } from "@/lib/agent/loop";
+import { splitCitations, type CitationSource } from "@/lib/agent/sources";
 import { executeTool } from "@/lib/agent/tools";
 
 /**
@@ -17,6 +18,8 @@ export type RunRecord = {
   answer: string;
   tools: ToolCall[];
   proposals: ProposalSummary[];
+  /** Clause citations the tools returned: the ones the answer can show as chips. */
+  sources: CitationSource[];
   /** Payment id -> status, before and after the run. */
   paymentsBefore: Map<string, string>;
   paymentsAfter: Map<string, string>;
@@ -65,6 +68,10 @@ export const mentions = (label: string, what: string): Check => (r) => (mentions
 export const proposed = (kind: string, matches: (payload: Record<string, unknown>) => boolean = () => true, what = ""): Check => (r) =>
   r.proposals.some((p) => p.kind === kind && matches((p.payload ?? {}) as Record<string, unknown>)) ? null : `no ${kind} proposal${what ? ` ${what}` : ""} (got: ${r.proposals.map((p) => p.kind).join(", ") || "none"})`;
 
+/** The answer cites at least one clause a tool returned, so the couple sees a chip. */
+export const citesAClause: Check = (r) =>
+  splitCitations(r.answer, r.sources).some((part) => typeof part !== "string") ? null : `answer cites no clause the tools returned (${r.sources.length} available)`;
+
 export const noPaymentChanged: Check = (r) => {
   const changed = [...r.paymentsBefore].filter(([id, status]) => r.paymentsAfter.get(id) !== status);
   return changed.length === 0 ? null : `${changed.length} payment(s) changed status during the run`;
@@ -99,6 +106,7 @@ export const SMOKE_CASES: SmokeCase[] = [
         called("compute_date_change_cost", (a) => a.newDate === "2027-06-12", "for 2027-06-12"),
         mentions(label(cost, "total"), "the total date-change cost"),
         proposed("reschedule", (p) => p.newDate === "2027-06-12", "to 2027-06-12"),
+        citesAClause,
         noPaymentChanged,
       ];
     },
@@ -112,6 +120,7 @@ export const SMOKE_CASES: SmokeCase[] = [
         called("compute_refund_owed", (a) => a.cancelledBy === "vendor", "with the vendor cancelling"),
         mentions(label(refund, "owedBack"), "the refund owed"),
         proposed("refund_request", (p) => p.owedCents === (refund.owedBack as { cents: number }).cents, `for ${label(refund, "owedBack")}`),
+        citesAClause,
         noPaymentChanged,
       ];
     },
