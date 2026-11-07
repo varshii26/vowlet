@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { called, expectFrom, mentions, mentionsAmount, noPaymentChanged, proposed, SMOKE_CASES, toolCallsFrom, type RunRecord } from "@/evals/agent/smoke";
+import { called, citesAClause, expectFrom, mentions, mentionsAmount, noPaymentChanged, proposed, SMOKE_CASES, toolCallsFrom, type RunRecord } from "@/evals/agent/smoke";
 import { TODAY } from "@/lib/agent/tools/test-utils";
 import { seedDemo } from "@/lib/seed/demo";
 import { createTestDatabase } from "@/lib/test-utils/db";
@@ -9,6 +9,7 @@ const record = (over: Partial<RunRecord> = {}): RunRecord => ({
   answer: "",
   tools: [],
   proposals: [],
+  sources: [],
   paymentsBefore: new Map([["p1", "scheduled"]]),
   paymentsAfter: new Map([["p1", "scheduled"]]),
   ...over,
@@ -56,6 +57,12 @@ describe("checks", () => {
     const proposal = { id: "x", kind: "reschedule", status: "pending", summary: "", clauseId: null, payload: { newDate: "2027-06-12" } };
     expect(proposed("reschedule", (p) => p.newDate === "2027-06-12")(record({ proposals: [proposal] }))).toBeNull();
     expect(proposed("refund_request")(record({ proposals: [proposal] }))).toMatch(/no refund_request proposal \(got: reschedule\)/);
+  });
+
+  it("citesAClause wants a citation the tools returned, not just any", () => {
+    const sources = [{ label: "Grand Oak Estate contract, page 2", vendorId: "v", clauseId: "c", page: 2, text: null }];
+    expect(citesAClause(record({ answer: "Per Grand Oak Estate contract, page 2.", sources }))).toBeNull();
+    expect(citesAClause(record({ answer: "Per Made Up contract, page 2.", sources }))).toMatch(/cites no clause/);
   });
 
   it("noPaymentChanged catches any status change", () => {

@@ -443,6 +443,21 @@ the agent's `answer` event and the extraction results report cache hits if they 
 reruns the measurement (three questions on a copy of `dev.db`; `--rounds 2` asks them twice). Typical times, uncached:
 2.5-4.6 s per question.
 
+### Citation chips in answers
+
+When an answer cites a contract ("Grand Oak Estate contract, page 2"), that citation becomes a chip. Clicking it opens
+the clause where it was quoted (read with `read_clause`) or goes straight to the contract at that clause. How it stays
+honest (`lib/agent/sources.ts`):
+
+- The loop collects every citation **our tools returned** during the run, with the clause id and vendor the tool
+  looked up, and sends them with the answer (`sources` on the `answer` event).
+- Only text matching one of those exactly becomes a chip, and the chip's link is built from the ids. A citation the
+  model made up, or wrote with a different page, stays plain text. Links the model writes are still removed.
+- Gemini has no document-citations feature like Claude's, so this replaces the plan in the spec of enabling
+  `citations` on contract documents.
+
+`npm run eval:agent` checks that the what-if and cancellation answers cite at least one real clause.
+
 ### The chat panel and proposals
 
 The home page has an **"Ask about your payments"** panel (`components/Agent/`, #19) above the timeline. It offers the three

@@ -99,6 +99,16 @@ describe("the tool loop", () => {
     expect(response.response.output.couple).toBe("Priya & Sam");
   });
 
+  it("returns the clause citations the tools gave, and none when no tool gave any", async () => {
+    const { client } = fakeGemini(call("compute_refund_owed", { vendorId: "Bloom & Thistle Florals", cancelledBy: "vendor" }), modelAnswer("You get money back."));
+    const sources = answerOf(await collect(client)).sources;
+    expect(sources).toHaveLength(1);
+    expect(sources[0].label).toMatch(/^Bloom & Thistle Florals contract, page \d+$/);
+
+    const { client: plain } = fakeGemini(call("get_wedding"), modelAnswer("The wedding is on 2027-04-17."));
+    expect(answerOf(await collect(plain)).sources).toEqual([]);
+  });
+
   it("stays on the model that answered first", async () => {
     const { client, generateWithFallback } = fakeGemini(modelCalls([{ name: "get_wedding" }], "m2"), modelAnswer("ok", "m2"));
     await collect(client);

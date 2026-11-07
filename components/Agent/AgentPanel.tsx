@@ -73,7 +73,7 @@ export function AgentPanel() {
             </p>
           ) : (
             <div key={m.id} className="space-y-2 rounded-lg bg-neutral-50 px-3 py-2">
-              <AnswerText text={m.text} />
+              <AnswerText text={m.text} sources={m.sources} />
               {m.truncated && <p className="text-xs font-medium text-amber-700">This answer may be incomplete.</p>}
               {m.proposalCount > 0 && (
                 <p className="text-xs font-medium text-neutral-700">
