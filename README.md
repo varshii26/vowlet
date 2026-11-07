@@ -92,6 +92,46 @@ was left for later.
 them with your sandbox **business** account emails, run `npm run db:seed`, then pay as your sandbox **personal**
 account.
 
+### PayPal webhook
+
+`POST /api/webhooks/paypal` (#13) receives PayPal's events. The capture route already marks a payment paid, so the
+webhook is for the cases it can't see: a slow payment that PayPal reports `PENDING` and completes later, and a browser
+that closed mid-capture.
+
+What it does (`lib/payments/webhook.ts`):
+
+- **Verifies first.** The exact raw body and PayPal's headers go to PayPal's verification API (never re-serialised, which
+  would break the signature). A failed check answers `401` and changes nothing. If verification can't run (no
+  `PAYPAL_WEBHOOK_ID`, or PayPal unreachable) it answers `503`, so PayPal retries.
+- **`PAYMENT.CAPTURE.COMPLETED`:** marks the payment paid, but only if the order is the one we created for it and the
+  amount (USD) matches. It reuses the same idempotent "mark paid" step as the capture route, so a capture the browser
+  already recorded is a no-op and a repeated delivery changes nothing.
+- **Mismatches are never silently dropped.** A wrong order or amount, a second capture for an already-paid payment, or a
+  capture for a void or refunded payment is written to the activity log for someone to check, once, and the payment is
+  left alone. A capture that matches no payment is acknowledged and ignored.
+- **`PAYMENT.CAPTURE.DENIED`:** logged once; the payment stays unpaid so the couple can try again.
+- Every other event type is acknowledged (`200`) and ignored, so PayPal doesn't retry it.
+
+**Getting the webhook ID** (it is not a secret, but it needs a public HTTPS address PayPal can reach, so `localhost` won't
+work):
+
+1. Open the [PayPal developer dashboard](https://developer.paypal.com/dashboard/applications/sandbox) → **Apps &
+   Credentials**, with **Sandbox** selected, and click the app whose client id you use.
+2. Scroll to **Webhooks** → **Add Webhook**.
+3. **Webhook URL:** `https://<your-public-address>/api/webhooks/paypal`
+4. **Event types:** tick *Payment capture completed*. Optionally also *Payment capture denied*.
+5. Save. The new row shows a **Webhook ID**. Put it in `.env.local` as `PAYPAL_WEBHOOK_ID=...` (and in the host's
+   environment settings when deployed), then restart.
+
+The public address is the Render URL once we deploy (#23), which is stable, so you set this up once. Until then a tunnel
+works (for example `cloudflared tunnel --url http://localhost:3000`), but its address changes every run, so the webhook's
+URL has to be edited each time.
+
+**Checking it:** with the ID set, `curl -X POST` with a made-up body and signature headers should answer `401`
+(`invalid_signature`), which proves the real PayPal check is wired up. Without the ID it answers `503`. The reliable way to
+see a real event is a real sandbox payment (the "Upcoming payments" button). Events from the dashboard's webhook
+simulator may fail verification, because they aren't signed by a real transaction.
+
 ### Sample contracts
 
 `seed/contracts/*.pdf` holds 14 fictional vendor contracts (2-3 pages each) for the demo. They are committed, so a fresh
