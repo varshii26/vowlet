@@ -192,16 +192,17 @@ describe("approving a refund request", () => {
     const result = await approve(id);
 
     expect(result).toMatchObject({ ok: true, status: "approved", draft: message });
-    expect(result.ok && result.message).toContain("The payment to Grand Oak Estate is now marked refund requested");
+    expect(result.ok && result.message).toContain("Grand Oak Estate is marked cancelled, and the payment to them is now marked refund requested");
     expect(result.ok && result.message).toContain("nothing has been sent for you");
     expect((await payment("Venue deposit")).status).toBe("refund_requested");
   });
 
-  it("leaves unpaid payments, other vendors and the vendor itself alone", async () => {
+  it("marks the vendor cancelled, and leaves unpaid payments and other vendors alone", async () => {
     await approve(await refund());
+    expect((await prisma.vendor.findFirstOrThrow({ where: { name: "Grand Oak Estate" } })).status).toBe("cancelled");
     expect((await payment("Venue second installment")).status).toBe("scheduled");
     expect((await payment("Catering deposit")).status).toBe("paid");
-    expect((await prisma.vendor.findFirstOrThrow({ where: { name: "Grand Oak Estate" } })).status).toBe("active");
+    expect((await prisma.vendor.findFirstOrThrow({ where: { name: "Saffron & Sage Catering" } })).status).toBe("active");
   });
 
   it("issues no PayPal refund: it only records the request", async () => {
@@ -214,7 +215,7 @@ describe("approving a refund request", () => {
     const second = await payment("Venue second installment");
     await prisma.payment.update({ where: { id: second.id }, data: { status: "paid" } });
     const result = await approve(id);
-    expect(result.ok && result.message).toContain("2 payments to Grand Oak Estate are now marked refund requested");
+    expect(result.ok && result.message).toContain("2 payments to them are now marked refund requested");
   });
 
   it("is refused when nothing has been paid to that vendor, and the proposal stays pending", async () => {
