@@ -1,0 +1,41 @@
+{
+  "slug": "sweet-layers-bakery",
+  "name": "Sweet Layers Bakery",
+  "payments": [
+    {
+      "label": "Wedding cake full payment",
+      "amountCents": 80000,
+      "anchor": "wedding_date",
+      "offsetDays": -10
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 60,
+      "refundPercent": 100,
+      "flatFee": 10000
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 50,
+      "flatFee": 10000
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 90,
+      "feePercent": 0,
+      "flatFee": 15000
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 15,
+      "flatFee": 15000
+    }
+  ]
+}

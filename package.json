@@ -15,7 +15,9 @@
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset --force",
     "make-contracts": "tsx scripts/make-contracts.ts",
-    "llm:bench": "tsx scripts/llm-bench.ts"
+    "llm:bench": "tsx scripts/llm-bench.ts",
+    "eval": "tsx evals/run.ts",
+    "eval:expected": "tsx scripts/make-expected.ts"
   },
   "dependencies": {
     "@bryntum/core-community": "^8.0.0",

@@ -1,0 +1,47 @@
+{
+  "slug": "grand-oak-estate",
+  "name": "Grand Oak Estate",
+  "payments": [
+    {
+      "label": "Venue deposit",
+      "amountCents": 300000,
+      "anchor": "signing_date"
+    },
+    {
+      "label": "Venue second installment",
+      "amountCents": 300000,
+      "anchor": "wedding_date",
+      "offsetDays": -120
+    },
+    {
+      "label": "Venue final balance",
+      "amountCents": 300000,
+      "anchor": "wedding_date",
+      "offsetDays": -30
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 120,
+      "feePercent": 5,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 30,
+      "flatFee": 0
+    }
+  ]
+}
