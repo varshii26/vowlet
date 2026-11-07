@@ -108,9 +108,9 @@ describe("extractContract", () => {
     });
 
     it("adds up the tokens from both attempts", async () => {
-      const u = { inputTokens: 100, outputTokens: 50, thinkingTokens: 10 };
+      const u = { inputTokens: 100, outputTokens: 50, thinkingTokens: 10, cachedTokens: 0 };
       const result = await run(fakeClient(answer("bad", "m1", u), answer(extraction(), "m1", u)).client);
-      expect(result.usage).toEqual({ inputTokens: 200, outputTokens: 100, thinkingTokens: 20 });
+      expect(result.usage).toEqual({ inputTokens: 200, outputTokens: 100, thinkingTokens: 20, cachedTokens: 0 });
     });
 
     it("gives up after one retry, with the problems found", async () => {

@@ -7,7 +7,7 @@ import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
 const refresh = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
-const usage = { inputTokens: 1, outputTokens: 1, thinkingTokens: 0 };
+const usage = { inputTokens: 1, outputTokens: 1, thinkingTokens: 0, cachedTokens: 0 };
 const answer = (text: string, over: Partial<Extract<StreamEvent, { type: "answer" }>> = {}): StreamEvent => ({
   type: "answer",
   text,

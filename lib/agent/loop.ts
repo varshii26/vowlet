@@ -3,7 +3,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { agentSystemPrompt } from "@/lib/agent/prompt";
 import { describeStep, type AgentStep } from "@/lib/agent/steps";
 import { executeTool, toolDeclarations } from "@/lib/agent/tools";
-import { LlmError, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
+import { addUsage, LlmError, ZERO_USAGE, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
 
 /**
  * The agent loop: a Claude-style tool-use loop of our own on Gemini, no framework.
@@ -86,7 +86,6 @@ export function friendlyLlmMessage(error: unknown): string {
   }
 }
 
-const ZERO: LlmUsage = { inputTokens: 0, outputTokens: 0, thinkingTokens: 0 };
 
 export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
   const maxIterations = run.maxIterations ?? MAX_ITERATIONS;
@@ -103,7 +102,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
 
   const proposalSummaries = new Map<string, string>();
   let model: string | null = null;
-  let usage = ZERO;
+  let usage = ZERO_USAGE;
   let iterations = 0;
 
   /** The answer event, with the proposals recorded so far looked up from the database. */
@@ -161,11 +160,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
 
     iterations = i;
     model = result.model;
-    usage = {
-      inputTokens: usage.inputTokens + result.usage.inputTokens,
-      outputTokens: usage.outputTokens + result.usage.outputTokens,
-      thinkingTokens: usage.thinkingTokens + result.usage.thinkingTokens,
-    };
+    usage = addUsage(usage, result.usage);
 
     if (result.functionCalls.length === 0) {
       yield await answer(result.text, lastStep ? "steps" : null);

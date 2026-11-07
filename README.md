@@ -404,6 +404,26 @@ $500, the DJ booking fee), "what if we move the wedding to June 12" (inferred th
 a reschedule proposal), "the florist cancelled, what now" (computed $800, drafted a refund request) and the pay-the-DJ
 request above, each in 2 to 12 seconds.
 
+### Prompt caching (measured: it doesn't apply at our size)
+
+The plan was to put the system prompt and contracts first and have Gemini cache them. What we measured on the free
+key (2026-11-07):
+
+- **Explicit caching isn't available**: creating a cache returns `404` for `gemini-3.5-flash-lite`, `gemini-3.5-flash`
+  and `gemini-2.5-flash-lite`.
+- **Implicit caching works, but only for long prompts.** A 14,000-token prompt sent twice had 10,000-13,000 tokens
+  served from cache the second time. The agent's prompt (system prompt + tool definitions + the question) is about
+  1,800 tokens on the first step and grows to about 4,000 by the third, and **Gemini cached none of it**: 0 cached tokens
+  across 6 questions and 14 model calls, repeats included.
+- The agent doesn't send the contracts up front; it reads them through `read_clause` only when needed. Adding all 14 to
+  every call just to cross the caching threshold would roughly multiply the tokens per question by five for a gain we
+  haven't measured, so we haven't.
+
+What's in the code: every model call's `usage` now includes `cachedTokens` (Gemini's `cachedContentTokenCount`), so
+the agent's `answer` event and the extraction results report cache hits if they ever happen. `npm run cache:bench`
+reruns the measurement (three questions on a copy of `dev.db`; `--rounds 2` asks them twice). Typical times, uncached:
+2.5-4.6 s per question.
+
 ### The chat panel and proposals
 
 The home page has an **"Ask about your payments"** panel (`components/Agent/`, #19) above the timeline. It offers the three
