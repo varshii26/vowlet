@@ -144,6 +144,27 @@ URL has to be edited each time.
 see a real event is a real sandbox payment (the "Upcoming payments" button). Events from the dashboard's webhook
 simulator may fail verification, because they aren't signed by a real transaction.
 
+### Deploying to Render
+
+`render.yaml` describes the service, so deploying is a few clicks:
+
+1. In Render choose **New -> Blueprint**, connect the GitHub repo, and pick this branch (the repo's owner may need to
+   authorise Render).
+2. Render asks for the values marked secret: `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
+   `NEXT_PUBLIC_PAYPAL_CLIENT_ID` (set it before the first build: it is baked into the page at build time),
+   `PAYPAL_VENDOR_EMAILS` (a **US** sandbox business account, see above) and `PAYPAL_WEBHOOK_ID` (leave empty for now).
+3. Once it is live, create the webhook for `https://<your-service>.onrender.com/api/webhooks/paypal` (steps above),
+   then paste its ID into `PAYPAL_WEBHOOK_ID` on Render and redeploy.
+
+How it behaves:
+- **The database is a SQLite file on the free tier's temporary disk.** On every start the service applies migrations and
+  seeds the demo wedding if the database is empty, so a restart or redeploy always comes back with Priya & Sam. Anything
+  done in the app (payments, approvals) is lost on a restart; that is fine for a demo and is why the "Reset demo" button
+  (#22) matters.
+- **Cold start:** the free tier sleeps after about 15 minutes idle, and the first request afterwards takes roughly a
+  minute. Open the URL once before a demo.
+- Sandbox only; no real money moves.
+
 ### Sample contracts
 
 `seed/contracts/*.pdf` holds 14 fictional vendor contracts (2-3 pages each) for the demo. They are committed, so a fresh
