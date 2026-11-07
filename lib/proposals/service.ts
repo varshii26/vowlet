@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@/generated/prisma/client";
 import { formatCents } from "@/lib/money";
 import { parsePayload, type ProposalKind } from "@/lib/proposals/payloads";
+import { toProposalView } from "@/lib/proposals/view";
 import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
 
 /**
@@ -80,7 +81,7 @@ export async function resolveProposal(
       }
 
       if (action === "dismiss") {
-        await tx.eventLog.create({ data: { weddingId: proposal.weddingId, type: "proposal_dismissed", message: "Dismissed a proposal" } });
+        await tx.eventLog.create({ data: { weddingId: proposal.weddingId, type: "proposal_dismissed", message: `Dismissed: ${toProposalView({ ...proposal, clause: null }).title}` } });
         return { ok: true, status: "dismissed", message: "Dismissed. Nothing was changed." };
       }
 
