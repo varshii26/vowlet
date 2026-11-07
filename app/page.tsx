@@ -1,4 +1,5 @@
 import { AgentPanel } from "@/components/Agent/AgentPanel";
+import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
 import { PendingProposals } from "@/components/Proposals/PendingProposals";
@@ -30,11 +31,14 @@ export default async function Home() {
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 p-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold">Vowlet</h1>
-        <p className="text-neutral-600">
-          {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold">Vowlet</h1>
+          <p className="text-neutral-600">
+            {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
+          </p>
+        </div>
+        <ResetDemoButton />
       </header>
       <AgentPanel />
       <PendingProposals proposals={proposals} />
