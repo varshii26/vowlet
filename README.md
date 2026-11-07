@@ -7,6 +7,24 @@ happens in code.
 > Work in progress. See the [project board](https://github.com/users/Gurvinder18/projects/1) and
 > [`CLAUDE.md`](CLAUDE.md) for the spec and build order. This README grows with each feature.
 
+## Try the demo
+
+**https://vowlet.onrender.com**: no setup or sign-up needed. It opens on Priya & Sam's wedding (2027-04-17, 14 vendors).
+
+- **First visit may take about a minute.** The free hosting sleeps when idle and wakes on the first request.
+- **To pay a vendor**, click **Pay with PayPal** on any upcoming payment and log in with this **PayPal sandbox** buyer
+  (test money only, no real account or card involved):
+
+  | | |
+  |---|---|
+  | Email | `vowlet-priya-sam-3fbf@personal.example.com` |
+  | Password | `Vwbm17x6T77!` |
+
+  Approve the payment in the PayPal window; the payment turns **Paid** on the timeline right away.
+- **Ask the assistant** things like "What do we owe in the next 30 days?" or "What if we move the wedding to June 12?".
+  It answers from the contracts and proposes actions you approve; it never moves money itself.
+- **Reset demo** (top right) puts everything back to the starting state if someone else has already paid or changed things.
+
 ## Getting started
 
 Requires Node 22.12 or newer (`.node-version` pins 24) and npm.
