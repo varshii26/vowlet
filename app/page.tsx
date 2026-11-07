@@ -1,7 +1,10 @@
+import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
+import { PendingProposals } from "@/components/Proposals/PendingProposals";
 import { prisma } from "@/lib/db";
 import { selectUpcomingPayments } from "@/lib/payments/upcoming";
+import { loadPendingProposals } from "@/lib/proposals/data";
 import { buildTimeline } from "@/lib/timeline";
 import { loadTimelineInput } from "@/lib/timeline-data";
 
@@ -23,6 +26,7 @@ export default async function Home() {
   const now = new Date();
   const timeline = buildTimeline(input, now);
   const upcoming = selectUpcomingPayments(input, now);
+  const proposals = await loadPendingProposals(prisma);
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 p-8">
@@ -32,6 +36,8 @@ export default async function Home() {
           {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
         </p>
       </header>
+      <AgentPanel />
+      <PendingProposals proposals={proposals} />
       <PaymentGantt data={timeline} />
       <UpcomingPayments payments={upcoming} />
     </main>

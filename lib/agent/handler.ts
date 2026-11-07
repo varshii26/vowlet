@@ -1,13 +1,12 @@
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS, MAX_TURN_CHARS } from "@/lib/agent/limits";
 import { runAgent } from "@/lib/agent/loop";
 import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
 import type { GeminiClient } from "@/lib/llm/gemini";
 import type { RateLimiter } from "@/lib/rate-limit";
 
-export const MAX_QUESTION_CHARS = 500;
-export const MAX_HISTORY_TURNS = 8;
-export const MAX_TURN_CHARS = 1500;
+export { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS, MAX_TURN_CHARS };
 
 const bodySchema = z.object({
   question: z
