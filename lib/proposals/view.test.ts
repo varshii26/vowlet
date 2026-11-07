@@ -25,7 +25,7 @@ describe("toProposalView", () => {
       row({
         kind: "pay",
         payload: { paymentId: "pay1", vendorId: "v1", vendorName: "Grand Oak Estate", label: "Venue second installment", amountCents: 300_000, dueDate: "2026-12-18", reason: "It is next." },
-        clause: { page: 1, vendor: { name: "Grand Oak Estate" } },
+        clause: { id: "cl1", vendorId: "v1", page: 1, vendor: { name: "Grand Oak Estate" } },
       }),
     );
     expect(v).toEqual({
@@ -38,6 +38,7 @@ describe("toProposalView", () => {
       draft: null,
       reason: "It is next.",
       citation: "Grand Oak Estate contract, page 1",
+      clauseHref: "/vendors/v1?clause=cl1",
       paymentId: "pay1",
       approvable: true,
       createdAt: "2026-11-07T10:00:00.000Z",
@@ -86,7 +87,7 @@ describe("toProposalView", () => {
       message: "Dear Bloom & Thistle, please refund.",
       reason: "The florist cancelled.",
     };
-    const v = toProposalView(row({ kind: "refund_request", payload, clause: { page: 2, vendor: { name: "Bloom & Thistle Florals" } } }));
+    const v = toProposalView(row({ kind: "refund_request", payload, clause: { id: "cl2", vendorId: "v1", page: 2, vendor: { name: "Bloom & Thistle Florals" } } }));
     expect(v.title).toBe("Request a refund");
     expect(v.summary).toBe("Ask Bloom & Thistle Florals for $800 back of the $800 paid.");
     expect(v.amount).toEqual({ label: "$800", caption: "to ask back" });
@@ -116,7 +117,7 @@ describe("toProposalView", () => {
   });
 
   it("keeps the clause citation even for an unreadable proposal", () => {
-    expect(toProposalView(row({ kind: "pay", payload: {}, clause: { page: 3, vendor: { name: "DJ Marlow Sound" } } })).citation).toBe("DJ Marlow Sound contract, page 3");
+    expect(toProposalView(row({ kind: "pay", payload: {}, clause: { id: "cl3", vendorId: "v1", page: 3, vendor: { name: "DJ Marlow Sound" } } })).citation).toBe("DJ Marlow Sound contract, page 3");
   });
 
   it("is plain data that survives JSON, so it can cross from the server to the browser", () => {

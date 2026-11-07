@@ -3,6 +3,7 @@
 import { ClauseChip } from "@/components/Clauses/ClauseChip";
 import { describeShift } from "@/components/Gantt/tooltip";
 import { formatCents } from "@/lib/money";
+import { clauseHref } from "@/lib/vendors/links";
 import type { WhatIfPreviewView, WhatIfRowView } from "@/lib/whatif/client";
 
 export type WhatIfState =
@@ -36,7 +37,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 function Citation({ row }: { row: WhatIfRowView }) {
   if (!row.citation) return null;
-  return <ClauseChip label={row.citation} clause={row.clause} />;
+  return <ClauseChip label={row.citation} clause={row.clause} href={row.clauseId ? clauseHref(row.vendorId, row.clauseId) : null} />;
 }
 
 function FeeTable({ rows }: { rows: WhatIfRowView[] }) {

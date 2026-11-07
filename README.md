@@ -484,6 +484,22 @@ The model never does this arithmetic.
 - If no tier applies, the cost or refund is 0 and the row says so, rather than implying the change is free.
 - Money is integer cents; percentages round half up (`lib/money.ts`).
 
+### Extraction eval
+
+`npm run eval` extracts all 14 sample contracts with the app's models and scores each against `evals/expected/<vendor>.json`
+(amounts, anchors, offsets and rules must match exactly; it also counts how many quotes really appear in the PDF and
+whether the deliberately vague clause was flagged for review). It prints a row per contract and exits 1 if any extraction
+fails outright; `--min 90` also fails under 90% accuracy, and `--only a,b` runs a subset. Needs `GEMINI_API_KEY`.
+
+**Extraction accuracy: 100% (65/65 fields) on 14 contracts, 100% of quotes verified** (`gemini-3.5-flash-lite`, 2026-11-07;
+the vague clause was flagged and no clear payment was). One run on one day, and these are generated contracts, so it says
+the pipeline works on this kind of document, not that it will be perfect on any real contract.
+
+How honest the answer key is: the `expected` files are written from the same data the contracts are generated from
+(`npm run eval:expected` rewrites them), not read independently by a person. Tests check they match that data, and that
+every expected payment amount really appears in its PDF. If you change `lib/seed/demo-data.ts`, regenerate the PDFs and the
+expected files.
+
 ### Checks
 
 ```bash

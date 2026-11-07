@@ -1,0 +1,36 @@
+{
+  "slug": "velvet-strings-quartet",
+  "name": "Velvet Strings Quartet",
+  "payments": [
+    {
+      "label": "Quartet full payment",
+      "amountCents": 140000,
+      "anchor": "wedding_date",
+      "offsetDays": -7
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 90,
+      "feePercent": 0,
+      "flatFee": 15000
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 15,
+      "flatFee": 15000
+    }
+  ]
+}

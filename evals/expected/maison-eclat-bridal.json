@@ -1,0 +1,41 @@
+{
+  "slug": "maison-eclat-bridal",
+  "name": "Maison Éclat Bridal",
+  "payments": [
+    {
+      "label": "Gown deposit",
+      "amountCents": 100000,
+      "anchor": "signing_date"
+    },
+    {
+      "label": "Gown final balance",
+      "amountCents": 100000,
+      "anchor": "wedding_date",
+      "offsetDays": -60
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 120,
+      "feePercent": 5,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 30,
+      "flatFee": 0
+    }
+  ]
+}

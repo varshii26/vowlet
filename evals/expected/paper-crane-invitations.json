@@ -1,0 +1,35 @@
+{
+  "slug": "paper-crane-invitations",
+  "name": "Paper Crane Invitations",
+  "payments": [
+    {
+      "label": "Invitations full payment",
+      "amountCents": 60000,
+      "anchor": "signing_date"
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 120,
+      "feePercent": 5,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 30,
+      "flatFee": 0
+    }
+  ]
+}

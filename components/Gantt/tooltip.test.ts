@@ -51,6 +51,11 @@ describe("renderTaskTooltip", () => {
     expect(html).not.toContain("vw-status-paid");
   });
 
+  it("invites a click through to the clause when one is linked", () => {
+    expect(renderTaskTooltip(payment)).toContain("Click to open the clause in the contract");
+    expect(renderTaskTooltip({ ...payment, clauseId: null, clauseSummary: null, clausePage: null })).not.toContain("Click to open");
+  });
+
   it("says so when no clause is linked", () => {
     const html = renderTaskTooltip({ ...payment, clauseId: null, clauseSummary: null, clausePage: null });
     expect(html).toContain("No contract clause linked");

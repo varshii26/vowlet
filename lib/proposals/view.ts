@@ -1,5 +1,6 @@
 import { formatCents } from "@/lib/money";
 import { parsePayload, type ProposalKind } from "@/lib/proposals/payloads";
+import { clauseHref } from "@/lib/vendors/links";
 
 /** What a proposal card shows. Plain data, so it can cross from server to browser. */
 export type ProposalView = {
@@ -17,6 +18,8 @@ export type ProposalView = {
   reason: string;
   /** "Grand Oak Estate contract, page 2": the clause it rests on, in words. */
   citation: string | null;
+  /** The vendor page opened at that clause. */
+  clauseHref: string | null;
   /** For a "pay" proposal: the payment the PayPal button pays. */
   paymentId: string | null;
   /** False if the stored details can't be read: the card can be dismissed but not approved. */
@@ -36,7 +39,7 @@ export type ProposalRow = {
   kind: ProposalKind;
   payload: unknown;
   createdAt: Date;
-  clause: { page: number; vendor: { name: string } } | null;
+  clause: { id: string; vendorId: string; page: number; vendor: { name: string } } | null;
 };
 
 export function toProposalView(row: ProposalRow): ProposalView {
@@ -44,6 +47,7 @@ export function toProposalView(row: ProposalRow): ProposalView {
     id: row.id,
     kind: row.kind,
     citation: row.clause ? `${row.clause.vendor.name} contract, page ${row.clause.page}` : null,
+    clauseHref: row.clause ? clauseHref(row.clause.vendorId, row.clause.id) : null,
     createdAt: row.createdAt.toISOString(),
   };
   const parsed = parsePayload(row.kind, row.payload);

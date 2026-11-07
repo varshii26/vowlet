@@ -1,0 +1,62 @@
+{
+  "slug": "saffron-and-sage-catering",
+  "name": "Saffron & Sage Catering",
+  "payments": [
+    {
+      "label": "Catering deposit",
+      "amountCents": 150000,
+      "anchor": "signing_date"
+    },
+    {
+      "label": "Catering second installment",
+      "amountCents": 300000,
+      "anchor": "wedding_date",
+      "offsetDays": -60
+    },
+    {
+      "label": "Catering final balance",
+      "amountCents": 150000,
+      "anchor": "wedding_date",
+      "offsetDays": -7
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 180,
+      "refundPercent": 75,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 25,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 60,
+      "feePercent": 0,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "feePercent": 10,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 25,
+      "flatFee": 0
+    }
+  ]
+}
