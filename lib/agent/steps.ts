@@ -44,6 +44,11 @@ export function describeStep(tool: string, args: Record<string, unknown>, outcom
       return { tool, ok: true, label };
     }
 
+    case "check_payment_status": {
+      const vendor = text(field(out, "vendorName"));
+      return { tool, ok: true, label: vendor ? `Checking ${vendor}'s payments with PayPal…` : "Checking payments with PayPal…" };
+    }
+
     case "read_clause": {
       const vendor = text(field(out, "vendorName"));
       const kind = KIND_WORDS[text(field(out, "kind")) ?? ""] ?? "contract";

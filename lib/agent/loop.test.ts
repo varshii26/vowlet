@@ -39,7 +39,7 @@ describe("a question with no tools", () => {
     expect(answerOf(events)).toMatchObject({ text: "You owe nothing today.", proposals: [], model: "m1", iterations: 1, truncated: false });
   });
 
-  it("sends the system prompt with today's date, the seven tools and temperature 0", async () => {
+  it("sends the system prompt with today's date, the tools and temperature 0", async () => {
     const { client, requests } = fakeGemini(modelAnswer("ok"));
     await collect(client);
 
@@ -55,6 +55,7 @@ describe("a question with no tools", () => {
       "compute_date_change_cost",
       "compute_refund_owed",
       "propose_action",
+      "check_payment_status",
     ]);
     expect(requests[0].models).toEqual(MODELS);
   });

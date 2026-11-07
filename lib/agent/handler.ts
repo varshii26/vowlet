@@ -3,6 +3,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS, MAX_TURN_CHARS } from "@/lib/agent/limits";
 import { runAgent } from "@/lib/agent/loop";
 import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
+import type { OrderLookup } from "@/lib/agent/tools/types";
 import type { GeminiClient } from "@/lib/llm/gemini";
 import type { RateLimiter } from "@/lib/rate-limit";
 
@@ -23,6 +24,8 @@ export type AgentHandlerDeps = {
   client: GeminiClient;
   models: string[];
   prisma: PrismaClient;
+  /** Read-only PayPal order lookup, or null when PayPal isn't configured. */
+  paypal?: OrderLookup | null;
   limiter: RateLimiter;
   /** False when GEMINI_API_KEY is not set. */
   configured: boolean;
@@ -77,6 +80,7 @@ export async function agentHandler(request: Request, deps: AgentHandlerDeps): Pr
           client: deps.client,
           models: deps.models,
           prisma: deps.prisma,
+          paypal: deps.paypal ?? null,
           today: deps.today?.() ?? new Date(),
           signal: stop.signal,
         })) {

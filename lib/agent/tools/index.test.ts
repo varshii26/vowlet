@@ -16,7 +16,8 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => cleanup());
 
-const SEVEN = [
+/** The seven tools in the spec, plus the read-only PayPal lookup from #31. */
+const TOOLS = [
   "get_wedding",
   "get_vendors",
   "get_payment_schedule",
@@ -24,11 +25,12 @@ const SEVEN = [
   "compute_date_change_cost",
   "compute_refund_owed",
   "propose_action",
+  "check_payment_status",
 ];
 
 describe("the tool set", () => {
-  it("is exactly the seven tools in the spec, and no others", () => {
-    expect(agentTools.map((t) => t.name)).toEqual(SEVEN);
+  it("is exactly the seven tools in the spec plus the read-only PayPal lookup, and no others", () => {
+    expect(agentTools.map((t) => t.name)).toEqual(TOOLS);
   });
 
   it("has a real description for each, so the model knows when to use it", () => {
@@ -48,7 +50,7 @@ describe("toolDeclarations", () => {
   const named = (name: string) => declarations.find((d) => d.name === name)!;
 
   it("declares each tool by name with its description", () => {
-    expect(declarations.map((d) => d.name)).toEqual(SEVEN);
+    expect(declarations.map((d) => d.name)).toEqual(TOOLS);
     for (const d of declarations) expect(d.description).toBeTruthy();
   });
 
@@ -101,7 +103,7 @@ describe("executeTool", () => {
   it("answers an unknown tool by listing the real ones, and does not throw", async () => {
     const message = await refused(prisma, "delete_everything");
     expect(message).toContain('Unknown tool "delete_everything"');
-    for (const name of SEVEN) expect(message).toContain(name);
+    for (const name of TOOLS) expect(message).toContain(name);
   });
 
   it("does not offer a way to pay, capture, refund or transfer", () => {
@@ -157,7 +159,7 @@ describe("no tool can move money", () => {
     .map((f) => ({ file: f, text: readFileSync(path.join(dir, f), "utf8") }));
 
   it("found the tool source files", () => {
-    expect(sources.map((s) => s.file).sort()).toEqual(["compute.ts", "data.ts", "index.ts", "propose.ts", "read.ts", "types.ts"]);
+    expect(sources.map((s) => s.file).sort()).toEqual(["compute.ts", "data.ts", "index.ts", "propose.ts", "read.ts", "status.ts", "types.ts"]);
   });
 
   it("never imports anything that talks to PayPal or settles a payment", () => {

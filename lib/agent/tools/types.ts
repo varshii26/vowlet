@@ -18,10 +18,36 @@ export class ToolError extends Error {
   }
 }
 
+/** A PayPal lookup result: never an exception, so a failed lookup is just reported. */
+type Lookup<T> = { ok: true; value: T } | { ok: false; reason: "not_found" | "not_allowed" | "unavailable" };
+
+/**
+ * Looking up PayPal orders and captures, and nothing else. The server passes in the
+ * reader from lib/paypal.ts (`paypalReader()`), which holds only these two
+ * functions; tool code never imports PayPal itself, so no tool can reach create,
+ * capture or refund.
+ */
+export type OrderLookup = {
+  readonly getOrder: (orderId: string) => Promise<
+    Lookup<{
+      orderId: string;
+      status: string;
+      amount: number | null;
+      payeeEmail: string | null;
+      captures: Array<{ captureId: string; status: string; amount: number | null; createdAt: string | null }>;
+    }>
+  >;
+  readonly getCapture: (captureId: string) => Promise<
+    Lookup<{ captureId: string; status: string; amount: number | null; payeeEmail: string | null; createdAt: string | null; orderId: string | null }>
+  >;
+};
+
 export type ToolContext = {
   prisma: PrismaClient;
   /** "Today", passed in so results are reproducible in tests. */
   today: Date;
+  /** Read-only PayPal order lookup. Absent when PayPal isn't configured. */
+  paypal?: OrderLookup | null;
 };
 
 export type AgentTool = {

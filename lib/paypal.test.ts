@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createPayPalClient, PayPalError, TOKEN_REFRESH_MARGIN_S } from "@/lib/paypal";
+import { createPayPalClient, PayPalError, readOnly, TOKEN_REFRESH_MARGIN_S } from "@/lib/paypal";
 
 const API = "https://api-m.sandbox.paypal.com";
 
@@ -203,6 +203,92 @@ describe("createOrder", () => {
     expect(err).toBeInstanceOf(PayPalError);
     expect(err).toMatchObject({ status: 422, debugId: "dbg123", issue: "PAYEE_ACCOUNT_INVALID" });
     expect((err as Error).message).toContain("Payee account is invalid.");
+  });
+});
+
+describe("getOrder", () => {
+  const order = (over: Record<string, unknown> = {}) => ({
+    body: {
+      id: "ORDER-1",
+      status: "COMPLETED",
+      purchase_units: [
+        {
+          amount: { currency_code: "USD", value: "500.00" },
+          payee: { email_address: "dj@example.com" },
+          payments: { captures: [{ id: "CAP-1", status: "COMPLETED", amount: { currency_code: "USD", value: "500.00" }, create_time: "2026-11-07T10:38:40Z" }] },
+        },
+      ],
+      ...over,
+    },
+  });
+
+  it("reads an order with a GET and returns its status, amount, payee and captures in cents", async () => {
+    const t = setup([order()]);
+    expect(await t.client.getOrder("ORDER-1")).toEqual({
+      orderId: "ORDER-1",
+      status: "COMPLETED",
+      amount: 50_000,
+      payeeEmail: "dj@example.com",
+      captures: [{ captureId: "CAP-1", status: "COMPLETED", amount: 50_000, createdAt: "2026-11-07T10:38:40Z" }],
+    });
+    const [call] = t.apiCalls();
+    expect(call.method).toBe("GET");
+    expect(call.url.replace(/\?$/, "")).toBe(`${API}/v2/checkout/orders/ORDER-1`);
+  });
+
+  it("handles an order that was approved but never captured", async () => {
+    const t = setup([order({ status: "APPROVED", purchase_units: [{ amount: { currency_code: "USD", value: "500.00" } }] })]);
+    expect(await t.client.getOrder("ORDER-1")).toMatchObject({ status: "APPROVED", captures: [], payeeEmail: null });
+  });
+
+  it("turns PayPal's 404 into a PayPalError", async () => {
+    const t = setup([{ status: 404, body: { name: "RESOURCE_NOT_FOUND", message: "The specified resource does not exist.", debug_id: "d1" } }]);
+    await expect(t.client.getOrder("NOPE")).rejects.toThrow(PayPalError);
+  });
+});
+
+describe("getCapture", () => {
+  it("reads a captured payment with a GET and returns its status, amount, payee and order", async () => {
+    const t = setup([
+      {
+        body: {
+          id: "CAP-1",
+          status: "COMPLETED",
+          amount: { currency_code: "USD", value: "500.00" },
+          payee: { email_address: "dj@example.com" },
+          create_time: "2026-11-07T10:38:38Z",
+          supplementary_data: { related_ids: { order_id: "ORDER-1" } },
+        },
+      },
+    ]);
+    expect(await t.client.getCapture("CAP-1")).toEqual({ captureId: "CAP-1", status: "COMPLETED", amount: 50_000, payeeEmail: "dj@example.com", createdAt: "2026-11-07T10:38:38Z", orderId: "ORDER-1" });
+    const [call] = t.apiCalls();
+    expect(call.method).toBe("GET");
+    expect(call.url.replace(/[?]$/, "")).toBe(`${API}/v2/payments/captures/CAP-1`);
+  });
+});
+
+describe("readOnly", () => {
+  it("hands out getOrder and getCapture and nothing else, frozen", () => {
+    const reader = readOnly(setup().client);
+    expect(Object.keys(reader).sort()).toEqual(["getCapture", "getOrder"]);
+    expect(Object.isFrozen(reader)).toBe(true);
+    for (const name of ["createOrder", "captureOrder", "refundCapture", "verifyWebhookSignature"]) expect(name in reader, name).toBe(false);
+    expect(() => Object.assign(reader, { captureOrder: () => {} })).toThrow();
+  });
+
+  it("returns results instead of throwing, with a plain reason on failure", async () => {
+    const t = setup([
+      { body: { id: "ORDER-1", status: "CREATED", purchase_units: [{}] } },
+      { status: 404, body: { name: "RESOURCE_NOT_FOUND", message: "The specified resource does not exist." } },
+      { status: 401, body: { name: "NOT_AUTHORIZED", message: "Authorization failed due to insufficient permissions.", details: [{ issue: "PERMISSION_DENIED" }] } },
+      { status: 500, body: { name: "INTERNAL_SERVER_ERROR", message: "boom" } },
+    ]);
+    const reader = readOnly(t.client);
+    expect(await reader.getOrder("ORDER-1")).toMatchObject({ ok: true, value: { status: "CREATED" } });
+    expect(await reader.getOrder("OLD")).toEqual({ ok: false, reason: "not_found" });
+    expect(await reader.getCapture("THEIRS")).toEqual({ ok: false, reason: "not_allowed" });
+    expect(await reader.getCapture("X")).toEqual({ ok: false, reason: "unavailable" });
   });
 });
 

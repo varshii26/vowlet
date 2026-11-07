@@ -3,11 +3,15 @@ import { z } from "zod";
 import { computeDateChangeCostTool, computeRefundOwedTool } from "@/lib/agent/tools/compute";
 import { proposeAction } from "@/lib/agent/tools/propose";
 import { getPaymentSchedule, getVendors, getWedding, readClause } from "@/lib/agent/tools/read";
+import { checkPaymentStatus } from "@/lib/agent/tools/status";
 import { ToolError, type AgentTool, type ToolContext } from "@/lib/agent/tools/types";
 
 export { ToolError, type AgentTool, type ToolContext } from "@/lib/agent/tools/types";
 
-/** The seven tools, and only these seven. Clear descriptions matter more than count. */
+/**
+ * The seven tools from the spec, plus one read-only PayPal lookup (#31). Clear
+ * descriptions matter more than count.
+ */
 export const agentTools: readonly AgentTool[] = [
   getWedding,
   getVendors,
@@ -16,6 +20,7 @@ export const agentTools: readonly AgentTool[] = [
   computeDateChangeCostTool,
   computeRefundOwedTool,
   proposeAction,
+  checkPaymentStatus,
 ];
 
 const byName = new Map(agentTools.map((tool) => [tool.name, tool]));
