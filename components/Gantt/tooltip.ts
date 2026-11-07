@@ -1,3 +1,4 @@
+import { daysBetweenUtc } from "@/lib/schedule";
 import type { TaskDetail } from "@/lib/timeline";
 
 /** Escape text for use inside HTML. Names and clause text come from contracts. */
@@ -47,4 +48,27 @@ export function renderTaskTooltip(detail: TaskDetail | undefined): string {
       ].join("");
     }
   }
+}
+
+const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+const longDay = (iso: string) =>
+  utcDay(iso).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+
+/** "56 days later", "3 days earlier", "Same day". */
+export function describeShift(days: number): string {
+  if (days === 0) return "Same day";
+  const n = Math.abs(days);
+  return `${n} day${n === 1 ? "" : "s"} ${days > 0 ? "later" : "earlier"}`;
+}
+
+/** HTML for the tooltip that follows the "Wedding day" milestone while it is dragged. */
+export function renderWeddingDragTip(detail: TaskDetail | undefined, newIsoDate: string, valid: boolean): string {
+  const shift = detail?.kind === "wedding" ? describeShift(daysBetweenUtc(utcDay(detail.isoDate), utcDay(newIsoDate))) : "";
+  return [
+    `<div class="vw-tip">`,
+    `<div class="vw-tip-title">Move the wedding to ${escapeHtml(longDay(newIsoDate))}</div>`,
+    shift ? `<div>${escapeHtml(shift)}</div>` : "",
+    `<div class="vw-tip-muted">${valid ? "Drop to see every payment move and what each vendor charges." : "The wedding can't move into the past."}</div>`,
+    `</div>`,
+  ].join("");
 }

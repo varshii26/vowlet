@@ -38,7 +38,7 @@ export async function computeDateChange(prisma: PrismaClient, newDate: Date, tod
     throw error;
   }
   const citations = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, citation(v.name, v.clauses[0].page)] as const] : [])));
-  return { wedding, result, citations };
+  return { wedding, result, citations, vendors };
 }
 
 /** What a vendor owes back if the wedding is cancelled on `cancellationDate`. Used by the tool and by refund proposals. */

@@ -4,7 +4,7 @@ import type { Gantt } from "@bryntum/gantt-community";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PaymentGanttChart } from "@/components/Gantt/PaymentGanttChart";
+import { PaymentGanttChart, localIsoDay } from "@/components/Gantt/PaymentGanttChart";
 import { buildTimeline, type TimelineInput } from "@/lib/timeline";
 
 // Bryntum measures layout and reads these browser APIs while its module loads,
@@ -60,14 +60,14 @@ afterEach(() => {
   host = undefined;
 });
 
-async function mount(data: TimelineInput) {
+async function mount(data: TimelineInput, onWeddingDateChange?: (iso: string) => void) {
   host = document.createElement("div");
   host.style.height = "600px";
   host.style.width = "1200px";
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(<PaymentGanttChart data={buildTimeline(data, today)} />);
+    root!.render(<PaymentGanttChart data={buildTimeline(data, today)} onWeddingDateChange={onWeddingDateChange} minWeddingDate="2026-11-07" />);
   });
 }
 
@@ -175,5 +175,70 @@ describe("PaymentGanttChart", () => {
     expect(barCount(".payment-scheduled")).toBe(0);
     expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-green")).toHaveLength(2);
     expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-blue")).toHaveLength(0);
+  });
+
+  describe("dragging the wedding day", () => {
+    // The parts of the Gantt and its TaskDrag feature these tests drive. Bryntum's
+    // typings don't expose `trigger`'s return value or the feature's validator.
+    type Driven = {
+      trigger(name: string, args: object): boolean;
+      readOnly: boolean;
+      features: { taskDrag: { disabled: boolean; validatorFn(records: unknown[], date: Date): unknown } };
+    };
+    const ganttOf = () => Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as unknown as Driven & Gantt;
+
+    it("is off when nothing listens for a new date", async () => {
+      await mount(input);
+      expect(ganttOf().readOnly).toBe(true);
+      expect(ganttOf().features.taskDrag.disabled).toBe(true);
+    });
+
+    it("lets only the wedding milestone be dragged", async () => {
+      await mount(input, () => {});
+      const { tasks } = await engine();
+      const gantt = ganttOf();
+      expect(gantt.features.taskDrag.disabled).toBe(false);
+      expect(gantt.trigger("beforeTaskDrag", { taskRecord: tasks.getById("wedding") })).not.toBe(false);
+      expect(gantt.trigger("beforeTaskDrag", { taskRecord: tasks.getById("payment-p2") })).toBe(false);
+      expect(gantt.trigger("beforeTaskDrag", { taskRecord: tasks.getById("vendor-v1") })).toBe(false);
+    });
+
+    it("refuses a drop before the earliest allowed day", async () => {
+      await mount(input, () => {});
+      const validate = ganttOf().features.taskDrag.validatorFn;
+      expect(validate([], new Date(2026, 10, 6))).toMatchObject({ valid: false });
+      expect(validate([], new Date(2026, 10, 7))).toBe(true);
+    });
+
+    it("reports the day the wedding was dropped on", async () => {
+      const dropped = vi.fn();
+      await mount(input, dropped);
+      await engine();
+      act(() => {
+        ganttOf().trigger("taskDrop", { taskRecords: [{ id: "wedding", startDate: new Date(2027, 5, 12) }] });
+      });
+      expect(dropped).toHaveBeenCalledWith("2027-06-12");
+    });
+
+    it("moves payments when handed a new wedding date, and snaps back when handed the old one", async () => {
+      await mount(input, () => {});
+      await rerender({ ...input, wedding: { ...input.wedding, date: d("2027-06-12") } });
+      let now = await engine();
+      expect(now.day("wedding")).toBe("2027-06-12");
+      expect(now.day("payment-p2")).toBe("2027-05-13");
+      expect(now.day("payment-p1")).toBe("2026-06-12");
+
+      await rerender(input);
+      now = await engine();
+      expect(now.day("wedding")).toBe("2027-04-17");
+      expect(now.day("payment-p2")).toBe("2027-03-18");
+    });
+  });
+});
+
+describe("localIsoDay", () => {
+  it("reads the calendar day Bryntum shows, in local time", () => {
+    expect(localIsoDay(new Date(2027, 0, 5))).toBe("2027-01-05");
+    expect(localIsoDay(new Date(2027, 11, 31, 23, 59))).toBe("2027-12-31");
   });
 });
