@@ -45,6 +45,18 @@ PayPal is sandbox only. No real money moves.
 
 The demo data lives in `lib/seed/demo-data.ts`.
 
+### Reset demo
+
+The **Reset demo** button at the top of the page (after a confirm) calls `POST /api/demo/reset`, which wipes the
+database and reloads the starting demo: only the signing deposits paid, no proposals, the wedding on 2027-04-17. It is
+the same reload as `npm run db:seed`, so judges and rehearsals always start from the same state.
+
+- **Safe to click repeatedly.** The reload is one transaction, so a failure leaves the data as it was, and clicks that
+  arrive while a reset is running share it instead of starting another.
+- **Rate limited** to 5 resets a minute, since the endpoint is public and wipes the database.
+- It undoes everything done in the app, for everyone using the hosted demo at that moment. Sandbox PayPal payments
+  already captured stay in the PayPal sandbox; only Vowlet's record of them is reset.
+
 ### Payment timeline
 
 The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://bryntum.com/products/gantt/) timeline
@@ -148,8 +160,8 @@ simulator may fail verification, because they aren't signed by a real transactio
 
 `render.yaml` describes the service, so deploying is a few clicks:
 
-1. In Render choose **New -> Blueprint**, connect the GitHub repo, and pick this branch (the repo's owner may need to
-   authorise Render).
+1. In Render choose **New -> Blueprint**, connect the GitHub repo, and pick the `main` branch (the repo's owner may need
+   to authorise Render). Every merge to `main` then redeploys.
 2. Render asks for the values marked secret: `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
    `NEXT_PUBLIC_PAYPAL_CLIENT_ID` (set it before the first build: it is baked into the page at build time),
    `PAYPAL_VENDOR_EMAILS` (a **US** sandbox business account, see above) and `PAYPAL_WEBHOOK_ID` (leave empty for now).
@@ -159,8 +171,8 @@ simulator may fail verification, because they aren't signed by a real transactio
 How it behaves:
 - **The database is a SQLite file on the free tier's temporary disk.** On every start the service applies migrations and
   seeds the demo wedding if the database is empty, so a restart or redeploy always comes back with Priya & Sam. Anything
-  done in the app (payments, approvals) is lost on a restart; that is fine for a demo and is why the "Reset demo" button
-  (#22) matters.
+  done in the app (payments, approvals) is lost on a restart; that is fine for a demo. Between restarts, the
+  [Reset demo](#reset-demo) button puts it back.
 - **Cold start:** the free tier sleeps after about 15 minutes idle, and the first request afterwards takes roughly a
   minute. Open the URL once before a demo.
 - Sandbox only; no real money moves.
