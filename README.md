@@ -31,6 +31,7 @@ Copy `.env.example` to `.env.local`. Never commit `.env.local`.
 | `GEMINI_MODELS` | optional: comma-separated model override, see [AI model](#ai-model-gemini-free-tier) | empty (use the defaults) |
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | payments | empty |
 | `PAYPAL_WEBHOOK_ID` | webhook verification | empty |
+| `PAYPAL_VENDOR_EMAILS` | sandbox business emails the demo vendors are paid as (comma-separated; shared in turn by the 14 vendors) | empty (placeholders) |
 
 PayPal is sandbox only. No real money moves.
 
@@ -87,10 +88,21 @@ Browser SDK: `@paypal/react-paypal-js`'s default (v5-style) `PayPalScriptProvide
 `NEXT_PUBLIC_PAYPAL_CLIENT_ID`. The package's newer v6 API (`/sdk-v6`) also needs a server-issued client token, so it
 was left for later.
 
-**To try a real payment:** the seeded vendors use placeholder emails (`sb-vendorN@business.example.com` in
-`lib/seed/demo-data.ts`). PayPal accepts those when an order is created but cannot complete a payment to them. Replace
-them with your sandbox **business** account emails, run `npm run db:seed`, then pay as your sandbox **personal**
-account.
+**To try a real payment:** by default the seeded vendors use placeholder emails (`sb-vendorN@business.example.com`).
+PayPal accepts those when an order is created but cannot complete a payment to them. Put your sandbox **business**
+account emails in `PAYPAL_VENDOR_EMAILS` (comma-separated), reseed an empty database (delete `dev.db`, restart), and pay as
+a sandbox **personal** account.
+
+**What we found testing against the sandbox (2026-11-07):**
+- **Use US sandbox accounts.** With a personal buyer and business payee that were both created in India, checkout opened
+  and then showed "Things don't appear to be working" (the URL's `code` starts `UNSUPPORTED_`...). Orders in `INR` are
+  rejected outright (`CURRENCY_NOT_SUPPORTED`). A **US personal buyer paying a US business account** worked: the $5 test
+  capture completed. India-to-India was not tested separately from that failure, so treat it as unsupported.
+- **A payee that isn't the app's own account works.** The capture above went to a business account that does not own the
+  REST app, so paying each vendor directly is fine.
+- **Refunds through the API do not work for that payee.** Refunding the capture with the app's credentials returned
+  `403 PERMISSION_DENIED`: only the account that received the money can refund it. So cancellation stays a drafted,
+  tracked `refund_requested` state, as planned; the app never issues a live refund.
 
 ### PayPal webhook
 
