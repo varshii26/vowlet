@@ -13,8 +13,9 @@ import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
  *   records the approval once the payment really is paid.
  * - reschedule: moves the wedding date; every payment date follows, because due
  *   dates are computed from it.
- * - refund_request: marks the vendor's paid payments `refund_requested` and hands
- *   back the drafted message. Nothing is sent and no refund is issued.
+ * - refund_request: marks the vendor cancelled and its paid payments
+ *   `refund_requested`, and hands back the drafted message. Nothing is sent and
+ *   no refund is issued.
  * - message: just acknowledged.
  *
  * A proposal is resolved exactly once: repeating the same action is a no-op and
@@ -134,8 +135,9 @@ async function applyApproval(tx: Prisma.TransactionClient, weddingId: string, ki
       if (paid.length === 0) throw new Refusal("nothing_paid", `Nothing has been paid to ${p.vendorName}, so there is nothing to ask for back.`);
 
       await tx.payment.updateMany({ where: { vendorId: p.vendorId, status: "paid" }, data: { status: "refund_requested" } });
+      await tx.vendor.update({ where: { id: p.vendorId }, data: { status: "cancelled" } });
       return {
-        message: `Approved. ${paid.length === 1 ? "The payment" : `${paid.length} payments`} to ${p.vendorName} ${paid.length === 1 ? "is" : "are"} now marked refund requested. Copy the message below and send it to the vendor: nothing has been sent for you.`,
+        message: `Approved. ${p.vendorName} is marked cancelled, and ${paid.length === 1 ? "the payment" : `${paid.length} payments`} to them ${paid.length === 1 ? "is" : "are"} now marked refund requested. Copy the message below and send it to the vendor: nothing has been sent for you.`,
         draft: p.message,
       };
     }
