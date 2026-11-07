@@ -33,6 +33,15 @@
   opacity: 0.55;
 }
 
+/*
+ * Bryntum sets overscroll-behavior: none on the grid body, so a wheel over the
+ * chart stops dead once the chart reaches its last row and the page below it
+ * (upcoming payments) can't be reached. Let the scroll carry on to the page.
+ */
+.b-gantt .b-grid-body-container {
+  overscroll-behavior: auto !important;
+}
+
 /* Every payment links to one wedding day, so keep the dependency lines light. */
 .b-sch-dependency {
   --b-dependency-color: #cbd5e1;

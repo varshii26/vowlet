@@ -11,8 +11,10 @@ const rowSchema = z.object({
   vendorName: z.string(),
   costCents: z.number().int().nonnegative(),
   reason: z.string(),
+  basis: z.string(),
   clauseId: z.string().nullable(),
   citation: z.string().nullable(),
+  clause: z.object({ text: z.string(), page: z.number().int() }).nullable(),
 });
 
 const previewSchema = z.object({
@@ -20,10 +22,12 @@ const previewSchema = z.object({
   currentDate: z.string(),
   newDate: z.string(),
   shiftDays: z.number().int(),
+  noticeDays: z.number().int().nonnegative(),
   totalCents: z.number().int().nonnegative(),
   rows: z.array(rowSchema),
 });
 const applySchema = z.object({ ok: z.literal(true), message: z.string() });
+const explainSchema = z.object({ ok: z.literal(true), newDate: z.string(), text: z.string().min(1), source: z.enum(["model", "template"]) });
 const failureSchema = z.object({ ok: z.literal(false), error: z.object({ message: z.string() }) });
 
 export type WhatIfRowView = z.infer<typeof rowSchema>;
@@ -51,8 +55,8 @@ export async function requestWhatIf(newDate: string): Promise<{ ok: true; previe
   if ("error" in res) return { ok: false, message: res.error };
   const parsed = previewSchema.safeParse(res.json);
   if (!parsed.success) return { ok: false, message: failureMessage(res.json) };
-  const { currentDate, newDate: date, shiftDays, totalCents, rows } = parsed.data;
-  return { ok: true, preview: { currentDate, newDate: date, shiftDays, totalCents, rows } };
+  const { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } = parsed.data;
+  return { ok: true, preview: { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } };
 }
 
 export async function requestApply(newDate: string, previousDate: string): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
@@ -60,4 +64,12 @@ export async function requestApply(newDate: string, previousDate: string): Promi
   if ("error" in res) return { ok: false, message: res.error };
   const parsed = applySchema.safeParse(res.json);
   return parsed.success ? { ok: true, message: parsed.data.message } : { ok: false, message: failureMessage(res.json) };
+}
+
+/** The short written summary of a what-if. Optional extra: a failure just means no summary is shown. */
+export async function requestExplanation(newDate: string): Promise<{ ok: true; text: string; source: "model" | "template" } | { ok: false; message: string }> {
+  const res = await postJson("/api/whatif/explain", { newDate });
+  if ("error" in res) return { ok: false, message: res.error };
+  const parsed = explainSchema.safeParse(res.json);
+  return parsed.success ? { ok: true, text: parsed.data.text, source: parsed.data.source } : { ok: false, message: failureMessage(res.json) };
 }

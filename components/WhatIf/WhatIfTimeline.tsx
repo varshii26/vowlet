@@ -3,10 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
-import { WhatIfPanel, type WhatIfState } from "@/components/WhatIf/WhatIfPanel";
+import { WhatIfPanel, type ExplanationState, type WhatIfState } from "@/components/WhatIf/WhatIfPanel";
 import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
 import { buildTimeline, type TimelineInput } from "@/lib/timeline";
-import { requestApply, requestWhatIf } from "@/lib/whatif/client";
+import { requestApply, requestExplanation, requestWhatIf } from "@/lib/whatif/client";
 
 const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -31,6 +31,7 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
 
   const [preview, setPreview] = useState<string | null>(null);
   const [whatIf, setWhatIf] = useState<WhatIfState>({ status: "loading" });
+  const [explanation, setExplanation] = useState<ExplanationState>({ status: "none" });
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -69,12 +70,20 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
     const request = ++latestRequest.current;
     setPreview(isoDate);
     setWhatIf({ status: "loading" });
+    setExplanation({ status: "none" });
     setApplyError(null);
     setNotice(null);
 
     const result = await requestWhatIf(isoDate);
     if (request !== latestRequest.current) return;
     setWhatIf(result.ok ? { status: "ready", preview: result.preview } : { status: "error", message: result.message });
+    if (!result.ok) return;
+
+    // The table is already on screen; the written summary fills in after it.
+    setExplanation({ status: "loading" });
+    const summary = await requestExplanation(isoDate);
+    if (request !== latestRequest.current) return;
+    setExplanation(summary.ok ? { status: "ready", text: summary.text } : { status: "none" });
   }
 
   async function confirm() {
@@ -117,6 +126,7 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
           movedCount={movedCount}
           fixedCount={payments.length - movedCount}
           state={whatIf}
+          explanation={explanation}
           applying={applying}
           applyError={applyError}
           onConfirm={() => void confirm()}

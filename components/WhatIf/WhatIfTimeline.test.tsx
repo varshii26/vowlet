@@ -45,11 +45,12 @@ const previewBody = {
   currentDate: "2027-04-17",
   newDate: "2027-06-12",
   shiftDays: 56,
+  noticeDays: 161,
   totalCents: 50_000,
   rows: [
-    { vendorId: "v1", kind: "fee", vendorName: "Grand Oak Estate", costCents: 50_000, reason: "$500 (a $500 flat fee) with 161 days' notice.", clauseId: "c1", citation: "Grand Oak Estate contract, page 2" },
-    { vendorId: "v2", kind: "free", vendorName: "Bloom & Vine", costCents: 0, reason: "Free with 161 days' notice (needs at least 60).", clauseId: "c2", citation: null },
-    { vendorId: "v3", kind: "check", vendorName: "Lens & Light", costCents: 0, reason: "No date-change terms apply; check the contract.", clauseId: null, citation: null },
+    { vendorId: "v1", kind: "fee", vendorName: "Grand Oak Estate", costCents: 50_000, reason: "$500 (a $500 flat fee) with 161 days' notice.", basis: "a $500 flat fee", clauseId: "c1", citation: "Grand Oak Estate contract, page 2", clause: { text: "Moving the event date costs a $500 flat fee.", page: 2 } },
+    { vendorId: "v2", kind: "free", vendorName: "Bloom & Vine", costCents: 0, reason: "Free with 161 days' notice (needs at least 60).", basis: "Free with at least 60 days' notice", clauseId: "c2", citation: null, clause: null },
+    { vendorId: "v3", kind: "check", vendorName: "Lens & Light", costCents: 0, reason: "No date-change terms apply; check the contract.", basis: "No date-change terms apply; check the contract.", clauseId: null, citation: null, clause: null },
   ],
 };
 
@@ -57,7 +58,7 @@ const calls: { url: string; body: unknown }[] = [];
 function stubFetch(responses: Record<string, { body: unknown; status?: number }>) {
   vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
     calls.push({ url, body: JSON.parse(String(init.body)) });
-    const r = responses[url];
+    const r = responses[url] ?? { body: { ok: false, error: { code: "unavailable", message: "Not stubbed." } }, status: 503 };
     return new Response(JSON.stringify(r.body), { status: r.status ?? 200 });
   });
 }
@@ -109,7 +110,7 @@ describe("WhatIfTimeline", () => {
     render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
     await drop("2027-06-12");
 
-    expect(calls).toEqual([{ url: "/api/whatif", body: { newDate: "2027-06-12" } }]);
+    expect(calls[0]).toEqual({ url: "/api/whatif", body: { newDate: "2027-06-12" } });
     const table = screen.getByRole("table");
     expect(table.textContent).toContain("Grand Oak Estate");
     expect(table.textContent).toContain("Grand Oak Estate contract, page 2");
@@ -117,6 +118,59 @@ describe("WhatIfTimeline", () => {
     expect(screen.getByText(/Check these contracts/)).toBeTruthy();
     expect(screen.getByText("Lens & Light")).toBeTruthy();
     expect(screen.getByText(/1 vendor won't charge/)).toBeTruthy();
+  });
+
+  it("states the notice once, and each row shows only what its fee is made of", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+
+    expect(screen.getByTestId("whatif-notice").textContent).toMatch(/161 days' notice before Apr 17, 2027/);
+    const table = screen.getByRole("table");
+    expect(table.textContent).toContain("a $500 flat fee");
+    expect(table.textContent).not.toContain("days' notice");
+    expect(screen.getByText("Free with at least 60 days' notice")).toBeTruthy();
+  });
+
+  it("opens the quoted clause from a row's citation chip", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+
+    const chip = screen.getByRole("button", { name: "Grand Oak Estate contract, page 2" });
+    expect(chip.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText(/Moving the event date costs/)).toBeNull();
+    await click("Grand Oak Estate contract, page 2");
+    expect(chip.getAttribute("aria-expanded")).toBe("true");
+    const quote = screen.getByText(/Moving the event date costs a \$500 flat fee\./);
+    expect(quote.closest("blockquote")?.id).toBe(chip.getAttribute("aria-controls"));
+  });
+
+  it("fills in the written summary after the table, and shows none if it fails", async () => {
+    let explain: (r: Response) => void = () => {};
+    vi.stubGlobal("fetch", (url: string) =>
+      url === "/api/whatif" ? Promise.resolve(new Response(JSON.stringify(previewBody))) : new Promise<Response>((resolve) => (explain = resolve)),
+    );
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+
+    // The table is up while the summary is still being written.
+    expect(screen.getByRole("table")).toBeTruthy();
+    expect(screen.getByText(/Writing a short summary/)).toBeTruthy();
+
+    await act(async () => explain(new Response(JSON.stringify({ ok: true, newDate: "2027-06-12", text: "Moving costs $500, all Grand Oak Estate.", source: "model" }))));
+    expect(screen.getByTestId("whatif-explanation").textContent).toBe("Moving costs $500, all Grand Oak Estate.");
+    expect(screen.queryByText(/Writing a short summary/)).toBeNull();
+  });
+
+  it("shows no summary when it can't be written, and the table still works", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+    expect(calls.map((c) => c.url)).toEqual(["/api/whatif", "/api/whatif/explain"]);
+    expect(screen.queryByTestId("whatif-explanation")).toBeNull();
+    expect(screen.queryByText(/Writing a short summary/)).toBeNull();
+    expect((screen.getByRole("button", { name: /Move the wedding/ }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("cancel snaps everything back and saves nothing", async () => {
@@ -128,7 +182,7 @@ describe("WhatIfTimeline", () => {
     expect(chartDays()).toContain("wedding=2027-04-17");
     expect(chartDays()).toContain("payment-p2=2027-03-18");
     expect(screen.queryByRole("region", { name: /What if/ })).toBeNull();
-    expect(calls.map((c) => c.url)).toEqual(["/api/whatif"]);
+    expect(calls.map((c) => c.url)).not.toContain("/api/whatif/apply");
   });
 
   it("dragging back to the current date is the same as cancelling", async () => {
@@ -149,7 +203,7 @@ describe("WhatIfTimeline", () => {
     await drop("2027-06-12");
     await click(/Move the wedding to Jun 12, 2027/);
 
-    expect(calls[1]).toEqual({ url: "/api/whatif/apply", body: { newDate: "2027-06-12", previousDate: "2027-04-17" } });
+    expect(calls.find((c) => c.url === "/api/whatif/apply")).toEqual({ url: "/api/whatif/apply", body: { newDate: "2027-06-12", previousDate: "2027-04-17" } });
     expect(refresh).toHaveBeenCalledOnce();
     expect(screen.getByRole("status").textContent).toContain("now on 2027-06-12");
     // Until the refreshed page arrives, the chart keeps showing the new date.

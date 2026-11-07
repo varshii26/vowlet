@@ -2,7 +2,9 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { computeDateChange } from "@/lib/agent/tools/compute";
 import { proposeAction } from "@/lib/agent/tools/propose";
 import { ToolError, parseIsoDate } from "@/lib/agent/tools/types";
+import { formatCents } from "@/lib/money";
 import { resolveProposal } from "@/lib/proposals/service";
+import type { DateChangeRule } from "@/lib/rules";
 import { daysBetweenUtc, startOfUtcDay, toIsoDate } from "@/lib/schedule";
 
 /**
@@ -27,10 +29,19 @@ export type WhatIfRow = {
   kind: WhatIfRowKind;
   vendorName: string;
   costCents: number;
+  /** The full computed explanation, including the notice ("... with 161 days' notice."). Used by the summary. */
   reason: string;
+  /**
+   * The same, without the notice, which is the same for every row and is shown
+   * once in the panel: "15% of the contract plus a $150 flat fee",
+   * "Free with at least 60 days' notice".
+   */
+  basis: string;
   clauseId: string | null;
   /** "Grand Oak Estate contract, page 2", or null when there is no date-change clause. */
   citation: string | null;
+  /** The date-change clause, quoted from the contract, so the couple can read the source of the number. */
+  clause: { text: string; page: number } | null;
 };
 
 export type WhatIfPreview = {
@@ -38,6 +49,12 @@ export type WhatIfPreview = {
   newDate: string;
   /** Days the wedding moves: positive is later. */
   shiftDays: number;
+  /**
+   * Days from today to the CURRENT wedding date: the notice the vendors get.
+   * Every contract prices a date change by this, so it is the same whatever
+   * new date is picked.
+   */
+  noticeDays: number;
   totalCents: number;
   rows: WhatIfRow[];
 };
@@ -47,6 +64,16 @@ export type WhatIfFailureCode = "no_wedding" | "in_past" | "unchanged" | "stale"
 export type WhatIfFailure = { ok: false; code: WhatIfFailureCode; message: string; status: number };
 
 const failure = (code: WhatIfFailureCode, message: string, status = 400): WhatIfFailure => ({ ok: false, code, message, status });
+
+/** What the fee is made of, from the tier that applied. Without a tier, the computed reason as is. */
+export function feeBasis(rule: DateChangeRule | null, costCents: number, reason: string): string {
+  if (!rule) return reason;
+  if (costCents === 0) return `Free with at least ${rule.minNoticeDays} days' notice`;
+  const parts: string[] = [];
+  if (rule.feePercent > 0) parts.push(`${rule.feePercent}% of the contract`);
+  if (rule.flatFee > 0) parts.push(`a ${formatCents(rule.flatFee)} flat fee`);
+  return parts.join(" plus ");
+}
 
 async function currentWedding(prisma: PrismaClient) {
   return prisma.wedding.findFirst();
@@ -65,6 +92,7 @@ export async function previewDateChange(
   if (daysBetweenUtc(today, target) < 0) return failure("in_past", `${newDate} has already passed. Pick a date from today on.`);
 
   const { result, citations, vendors } = await computeDateChange(prisma, target, today);
+  const clauses = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, { text: v.clauses[0].text, page: v.clauses[0].page }] as const] : [])));
   const cancelled = new Set(vendors.filter((v) => v.status === "cancelled").map((v) => v.id));
   const kindOf = (row: (typeof result.rows)[number]): WhatIfRowKind =>
     cancelled.has(row.vendorId) ? "cancelled" : row.costCents > 0 ? "fee" : row.appliedRule ? "free" : "check";
@@ -73,6 +101,7 @@ export async function previewDateChange(
     currentDate: toIsoDate(wedding.date),
     newDate,
     shiftDays: daysBetweenUtc(wedding.date, target),
+    noticeDays: Math.max(0, daysBetweenUtc(today, wedding.date)),
     totalCents: result.totalCents,
     rows: result.rows.map((row) => ({
       vendorId: row.vendorId,
@@ -80,8 +109,10 @@ export async function previewDateChange(
       vendorName: row.vendorName,
       costCents: row.costCents,
       reason: row.reason,
+      basis: feeBasis(row.appliedRule, row.costCents, row.reason),
       clauseId: row.clauseId,
       citation: citations.get(row.vendorId) ?? null,
+      clause: clauses.get(row.vendorId) ?? null,
     })),
   };
 }
