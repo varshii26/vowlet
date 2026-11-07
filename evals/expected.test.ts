@@ -13,9 +13,8 @@ describe("evals/expected", () => {
   });
 
   it.each(VENDORS.map((v) => [v.slug, v] as const))("%s matches the demo data (run `npm run eval:expected` if this fails)", (slug, spec) => {
-    expect(readFileSync(path.join(EXPECTED_DIR, `${slug}.json`), "utf8").replace(/
-/g, "
-")).toBe(expectedJson(spec));
+    const onDisk = readFileSync(path.join(EXPECTED_DIR, `${slug}.json`), "utf8").replaceAll("\r\n", "\n");
+    expect(onDisk).toBe(expectedJson(spec));
   });
 
   // The files come from the same data the PDFs are made from, so also check them against the PDFs themselves.
