@@ -75,6 +75,15 @@ the same reload as `npm run db:seed`, so judges and rehearsals always start from
 - It undoes everything done in the app, for everyone using the hosted demo at that moment. Sandbox PayPal payments
   already captured stay in the PayPal sandbox; only Vowlet's record of them is reset.
 
+### Dashboard summary bar
+
+The top of the home page (`components/Dashboard/SummaryBar.tsx`) shows the wedding date and countdown, **paid**,
+**still to pay** and **left in budget** (or "over budget by"), a bar of the three, the next payment, and a link to every
+vendor's contract page. The totals come from `lib/budget.ts`, which the assistant's `get_wedding` tool also uses, so the
+page and the assistant always give the same numbers (a test checks this). Paid means status `paid`; still to pay means
+`scheduled` or `due` for vendors who haven't cancelled; refund-requested, refunded and void payments count in neither.
+It re-renders from the database whenever the page refreshes: after a payment, an approval or a reset.
+
 ### Payment timeline
 
 The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://bryntum.com/products/gantt/) timeline
