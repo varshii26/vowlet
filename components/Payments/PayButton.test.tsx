@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PayButton } from "@/components/Payments/PayButton";
+import { PayButton, PayPalProvider } from "@/components/Payments/PayButton";
 
 // The PayPal SDK loads a script from PayPal, so it is the one thing we fake. The
 // fake renders a button and hands us the callbacks the real one would call.
@@ -22,9 +22,11 @@ const refresh = vi.hoisted(() => vi.fn());
 vi.mock("@paypal/react-paypal-js", async () => {
   const { createElement, Fragment } = await import("react");
   return {
+    // Each provider loads its own copy of the SDK script, so the fake leaves a
+    // marker that tests can count.
     PayPalScriptProvider: ({ children, options }: { children: React.ReactNode; options: unknown }) => {
       sdk.providerOptions = options;
-      return createElement(Fragment, null, children);
+      return createElement(Fragment, null, createElement("span", { "data-testid": "paypal-sdk-provider" }), children);
     },
     usePayPalScriptReducer: () => [{ ...sdk.script }, vi.fn()],
     PayPalButtons: (props: ButtonProps) => {
@@ -36,6 +38,8 @@ vi.mock("@paypal/react-paypal-js", async () => {
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 const buttons = () => sdk.props as ButtonProps;
+/** Render inside the page-wide PayPal provider, as the app does. */
+const renderPay = (ui: React.ReactElement) => render(ui, { wrapper: PayPalProvider });
 const reply = (body: unknown, status = 200) => vi.fn(async () => new Response(JSON.stringify(body), { status }));
 
 beforeEach(() => {
@@ -52,21 +56,37 @@ afterEach(() => {
 
 describe("PayButton", () => {
   it("shows the PayPal button, loading the SDK for sandbox USD checkout", () => {
-    render(<PayButton paymentId="p1" />);
+    renderPay(<PayButton paymentId="p1" />);
     expect(screen.getByRole("button", { name: "PayPal button" })).toBeTruthy();
     expect(sdk.providerOptions).toMatchObject({ clientId: "test-client-id", currency: "USD", intent: "capture", components: "buttons" });
   });
 
+  it("loads the PayPal SDK once for the whole page, however many Pay buttons it has", () => {
+    // Regression: each button had its own provider, so a page of them inserted
+    // several SDK scripts at once. Each later copy tore down the buttons the
+    // earlier one had drawn ("zoid destroyed all components"), so some rows were
+    // left with no Pay button.
+    renderPay(
+      <>
+        <PayButton paymentId="p1" />
+        <PayButton paymentId="p2" />
+        <PayButton paymentId="p3" />
+      </>,
+    );
+    expect(screen.getAllByRole("button", { name: "PayPal button" })).toHaveLength(3);
+    expect(screen.getAllByTestId("paypal-sdk-provider")).toHaveLength(1);
+  });
+
   it("explains when PayPal is not configured, instead of showing a broken button", () => {
     vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "");
-    render(<PayButton paymentId="p1" />);
+    renderPay(<PayButton paymentId="p1" />);
     expect(screen.queryByRole("button")).toBeNull();
     expect(screen.getByText(/PayPal isn.t set up yet/)).toBeTruthy();
   });
 
   it("says PayPal is loading, and says so if it fails to load", () => {
     sdk.script.isPending = true;
-    const { rerender } = render(<PayButton paymentId="p1" />);
+    const { rerender } = renderPay(<PayButton paymentId="p1" />);
     expect(screen.getByText("Loading PayPal...")).toBeTruthy();
 
     sdk.script.isPending = false;
@@ -79,7 +99,7 @@ describe("PayButton", () => {
     it("asks our server for an order and hands PayPal the id", async () => {
       const fetchMock = reply({ ok: true, orderId: "ORDER-1" });
       vi.stubGlobal("fetch", fetchMock);
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
 
       let id = "";
       await act(async () => {
@@ -91,7 +111,7 @@ describe("PayButton", () => {
 
     it("shows the server's reason and stops PayPal opening the popup when it refuses", async () => {
       vi.stubGlobal("fetch", reply({ ok: false, error: { code: "not_payable", message: "This payment has already been settled." } }, 409));
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
 
       await act(async () => {
         await expect(buttons().createOrder()).rejects.toThrow("already been settled");
@@ -100,7 +120,7 @@ describe("PayButton", () => {
     });
 
     it("clears an old message when the couple tries again", async () => {
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
       act(() => buttons().onCancel());
       expect(screen.getByRole("status")).toBeTruthy();
 
@@ -117,7 +137,7 @@ describe("PayButton", () => {
       const fetchMock = reply({ ok: true, state: "paid", message: "Payment complete." });
       vi.stubGlobal("fetch", fetchMock);
       const onSettled = vi.fn();
-      render(<PayButton paymentId="p1" onSettled={onSettled} />);
+      renderPay(<PayButton paymentId="p1" onSettled={onSettled} />);
 
       await act(async () => {
         await buttons().onApprove({ orderID: "ORDER-1" });
@@ -134,7 +154,7 @@ describe("PayButton", () => {
     it("shows the reason, leaves the page as it was, and does not report success, when capture fails", async () => {
       vi.stubGlobal("fetch", reply({ ok: false, error: { code: "declined", message: "PayPal declined that payment method." } }, 402));
       const onSettled = vi.fn();
-      render(<PayButton paymentId="p1" onSettled={onSettled} />);
+      renderPay(<PayButton paymentId="p1" onSettled={onSettled} />);
 
       await act(async () => {
         await buttons().onApprove({ orderID: "ORDER-1" });
@@ -148,7 +168,7 @@ describe("PayButton", () => {
     it("tells the couple a pending payment is still processing", async () => {
       vi.stubGlobal("fetch", reply({ ok: true, state: "pending", message: "PayPal is still processing this payment." }, 202));
       const onSettled = vi.fn();
-      render(<PayButton paymentId="p1" onSettled={onSettled} />);
+      renderPay(<PayButton paymentId="p1" onSettled={onSettled} />);
 
       await act(async () => {
         await buttons().onApprove({ orderID: "ORDER-1" });
@@ -161,7 +181,7 @@ describe("PayButton", () => {
     it("disables the button while the capture is in flight, so it cannot be clicked twice", async () => {
       let finish: (r: Response) => void = () => {};
       vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>((resolve) => (finish = resolve))));
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
       expect(buttons().disabled).toBe(false);
 
       let done: Promise<void> = Promise.resolve();
@@ -184,7 +204,7 @@ describe("PayButton", () => {
       const fetchMock = vi.fn();
       vi.stubGlobal("fetch", fetchMock);
       const onSettled = vi.fn();
-      render(<PayButton paymentId="p1" onSettled={onSettled} />);
+      renderPay(<PayButton paymentId="p1" onSettled={onSettled} />);
 
       act(() => buttons().onCancel());
 
@@ -195,14 +215,14 @@ describe("PayButton", () => {
     });
 
     it("shows a plain message when PayPal reports an error", () => {
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
       act(() => buttons().onError(new Error("anything")));
       expect(screen.getByRole("alert").textContent).toContain("Nothing was paid through Vowlet");
     });
 
     it("does not overwrite our own, more specific message with the generic one", async () => {
       vi.stubGlobal("fetch", reply({ ok: false, error: { code: "not_payable", message: "This payment has already been settled." } }, 409));
-      render(<PayButton paymentId="p1" />);
+      renderPay(<PayButton paymentId="p1" />);
       await act(async () => {
         await buttons().createOrder().catch(() => {});
       });
