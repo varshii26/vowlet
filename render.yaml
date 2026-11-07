@@ -11,8 +11,9 @@ services:
     startCommand: npx prisma migrate deploy && npm start
     healthCheckPath: /
     envVars:
+      # Match .node-version, which is what everyone develops and tests on locally.
       - key: NODE_VERSION
-        value: 22.12.0
+        value: "24"
       - key: DATABASE_URL
         value: file:./data.db
       - key: GEMINI_API_KEY
