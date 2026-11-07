@@ -55,7 +55,7 @@ function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
             <td className="py-1.5 pr-3 font-medium">{row.vendorName}</td>
             <td className="py-1.5 pr-3 text-right tabular-nums">{formatCents(row.costCents)}</td>
             <td className="space-x-2 py-1.5 text-neutral-600">
-              <span>{row.reason}</span>
+              <span>{row.basis}</span>
               <Citation row={row} />
             </td>
           </tr>
@@ -93,6 +93,13 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
           <span className="block text-xs text-neutral-500">in date-change fees</span>
         </p>
       </div>
+
+      {ready && (
+        <p className="text-sm text-neutral-700" data-testid="whatif-notice">
+          Telling vendors today gives them {plural(ready.noticeDays, "day")}&apos; notice before {longDay(currentDate)}. Each contract sets its fee by
+          that notice, so the fee is the same whichever new date you pick.
+        </p>
+      )}
 
       {state.status === "loading" && <p className="text-sm text-neutral-600">Working out each vendor&apos;s fee from their contract...</p>}
       {state.status === "error" && (
@@ -138,7 +145,7 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
                 {free.map((row) => (
                   <li key={row.vendorId} className="space-x-2">
                     <span className="font-medium">{row.vendorName}</span>
-                    <span className="text-neutral-600">{row.reason}</span>
+                    <span className="text-neutral-600">{row.basis}</span>
                     <Citation row={row} />
                   </li>
                 ))}

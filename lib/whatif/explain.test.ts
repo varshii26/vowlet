@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LlmError } from "@/lib/llm/gemini";
 import { fakeGemini, modelAnswer } from "@/lib/llm/test-utils";
 import { explainWhatIf, templateExplanation, unbackedNumbers } from "@/lib/whatif/explain";
-import type { WhatIfPreview, WhatIfRow } from "@/lib/whatif/service";
+import { feeBasis, type WhatIfPreview, type WhatIfRow } from "@/lib/whatif/service";
 
 const row = (over: Partial<WhatIfRow>): WhatIfRow => ({
   vendorId: "v",
@@ -10,6 +10,7 @@ const row = (over: Partial<WhatIfRow>): WhatIfRow => ({
   vendorName: "Vendor",
   costCents: 0,
   reason: "Free with 120 days' notice (needs at least 60).",
+  basis: "Free with at least 60 days' notice",
   clauseId: "c",
   citation: "Vendor contract, page 2",
   clause: { text: "Date changes are free with 60 days' notice.", page: 2 },
@@ -20,6 +21,7 @@ const preview: WhatIfPreview = {
   currentDate: "2027-04-17",
   newDate: "2027-06-12",
   shiftDays: 56,
+  noticeDays: 120,
   totalCents: 175_000,
   rows: [
     row({ vendorId: "a", kind: "fee", vendorName: "Grand Oak Estate", costCents: 150_000, reason: "$1,500 (10% of the contract) with 56 days' notice." }),
@@ -30,6 +32,16 @@ const preview: WhatIfPreview = {
 };
 
 const deps = (client: ReturnType<typeof fakeGemini>["client"]) => ({ client, models: ["m1"], configured: true });
+
+describe("feeBasis", () => {
+  it("names what the fee is made of, leaving the notice out", () => {
+    expect(feeBasis({ minNoticeDays: 0, feePercent: 15, flatFee: 15_000 }, 37_500, "x")).toBe("15% of the contract plus a $150 flat fee");
+    expect(feeBasis({ minNoticeDays: 90, feePercent: 0, flatFee: 15_000 }, 15_000, "x")).toBe("a $150 flat fee");
+    expect(feeBasis({ minNoticeDays: 0, feePercent: 5, flatFee: 0 }, 45_000, "x")).toBe("5% of the contract");
+    expect(feeBasis({ minNoticeDays: 60, feePercent: 0, flatFee: 0 }, 0, "x")).toBe("Free with at least 60 days' notice");
+    expect(feeBasis(null, 0, "No date-change terms apply; check the contract.")).toBe("No date-change terms apply; check the contract.");
+  });
+});
 
 describe("unbackedNumbers", () => {
   it("accepts amounts, counts and dates that are in the preview", () => {

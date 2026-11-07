@@ -45,11 +45,12 @@ const previewBody = {
   currentDate: "2027-04-17",
   newDate: "2027-06-12",
   shiftDays: 56,
+  noticeDays: 161,
   totalCents: 50_000,
   rows: [
-    { vendorId: "v1", kind: "fee", vendorName: "Grand Oak Estate", costCents: 50_000, reason: "$500 (a $500 flat fee) with 161 days' notice.", clauseId: "c1", citation: "Grand Oak Estate contract, page 2", clause: { text: "Moving the event date costs a $500 flat fee.", page: 2 } },
-    { vendorId: "v2", kind: "free", vendorName: "Bloom & Vine", costCents: 0, reason: "Free with 161 days' notice (needs at least 60).", clauseId: "c2", citation: null, clause: null },
-    { vendorId: "v3", kind: "check", vendorName: "Lens & Light", costCents: 0, reason: "No date-change terms apply; check the contract.", clauseId: null, citation: null, clause: null },
+    { vendorId: "v1", kind: "fee", vendorName: "Grand Oak Estate", costCents: 50_000, reason: "$500 (a $500 flat fee) with 161 days' notice.", basis: "a $500 flat fee", clauseId: "c1", citation: "Grand Oak Estate contract, page 2", clause: { text: "Moving the event date costs a $500 flat fee.", page: 2 } },
+    { vendorId: "v2", kind: "free", vendorName: "Bloom & Vine", costCents: 0, reason: "Free with 161 days' notice (needs at least 60).", basis: "Free with at least 60 days' notice", clauseId: "c2", citation: null, clause: null },
+    { vendorId: "v3", kind: "check", vendorName: "Lens & Light", costCents: 0, reason: "No date-change terms apply; check the contract.", basis: "No date-change terms apply; check the contract.", clauseId: null, citation: null, clause: null },
   ],
 };
 
@@ -117,6 +118,18 @@ describe("WhatIfTimeline", () => {
     expect(screen.getByText(/Check these contracts/)).toBeTruthy();
     expect(screen.getByText("Lens & Light")).toBeTruthy();
     expect(screen.getByText(/1 vendor won't charge/)).toBeTruthy();
+  });
+
+  it("states the notice once, and each row shows only what its fee is made of", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+
+    expect(screen.getByTestId("whatif-notice").textContent).toMatch(/161 days' notice before Apr 17, 2027/);
+    const table = screen.getByRole("table");
+    expect(table.textContent).toContain("a $500 flat fee");
+    expect(table.textContent).not.toContain("days' notice");
+    expect(screen.getByText("Free with at least 60 days' notice")).toBeTruthy();
   });
 
   it("opens the quoted clause from a row's citation chip", async () => {

@@ -87,6 +87,22 @@ describe("POST /api/whatif", () => {
     for (const row of r.body.rows.filter((row: { clauseId: string | null }) => !row.clauseId)) expect(row.clause).toBeNull();
   });
 
+  it("gives the notice once, the same for any new date, and each row's fee basis without it", async () => {
+    const june = (await preview({ newDate: "2027-06-12" })).body;
+    const sept = (await preview({ newDate: "2027-09-04" })).body;
+    // Today (TODAY) to the current wedding date, as dateChangeCost() measures it.
+    const expected = Math.round((Date.UTC(2027, 3, 17) - TODAY.getTime()) / 86_400_000);
+    expect(june.noticeDays).toBe(expected);
+    expect(sept.noticeDays).toBe(expected);
+
+    for (const row of june.rows) {
+      expect(row.basis).not.toContain(`${expected} days' notice`);
+      if (row.kind === "fee") expect(row.basis).toMatch(/% of the contract|flat fee/);
+      if (row.kind === "free") expect(row.basis).toMatch(/^Free with at least \d+ days' notice$/);
+      if (row.kind === "check") expect(row.basis).toBe(row.reason);
+    }
+  });
+
   it("labels each row: a fee, free under the contract, or a contract to check", async () => {
     const r = await preview({ newDate: "2027-06-12" });
     for (const row of r.body.rows) {

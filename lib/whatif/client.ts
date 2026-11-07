@@ -11,6 +11,7 @@ const rowSchema = z.object({
   vendorName: z.string(),
   costCents: z.number().int().nonnegative(),
   reason: z.string(),
+  basis: z.string(),
   clauseId: z.string().nullable(),
   citation: z.string().nullable(),
   clause: z.object({ text: z.string(), page: z.number().int() }).nullable(),
@@ -21,6 +22,7 @@ const previewSchema = z.object({
   currentDate: z.string(),
   newDate: z.string(),
   shiftDays: z.number().int(),
+  noticeDays: z.number().int().nonnegative(),
   totalCents: z.number().int().nonnegative(),
   rows: z.array(rowSchema),
 });
@@ -53,8 +55,8 @@ export async function requestWhatIf(newDate: string): Promise<{ ok: true; previe
   if ("error" in res) return { ok: false, message: res.error };
   const parsed = previewSchema.safeParse(res.json);
   if (!parsed.success) return { ok: false, message: failureMessage(res.json) };
-  const { currentDate, newDate: date, shiftDays, totalCents, rows } = parsed.data;
-  return { ok: true, preview: { currentDate, newDate: date, shiftDays, totalCents, rows } };
+  const { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } = parsed.data;
+  return { ok: true, preview: { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } };
 }
 
 export async function requestApply(newDate: string, previousDate: string): Promise<{ ok: true; message: string } | { ok: false; message: string }> {
