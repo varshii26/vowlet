@@ -28,12 +28,21 @@ type Props = {
 export function PaymentGanttChart({ data, onPaymentSelect }: Props) {
   // The chart is configured once, so it reads the latest data and callback
   // through refs instead of being rebuilt on every update.
+  const ganttRef = useRef<BryntumGantt>(null);
   const detailsRef = useRef(data.details);
   const selectRef = useRef(onPaymentSelect);
   useEffect(() => {
-    detailsRef.current = data.details;
     selectRef.current = onPaymentSelect;
-  }, [data.details, onPaymentSelect]);
+  }, [onPaymentSelect]);
+  useEffect(() => {
+    if (detailsRef.current === data.details) return;
+    detailsRef.current = data.details;
+    // BryntumGantt applies the new tasks in its own effect, which runs before
+    // this one, so it repaints the Amount and Status cells while detailsRef
+    // still holds the old details. Repaint once more now that they are current;
+    // otherwise a paid payment keeps saying "Scheduled" until a page reload.
+    ganttRef.current?.instance?.refreshRows();
+  }, [data.details]);
 
   const config = useMemo((): BryntumGanttProps => {
     const detailOf = (record: TaskModel) => detailsRef.current[String(record.id)];
@@ -78,6 +87,7 @@ export function PaymentGanttChart({ data, onPaymentSelect }: Props) {
 
   return (
     <BryntumGantt
+      ref={ganttRef}
       {...config}
       tasks={data.tasks}
       dependencies={data.dependencies}

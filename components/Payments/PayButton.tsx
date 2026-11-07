@@ -2,7 +2,7 @@
 
 import { PayPalButtons, PayPalScriptProvider, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { requestCapture, requestOrder, type CaptureOutcome } from "@/lib/payments/client";
 
 /** A payment that went through (or is still processing). */
@@ -20,26 +20,33 @@ const GENERIC_ERROR =
   "PayPal ran into a problem. Nothing was paid through Vowlet. If you're unsure, check your PayPal activity.";
 
 /**
- * Pay one vendor payment with PayPal. The PayPal popup is the human approval:
- * nothing is charged until the couple approves there, and nothing on this page
- * can approve for them. The server creates and captures the order; this only
- * relays the clicks.
+ * Loads the PayPal SDK once for every Pay button on the page. Wrap the app in
+ * this, never a single button: each provider inserts its own SDK script while
+ * the first is still loading, and each later copy destroys the buttons the
+ * earlier one drew, leaving some rows without a Pay button.
  */
-export function PayButton(props: Props) {
+export function PayPalProvider({ children }: { children: ReactNode }) {
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
+  // Stable identity: the provider reloads the SDK whenever its options change.
   const options = useMemo(
     () => ({ clientId: clientId ?? "", currency: "USD", intent: "capture", components: "buttons" }),
     [clientId],
   );
+  if (!clientId) return children;
+  return <PayPalScriptProvider options={options}>{children}</PayPalScriptProvider>;
+}
 
-  if (!clientId) {
+/**
+ * Pay one vendor payment with PayPal. The PayPal popup is the human approval:
+ * nothing is charged until the couple approves there, and nothing on this page
+ * can approve for them. The server creates and captures the order; this only
+ * relays the clicks. Needs a PayPalProvider above it.
+ */
+export function PayButton(props: Props) {
+  if (!process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID) {
     return <p className="text-xs text-neutral-500">PayPal isn&apos;t set up yet (missing NEXT_PUBLIC_PAYPAL_CLIENT_ID).</p>;
   }
-  return (
-    <PayPalScriptProvider options={options}>
-      <Buttons {...props} />
-    </PayPalScriptProvider>
-  );
+  return <Buttons {...props} />;
 }
 
 function Buttons({ paymentId, onSettled }: Props) {
