@@ -84,6 +84,16 @@ page and the assistant always give the same numbers (a test checks this). Paid m
 `scheduled` or `due` for vendors who haven't cancelled; refund-requested, refunded and void payments count in neither.
 It re-renders from the database whenever the page refreshes: after a payment, an approval or a reset.
 
+### Activity feed
+
+"Recent activity" at the bottom of the home page shows the latest 12 `EventLog` entries, newest first
+(`lib/activity.ts`, `components/Dashboard/ActivityFeed.tsx`). Entries are written by the code that does the work:
+a payment marked paid (from the capture or the webhook), a proposal created by the agent, approved (with what it
+did) or dismissed, a contract uploaded, and the demo being loaded. Payment problems the webhook finds (an amount or
+order that doesn't match, a duplicate capture) show in amber as "Needs checking". The feed refreshes with the page
+after each action, and Reset demo clears it back to one entry. Times are shown in the viewer's own time zone.
+To log a new kind of action, write an `EventLog` row in the same transaction as the change.
+
 ### Payment timeline
 
 The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://bryntum.com/products/gantt/) timeline

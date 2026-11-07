@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
+import { ActivityFeed } from "@/components/Dashboard/ActivityFeed";
 import { SummaryBar } from "@/components/Dashboard/SummaryBar";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
 import { PendingProposals } from "@/components/Proposals/PendingProposals";
 import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
+import { loadActivity } from "@/lib/activity";
 import { dashboardSummary } from "@/lib/dashboard";
 import { prisma } from "@/lib/db";
 import { selectUpcomingPayments } from "@/lib/payments/upcoming";
@@ -31,6 +33,7 @@ export default async function Home() {
   const upcoming = selectUpcomingPayments(input, now);
   const proposals = await loadPendingProposals(prisma);
   const budget = (await prisma.wedding.findFirst({ select: { budget: true } }))?.budget ?? 0;
+  const activity = await loadActivity(prisma);
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-8 p-8">
@@ -53,6 +56,7 @@ export default async function Home() {
       <PendingProposals proposals={proposals} />
       <WhatIfTimeline input={input} todayIso={toIsoDate(now)} />
       <UpcomingPayments payments={upcoming} />
+      <ActivityFeed items={activity} />
     </main>
   );
 }
