@@ -283,7 +283,15 @@ describe("task details", () => {
       kind: "wedding",
       title: "Wedding day: Priya & Sam",
       dateLabel: "Apr 17, 2027",
+      isoDate: "2027-04-17",
     });
+  });
+
+  it("lets only the wedding day be dragged, and nothing be resized", () => {
+    const data = buildTimeline(single(payment()), today);
+    const all = data.tasks.flatMap((task) => [task, ...(task.children ?? [])]);
+    expect(all.filter((task) => task.draggable).map((task) => task.id)).toEqual([WEDDING_TASK_ID]);
+    expect(all.every((task) => task.resizable === false)).toBe(true);
   });
 });
 

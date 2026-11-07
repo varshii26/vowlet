@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { escapeHtml, renderTaskTooltip } from "@/components/Gantt/tooltip";
+import { describeShift, escapeHtml, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import type { TaskDetail } from "@/lib/timeline";
 
 type PaymentDetail = Extract<TaskDetail, { kind: "payment" }>;
@@ -87,12 +87,35 @@ describe("renderTaskTooltip", () => {
   });
 
   it("describes the wedding day", () => {
-    const html = renderTaskTooltip({ kind: "wedding", title: "Wedding day: Priya & Sam", dateLabel: "Apr 17, 2027" });
+    const html = renderTaskTooltip({ kind: "wedding", title: "Wedding day: Priya & Sam", dateLabel: "Apr 17, 2027", isoDate: "2027-04-17" });
     expect(html).toContain("Wedding day: Priya &amp; Sam");
     expect(html).toContain("Apr 17, 2027");
   });
 
   it("returns nothing for an unknown task", () => {
     expect(renderTaskTooltip(undefined)).toBe("");
+  });
+});
+
+describe("wedding drag tooltip", () => {
+  const wedding: TaskDetail = { kind: "wedding", title: "Wedding day: Priya & Sam", dateLabel: "Apr 17, 2027", isoDate: "2027-04-17" };
+
+  it("names the new day and how far it moves", () => {
+    const html = renderWeddingDragTip(wedding, "2027-06-12", true);
+    expect(html).toContain("Move the wedding to Jun 12, 2027");
+    expect(html).toContain("56 days later");
+    expect(html).toContain("Drop to see");
+  });
+
+  it("says why a drop into the past is refused", () => {
+    expect(renderWeddingDragTip(wedding, "2026-01-01", false)).toContain("can't move into the past");
+  });
+
+  it.each([
+    [0, "Same day"],
+    [1, "1 day later"],
+    [-3, "3 days earlier"],
+  ])("describes a shift of %i days", (days, text) => {
+    expect(describeShift(days)).toBe(text);
   });
 });

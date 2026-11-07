@@ -1,12 +1,12 @@
 import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
-import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
 import { PendingProposals } from "@/components/Proposals/PendingProposals";
+import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
 import { prisma } from "@/lib/db";
 import { selectUpcomingPayments } from "@/lib/payments/upcoming";
 import { loadPendingProposals } from "@/lib/proposals/data";
-import { buildTimeline } from "@/lib/timeline";
+import { toIsoDate } from "@/lib/schedule";
 import { loadTimelineInput } from "@/lib/timeline-data";
 
 // Read the database on every request, so the page is never frozen at build.
@@ -25,7 +25,6 @@ export default async function Home() {
   }
 
   const now = new Date();
-  const timeline = buildTimeline(input, now);
   const upcoming = selectUpcomingPayments(input, now);
   const proposals = await loadPendingProposals(prisma);
 
@@ -42,7 +41,7 @@ export default async function Home() {
       </header>
       <AgentPanel />
       <PendingProposals proposals={proposals} />
-      <PaymentGantt data={timeline} />
+      <WhatIfTimeline input={input} todayIso={toIsoDate(now)} />
       <UpcomingPayments payments={upcoming} />
     </main>
   );

@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { PaymentSelection } from "@/components/Gantt/PaymentGanttChart";
-import type { TimelineData } from "@/lib/timeline";
+import type { ComponentProps } from "react";
+import type { PaymentGanttChart as PaymentGanttChartType } from "@/components/Gantt/PaymentGanttChart";
 
 // Bryntum needs the DOM, so it is never rendered on the server.
 const PaymentGanttChart = dynamic(
@@ -13,16 +13,13 @@ const PaymentGanttChart = dynamic(
   },
 );
 
-type Props = {
-  data: TimelineData;
-  onPaymentSelect?: (payment: PaymentSelection) => void;
-};
+type Props = ComponentProps<typeof PaymentGanttChartType>;
 
 /** The payment timeline, sized to fill its container's width. */
-export function PaymentGantt({ data, onPaymentSelect }: Props) {
+export function PaymentGantt(props: Props) {
   return (
     <div className="h-[680px] w-full overflow-hidden rounded-lg border border-neutral-200 bg-white">
-      <PaymentGanttChart data={data} onPaymentSelect={onPaymentSelect} />
+      <PaymentGanttChart {...props} />
     </div>
   );
 }

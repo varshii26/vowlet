@@ -56,6 +56,9 @@ export type TimelineTask = {
   duration?: number;
   expanded?: boolean;
   manuallyScheduled?: boolean;
+  /** Only the wedding day can be dragged (to run a what-if); payment dates come from the contracts. */
+  draggable: boolean;
+  resizable: false;
   /**
    * Bryntum named colour. This is what recolours a milestone: it puts a
    * `b-color-*` class on the bar's wrapper, which owns the colour palette.
@@ -74,6 +77,8 @@ export type TaskDetail =
       kind: "wedding";
       title: string;
       dateLabel: string;
+      /** `YYYY-MM-DD`. */
+      isoDate: string;
     }
   | {
       kind: "vendor";
@@ -210,6 +215,8 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
         startDate: toIsoDate(payment.due),
         duration: 0,
         manuallyScheduled: true,
+        draggable: false,
+        resizable: false,
         eventColor: STATUS_COLOR[payment.display],
         cls: `payment payment-${payment.display}`,
       };
@@ -219,6 +226,8 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
       id: vendorTaskId(vendor.id),
       name: vendor.name,
       expanded: true,
+      draggable: false,
+      resizable: false,
       eventColor: vendor.status === "cancelled" ? CANCELLED_VENDOR_COLOR : VENDOR_COLOR,
       cls: vendor.status === "cancelled" ? "vendor vendor-cancelled" : "vendor",
       children,
@@ -229,6 +238,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     kind: "wedding",
     title: `Wedding day: ${input.wedding.coupleNames}`,
     dateLabel: longDate(weddingDate),
+    isoDate: toIsoDate(weddingDate),
   };
 
   const times = allDates.map((d) => d.getTime());
@@ -243,6 +253,8 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
         startDate: toIsoDate(weddingDate),
         duration: 0,
         manuallyScheduled: true,
+        draggable: true,
+        resizable: false,
         eventColor: WEDDING_COLOR,
         cls: "wedding",
       },
