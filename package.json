@@ -17,7 +17,9 @@
     "make-contracts": "tsx scripts/make-contracts.ts",
     "llm:bench": "tsx scripts/llm-bench.ts",
     "eval": "tsx evals/run.ts",
-    "eval:expected": "tsx scripts/make-expected.ts"
+    "eval:expected": "tsx scripts/make-expected.ts",
+    "cache:bench": "tsx scripts/cache-bench.ts",
+    "eval:agent": "tsx evals/agent/run.ts"
   },
   "dependencies": {
     "@bryntum/core-community": "^8.0.0",

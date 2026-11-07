@@ -85,11 +85,16 @@ describe("generate", () => {
       text: "hello",
       model: "m1",
       functionCalls: [],
-      usage: { inputTokens: 10, outputTokens: 5, thinkingTokens: 2 },
+      usage: { inputTokens: 10, outputTokens: 5, thinkingTokens: 2, cachedTokens: 0 },
       rateLimitWaits: 0,
     });
     expect(result.content.parts?.[0]).toEqual({ text: "hello" });
     expect(result.ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("reports how much of the prompt Gemini served from its cache", async () => {
+    const { genai } = script(reply("hello", { usageMetadata: { promptTokenCount: 3000, candidatesTokenCount: 5, cachedContentTokenCount: 2048 } }));
+    expect((await createGeminiClient({ genai }).generate(ask)).usage).toEqual({ inputTokens: 3000, outputTokens: 5, thinkingTokens: 0, cachedTokens: 2048 });
   });
 
   it("returns function calls, with the model's turn untouched for the history", async () => {

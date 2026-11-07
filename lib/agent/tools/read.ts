@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { citation, loadWedding, resolveVendor } from "@/lib/agent/tools/data";
 import { ToolError, defineTool, isoDateSchema, parseIsoDate } from "@/lib/agent/tools/types";
+import { summarizeBudget } from "@/lib/budget";
 import { formatCents } from "@/lib/money";
 import { addDaysUtc, computeDueDate, daysBetweenUtc, getDisplayStatus, startOfUtcDay, toIsoDate } from "@/lib/schedule";
 
@@ -17,22 +18,22 @@ export const getWedding = defineTool({
     const wedding = await loadWedding(prisma);
     const vendors = await prisma.vendor.findMany({ where: { weddingId: wedding.id }, include: { payments: true } });
 
-    const payments = vendors.flatMap((v) => v.payments.map((p) => ({ ...p, vendorActive: v.status === "active" })));
-    const paid = payments.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amount, 0);
-    const unpaid = payments.filter((p) => UNPAID.includes(p.status) && p.vendorActive);
-    const scheduled = unpaid.reduce((sum, p) => sum + p.amount, 0);
+    const totals = summarizeBudget(
+      wedding.budget,
+      vendors.flatMap((v) => v.payments.map((p) => ({ amountCents: p.amount, status: p.status, vendorActive: v.status === "active" }))),
+    );
 
     return {
       couple: wedding.coupleNames,
       weddingDate: toIsoDate(wedding.date),
       today: toIsoDate(today),
       daysUntilWedding: daysBetweenUtc(today, wedding.date),
-      budget: money(wedding.budget),
-      paid: money(paid),
-      scheduled: money(scheduled),
-      remainingBudget: money(wedding.budget - paid - scheduled),
+      budget: money(totals.budgetCents),
+      paid: money(totals.paidCents),
+      scheduled: money(totals.scheduledCents),
+      remainingBudget: money(totals.remainingCents),
       vendors: { total: vendors.length, active: vendors.filter((v) => v.status === "active").length },
-      unpaidPayments: unpaid.length,
+      unpaidPayments: totals.unpaidCount,
     };
   },
 });

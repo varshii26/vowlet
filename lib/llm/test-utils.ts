@@ -6,7 +6,7 @@ import type { GeminiClient, GenerateResult, LlmUsage } from "@/lib/llm/gemini";
 export function modelAnswer(
   body: unknown,
   model = "m1",
-  usage: LlmUsage = { inputTokens: 100, outputTokens: 50, thinkingTokens: 10 },
+  usage: LlmUsage = { inputTokens: 100, outputTokens: 50, thinkingTokens: 10, cachedTokens: 0 },
 ): GenerateResult {
   const text = typeof body === "string" ? body : JSON.stringify(body);
   return { text, functionCalls: [], content: { role: "model", parts: [{ text }] }, usage, model, ms: 5, rateLimitWaits: 0 };
@@ -19,7 +19,7 @@ export function modelAnswer(
 export function modelCalls(
   calls: Array<{ name: string; args?: Record<string, unknown> }>,
   model = "m1",
-  usage: LlmUsage = { inputTokens: 100, outputTokens: 20, thinkingTokens: 5 },
+  usage: LlmUsage = { inputTokens: 100, outputTokens: 20, thinkingTokens: 5, cachedTokens: 0 },
 ): GenerateResult {
   const functionCalls = calls.map((c) => ({ name: c.name, args: c.args ?? {} }));
   return {

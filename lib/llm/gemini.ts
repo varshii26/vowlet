@@ -12,7 +12,20 @@ if (typeof window !== "undefined") {
   throw new Error("lib/llm/gemini.ts is server-only; never import it from client components.");
 }
 
-export type LlmUsage = { inputTokens: number; outputTokens: number; thinkingTokens: number };
+/**
+ * Token counts for a call. `cachedTokens` is the part of `inputTokens` Gemini served
+ * from its cache (implicit caching: a repeated prompt prefix is reused automatically).
+ */
+export type LlmUsage = { inputTokens: number; outputTokens: number; thinkingTokens: number; cachedTokens: number };
+
+export const ZERO_USAGE: LlmUsage = { inputTokens: 0, outputTokens: 0, thinkingTokens: 0, cachedTokens: 0 };
+
+export const addUsage = (a: LlmUsage, b: LlmUsage): LlmUsage => ({
+  inputTokens: a.inputTokens + b.inputTokens,
+  outputTokens: a.outputTokens + b.outputTokens,
+  thinkingTokens: a.thinkingTokens + b.thinkingTokens,
+  cachedTokens: a.cachedTokens + b.cachedTokens,
+});
 
 export type FunctionCall = { name: string; args: Record<string, unknown> };
 
@@ -150,6 +163,7 @@ export function createGeminiClient(options: GeminiOptions = {}) {
             inputTokens: u?.promptTokenCount ?? 0,
             outputTokens: u?.candidatesTokenCount ?? 0,
             thinkingTokens: u?.thoughtsTokenCount ?? 0,
+            cachedTokens: u?.cachedContentTokenCount ?? 0,
           },
           model: request.model,
           ms: Date.now() - started,
