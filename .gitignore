@@ -158,3 +158,6 @@ next-env.d.ts
 
 # Prisma generated client
 /generated/prisma
+
+# Contracts uploaded through the app (Vendor.contractPath = data/uploads/<vendorId>.pdf)
+data/uploads/
