@@ -1,5 +1,6 @@
 "use client";
 
+import { ClauseChip } from "@/components/Clauses/ClauseChip";
 import { describeShift } from "@/components/Gantt/tooltip";
 import { formatCents } from "@/lib/money";
 import type { WhatIfPreviewView, WhatIfRowView } from "@/lib/whatif/client";
@@ -8,6 +9,9 @@ export type WhatIfState =
   | { status: "loading" }
   | { status: "ready"; preview: WhatIfPreviewView }
   | { status: "error"; message: string };
+
+/** The short written summary. It is optional: on failure the panel simply shows none. */
+export type ExplanationState = { status: "loading" } | { status: "ready"; text: string } | { status: "none" };
 
 type Props = {
   currentDate: string;
@@ -18,6 +22,7 @@ type Props = {
   /** Payments on a fixed or signing date: they stay put. */
   fixedCount: number;
   state: WhatIfState;
+  explanation?: ExplanationState;
   applying: boolean;
   applyError: string | null;
   onConfirm: () => void;
@@ -29,9 +34,9 @@ const longDay = (iso: string) =>
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
-function Citation({ text }: { text: string | null }) {
-  if (!text) return null;
-  return <span className="whitespace-nowrap rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">{text}</span>;
+function Citation({ row }: { row: WhatIfRowView }) {
+  if (!row.citation) return null;
+  return <ClauseChip label={row.citation} clause={row.clause} />;
 }
 
 function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
@@ -51,7 +56,7 @@ function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
             <td className="py-1.5 pr-3 text-right tabular-nums">{formatCents(row.costCents)}</td>
             <td className="space-x-2 py-1.5 text-neutral-600">
               <span>{row.reason}</span>
-              <Citation text={row.citation} />
+              <Citation row={row} />
             </td>
           </tr>
         ))}
@@ -65,7 +70,7 @@ function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
  * Every amount comes from the server's `dateChangeCost()`; this only displays
  * it. Nothing is saved until the couple presses the confirm button.
  */
-export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixedCount, state, applying, applyError, onConfirm, onCancel }: Props) {
+export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixedCount, state, explanation = { status: "none" }, applying, applyError, onConfirm, onCancel }: Props) {
   const ready = state.status === "ready" ? state.preview : null;
   const fees = ready?.rows.filter((r) => r.kind === "fee") ?? [];
   const free = ready?.rows.filter((r) => r.kind === "free") ?? [];
@@ -96,6 +101,17 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
         </p>
       )}
 
+      {ready && explanation.status === "loading" && (
+        <p className="text-sm italic text-neutral-500" aria-live="polite">
+          Writing a short summary...
+        </p>
+      )}
+      {ready && explanation.status === "ready" && (
+        <p className="text-sm text-neutral-800" aria-live="polite" data-testid="whatif-explanation">
+          {explanation.text}
+        </p>
+      )}
+
       {ready && (
         <div className="space-y-3">
           {fees.length > 0 ? (
@@ -123,7 +139,7 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
                   <li key={row.vendorId} className="space-x-2">
                     <span className="font-medium">{row.vendorName}</span>
                     <span className="text-neutral-600">{row.reason}</span>
-                    <Citation text={row.citation} />
+                    <Citation row={row} />
                   </li>
                 ))}
               </ul>

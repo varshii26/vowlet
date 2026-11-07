@@ -6,7 +6,12 @@ import { toIsoDate } from "@/lib/schedule";
 import { seedDemo } from "@/lib/seed/demo";
 import { dateChangeCost } from "@/lib/terms";
 import { createTestDatabase } from "@/lib/test-utils/db";
-import { applyWhatIfHandler, whatIfHandler } from "@/lib/whatif/handler";
+import { LlmError } from "@/lib/llm/gemini";
+import { fakeGemini, modelAnswer } from "@/lib/llm/test-utils";
+import { formatCents } from "@/lib/money";
+import { createRateLimiter } from "@/lib/rate-limit";
+import { templateExplanation } from "@/lib/whatif/explain";
+import { applyWhatIfHandler, explainWhatIfHandler, whatIfHandler } from "@/lib/whatif/handler";
 import { DRAG_REASON } from "@/lib/whatif/service";
 
 let prisma: PrismaClient;
@@ -69,11 +74,17 @@ describe("POST /api/whatif", () => {
     expect(expected.totalCents).toBeGreaterThan(0);
   });
 
-  it("cites the date-change clause for rows that have one", async () => {
+  it("cites the date-change clause for rows that have one, with the clause text to open", async () => {
     const r = await preview({ newDate: "2027-06-12" });
     const cited = r.body.rows.filter((row: { clauseId: string | null }) => row.clauseId);
     expect(cited.length).toBeGreaterThan(0);
-    for (const row of cited) expect(row.citation).toMatch(/contract, page \d+$/);
+    for (const row of cited) {
+      expect(row.citation).toMatch(/contract, page \d+$/);
+      const clause = await prisma.clause.findUniqueOrThrow({ where: { id: row.clauseId } });
+      expect(row.clause).toEqual({ text: clause.text, page: clause.page });
+      expect(row.citation).toContain(`page ${clause.page}`);
+    }
+    for (const row of r.body.rows.filter((row: { clauseId: string | null }) => !row.clauseId)) expect(row.clause).toBeNull();
   });
 
   it("labels each row: a fee, free under the contract, or a contract to check", async () => {
@@ -136,5 +147,63 @@ describe("POST /api/whatif/apply", () => {
 
   it("answers 400 for a bad body", async () => {
     expect((await apply({ newDate: "2027-06-12" })).status).toBe(400);
+  });
+});
+
+describe("POST /api/whatif/explain", () => {
+  const explain = async (body: unknown, client = fakeGemini().client, opts: { configured?: boolean; max?: number } = {}) => {
+    const res = await explainWhatIfHandler(post(body), {
+      prisma,
+      now: () => TODAY,
+      client,
+      models: ["m1"],
+      configured: opts.configured ?? true,
+      limiter: createRateLimiter({ max: opts.max ?? 10, windowMs: 60_000 }),
+    });
+    return { status: res.status, body: await res.json() };
+  };
+  const table = async () => (await preview({ newDate: "2027-06-12" })).body;
+
+  it("returns the model's summary when its numbers match the computed table", async () => {
+    const t = await table();
+    const fee = t.rows.find((row: { kind: string }) => row.kind === "fee");
+    const text = `Moving to June 12 costs ${formatCents(t.totalCents)} in fees, including ${fee.vendorName}.`;
+    const fake = fakeGemini(modelAnswer(text));
+
+    const r = await explain({ newDate: "2027-06-12" }, fake.client);
+    expect(r).toMatchObject({ status: 200, body: { ok: true, source: "model", text, totalCents: t.totalCents } });
+    // The model is given the table computed on the server, not anything from the browser.
+    expect(JSON.stringify(fake.requests[0].contents)).toContain(fee.vendorName);
+  });
+
+  it("replaces a summary with a wrong number by the code-written one", async () => {
+    const fake = fakeGemini(modelAnswer("Moving costs $99,999."));
+    const r = await explain({ newDate: "2027-06-12" }, fake.client);
+    expect(r.body.source).toBe("template");
+    expect(r.body.text).toContain("June 12, 2027");
+    expect(r.body.text).not.toContain("99,999");
+  });
+
+  it("still answers with the code-written summary when the model is down, unset or rate limited", async () => {
+    expect((await explain({ newDate: "2027-06-12" }, fakeGemini(new LlmError("down", "overloaded")).client)).body.source).toBe("template");
+    expect((await explain({ newDate: "2027-06-12" }, undefined, { configured: false })).body.source).toBe("template");
+
+    const unused = fakeGemini();
+    const limited = await explain({ newDate: "2027-06-12" }, unused.client, { max: 0 });
+    expect(limited).toMatchObject({ status: 200, body: { source: "template" } });
+    expect(unused.generateWithFallback).not.toHaveBeenCalled();
+  });
+
+  it("writes the template from the same table the preview shows", async () => {
+    const t = await table();
+    const r = await explain({ newDate: "2027-06-12" }, undefined, { configured: false });
+    expect(r.body.text).toBe(templateExplanation(t));
+  });
+
+  it("refuses past dates and bad bodies without calling the model", async () => {
+    const unused = fakeGemini();
+    expect((await explain({ newDate: "2026-11-06" }, unused.client)).body.error.code).toBe("in_past");
+    expect((await explain({}, unused.client)).status).toBe(400);
+    expect(unused.generateWithFallback).not.toHaveBeenCalled();
   });
 });

@@ -31,6 +31,8 @@ export type WhatIfRow = {
   clauseId: string | null;
   /** "Grand Oak Estate contract, page 2", or null when there is no date-change clause. */
   citation: string | null;
+  /** The date-change clause, quoted from the contract, so the couple can read the source of the number. */
+  clause: { text: string; page: number } | null;
 };
 
 export type WhatIfPreview = {
@@ -65,6 +67,7 @@ export async function previewDateChange(
   if (daysBetweenUtc(today, target) < 0) return failure("in_past", `${newDate} has already passed. Pick a date from today on.`);
 
   const { result, citations, vendors } = await computeDateChange(prisma, target, today);
+  const clauses = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, { text: v.clauses[0].text, page: v.clauses[0].page }] as const] : [])));
   const cancelled = new Set(vendors.filter((v) => v.status === "cancelled").map((v) => v.id));
   const kindOf = (row: (typeof result.rows)[number]): WhatIfRowKind =>
     cancelled.has(row.vendorId) ? "cancelled" : row.costCents > 0 ? "fee" : row.appliedRule ? "free" : "check";
@@ -82,6 +85,7 @@ export async function previewDateChange(
       reason: row.reason,
       clauseId: row.clauseId,
       citation: citations.get(row.vendorId) ?? null,
+      clause: clauses.get(row.vendorId) ?? null,
     })),
   };
 }

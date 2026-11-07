@@ -21,7 +21,7 @@ const SERVER_ONLY = [
   /^@\/lib\/extraction\//,
   /^@\/lib\/rate-limit$/,
   /^@\/lib\/timeline-data$/,
-  /^@\/lib\/whatif\/(service|handler)$/,
+  /^@\/lib\/whatif\/(service|handler|explain)$/,
   /^@\/lib\/pdf-text$/,
   /^@\/generated\//,
   /^node:/,

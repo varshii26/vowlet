@@ -13,6 +13,7 @@ const rowSchema = z.object({
   reason: z.string(),
   clauseId: z.string().nullable(),
   citation: z.string().nullable(),
+  clause: z.object({ text: z.string(), page: z.number().int() }).nullable(),
 });
 
 const previewSchema = z.object({
@@ -24,6 +25,7 @@ const previewSchema = z.object({
   rows: z.array(rowSchema),
 });
 const applySchema = z.object({ ok: z.literal(true), message: z.string() });
+const explainSchema = z.object({ ok: z.literal(true), newDate: z.string(), text: z.string().min(1), source: z.enum(["model", "template"]) });
 const failureSchema = z.object({ ok: z.literal(false), error: z.object({ message: z.string() }) });
 
 export type WhatIfRowView = z.infer<typeof rowSchema>;
@@ -60,4 +62,12 @@ export async function requestApply(newDate: string, previousDate: string): Promi
   if ("error" in res) return { ok: false, message: res.error };
   const parsed = applySchema.safeParse(res.json);
   return parsed.success ? { ok: true, message: parsed.data.message } : { ok: false, message: failureMessage(res.json) };
+}
+
+/** The short written summary of a what-if. Optional extra: a failure just means no summary is shown. */
+export async function requestExplanation(newDate: string): Promise<{ ok: true; text: string; source: "model" | "template" } | { ok: false; message: string }> {
+  const res = await postJson("/api/whatif/explain", { newDate });
+  if ("error" in res) return { ok: false, message: res.error };
+  const parsed = explainSchema.safeParse(res.json);
+  return parsed.success ? { ok: true, text: parsed.data.text, source: parsed.data.source } : { ok: false, message: failureMessage(res.json) };
 }
