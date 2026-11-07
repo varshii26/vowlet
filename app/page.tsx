@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
@@ -37,7 +38,12 @@ export default async function Home() {
             {input.wedding.coupleNames}: every vendor payment, anchored to the wedding day.
           </p>
         </div>
-        <ResetDemoButton />
+        <div className="flex items-start gap-2">
+          <Link href="/upload" className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50">
+            Upload contracts
+          </Link>
+          <ResetDemoButton />
+        </div>
       </header>
       <AgentPanel />
       <PendingProposals proposals={proposals} />
