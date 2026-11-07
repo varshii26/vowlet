@@ -30,6 +30,7 @@ const view = (over: Partial<ProposalView> = {}): ProposalView => ({
   draft: null,
   reason: "The couple asked to postpone.",
   citation: null,
+  clauseHref: null,
   paymentId: null,
   approvable: true,
   createdAt: "2026-11-07T10:00:00.000Z",
@@ -77,6 +78,12 @@ describe("what the card shows", () => {
   it("shows the clause it rests on, in words, as a chip", () => {
     render(<ProposalCard proposal={view({ citation: "Grand Oak Estate contract, page 2" })} onResolved={onResolved} />);
     expect(screen.getByText("Grand Oak Estate contract, page 2")).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("links the clause chip to the clause in the contract when it can", () => {
+    render(<ProposalCard proposal={view({ citation: "Grand Oak Estate contract, page 2", clauseHref: "/vendors/v1?clause=c9" })} onResolved={onResolved} />);
+    expect(screen.getByRole("link", { name: "Grand Oak Estate contract, page 2" }).getAttribute("href")).toBe("/vendors/v1?clause=c9");
   });
 
   it("shows a refund request's drafted message to read before approving", () => {

@@ -69,7 +69,17 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
       )}
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
-        {proposal.citation && <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">{proposal.citation}</span>}
+        {proposal.citation &&
+          (proposal.clauseHref ? (
+            <a
+              href={proposal.clauseHref}
+              className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700 underline decoration-dotted underline-offset-2 hover:bg-neutral-200"
+            >
+              {proposal.citation}
+            </a>
+          ) : (
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">{proposal.citation}</span>
+          ))}
         {proposal.reason && <span>Why: {proposal.reason}</span>}
       </div>
 

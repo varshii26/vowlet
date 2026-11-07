@@ -27,6 +27,7 @@ const view = (over: Partial<ProposalView> = {}): ProposalView => ({
   draft: null,
   reason: "",
   citation: null,
+  clauseHref: null,
   paymentId: null,
   approvable: true,
   createdAt: "2026-11-07T10:00:00.000Z",
