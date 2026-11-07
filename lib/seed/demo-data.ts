@@ -1,4 +1,5 @@
 import type { CancellationRule, DateChangeRule } from "@/lib/rules";
+import { parseVendorEmails, vendorEmail } from "@/lib/seed/vendor-emails";
 
 /**
  * Single source of truth for the Priya & Sam demo. The seed writes it to the
@@ -73,9 +74,11 @@ const DATE_STRICT: DateChangeRule[] = [
   { minNoticeDays: 0, feePercent: 30, flatFee: 0 },
 ];
 
-// Placeholder payee emails. Replace with the real PayPal sandbox business
-// accounts once they exist (see issue #10); five accounts cover 14 vendors.
-const email = (n: number) => `sb-vendor${n}@business.example.com`;
+// Payee emails come from PAYPAL_VENDOR_EMAILS (your PayPal sandbox business accounts);
+// without it, placeholders are used. See lib/seed/vendor-emails.ts and the README.
+const { valid: configuredEmails, ignored: ignoredEmails } = parseVendorEmails(process.env.PAYPAL_VENDOR_EMAILS);
+if (ignoredEmails.length > 0) console.warn(`[seed] Ignoring PAYPAL_VENDOR_EMAILS entries that aren't emails: ${ignoredEmails.join(", ")}`);
+const email = (n: number) => vendorEmail(n, configuredEmails);
 
 export const VENDORS: VendorSpec[] = [
   {
