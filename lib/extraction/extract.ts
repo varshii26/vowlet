@@ -3,7 +3,7 @@ import { EXTRACTION_SYSTEM_PROMPT, EXTRACTION_USER_PROMPT } from "@/lib/extracti
 import { contractExtractionJsonSchema, contractExtractionSchema } from "@/lib/extraction/schema";
 import { toTerms } from "@/lib/extraction/terms";
 import { verifyTerms, type VerifiedTerms } from "@/lib/extraction/verify";
-import { LlmError, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
+import { addUsage, LlmError, ZERO_USAGE, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
 
 export type ExtractionOutcome =
   | { ok: true; terms: VerifiedTerms; model: string; attempts: number; usage: LlmUsage; ms: number }
@@ -19,12 +19,8 @@ export type ExtractInput = {
   pages: readonly string[];
 };
 
-const ZERO: LlmUsage = { inputTokens: 0, outputTokens: 0, thinkingTokens: 0 };
-const add = (a: LlmUsage, b: LlmUsage): LlmUsage => ({
-  inputTokens: a.inputTokens + b.inputTokens,
-  outputTokens: a.outputTokens + b.outputTokens,
-  thinkingTokens: a.thinkingTokens + b.thinkingTokens,
-});
+const ZERO = ZERO_USAGE;
+const add = addUsage;
 
 /**
  * Read a contract with the model, then check everything in code: the output

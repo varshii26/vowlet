@@ -4,7 +4,7 @@ import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
 
 afterEach(() => vi.unstubAllGlobals());
 
-const usage = { inputTokens: 1, outputTokens: 1, thinkingTokens: 0 };
+const usage = { inputTokens: 1, outputTokens: 1, thinkingTokens: 0, cachedTokens: 0 };
 const events: StreamEvent[] = [
   { type: "thinking", label: "Understanding your question…" },
   { type: "step", tool: "get_wedding", ok: true, label: "Checking the wedding date and budget…" },

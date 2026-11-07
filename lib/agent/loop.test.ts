@@ -77,7 +77,7 @@ describe("a question with no tools", () => {
 
   it("adds up the tokens used", async () => {
     const { client } = fakeGemini(call("get_wedding"), modelAnswer("done"));
-    expect(answerOf(await collect(client)).usage).toEqual({ inputTokens: 200, outputTokens: 70, thinkingTokens: 15 });
+    expect(answerOf(await collect(client)).usage).toEqual({ inputTokens: 200, outputTokens: 70, thinkingTokens: 15, cachedTokens: 0 });
   });
 });
 
