@@ -57,6 +57,35 @@ const capturedOrderSchema = z.object({
     .min(1),
 });
 
+// GET /v2/checkout/orders/{id}: an order may have no payments yet (created or approved, not captured).
+const orderDetailsSchema = z.object({
+  id: z.string().min(1),
+  status: z.string(),
+  purchaseUnits: z
+    .array(
+      z.object({
+        amount: moneySchema.optional(),
+        payee: z.object({ emailAddress: z.string().optional() }).optional(),
+        payments: z
+          .object({
+            captures: z.array(z.object({ id: z.string().min(1), status: z.string(), amount: moneySchema.optional(), createTime: z.string().optional() })).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .min(1),
+});
+
+// GET /v2/payments/captures/{id}: the payment itself, kept by PayPal after the checkout order is gone.
+const captureDetailsSchema = z.object({
+  id: z.string().min(1),
+  status: z.string(),
+  amount: moneySchema.optional(),
+  payee: z.object({ emailAddress: z.string().optional() }).optional(),
+  createTime: z.string().optional(),
+  supplementaryData: z.object({ relatedIds: z.object({ orderId: z.string().optional() }).optional() }).optional(),
+});
+
 const refundSchema = z.object({
   id: z.string().min(1),
   status: z.string(),
@@ -106,6 +135,44 @@ export type CapturedOrder = {
 };
 
 export type Refund = { refundId: string; status: string; amount: number | null };
+
+/** What PayPal says about an order right now. Read-only. */
+export type OrderDetails = {
+  orderId: string;
+  /** CREATED, APPROVED, COMPLETED, VOIDED, ... */
+  status: string;
+  /** Order amount in cents. */
+  amount: number | null;
+  payeeEmail: string | null;
+  captures: Array<{ captureId: string; status: string; amount: number | null; createdAt: string | null }>;
+};
+
+/** What PayPal says about a captured payment right now. Read-only. */
+export type CaptureDetails = {
+  captureId: string;
+  /** COMPLETED, PENDING, REFUNDED, PARTIALLY_REFUNDED, DECLINED, ... */
+  status: string;
+  amount: number | null;
+  payeeEmail: string | null;
+  createdAt: string | null;
+  orderId: string | null;
+};
+
+/**
+ * A lookup that never throws. `not_found`: PayPal has no such record (checkout orders
+ * stop being served after some hours). `not_allowed`: PayPal won't show it to this app
+ * (seen for captures paid to an account the app doesn't own). `unavailable`: anything else.
+ */
+export type Lookup<T> = { ok: true; value: T } | { ok: false; reason: "not_found" | "not_allowed" | "unavailable" };
+
+/**
+ * The only PayPal access the agent gets: looking orders and captures up. It has no
+ * way to create, capture or refund, because those functions are simply not on it.
+ */
+export type PayPalReader = {
+  readonly getOrder: (orderId: string) => Promise<Lookup<OrderDetails>>;
+  readonly getCapture: (captureId: string) => Promise<Lookup<CaptureDetails>>;
+};
 
 export class PayPalError extends Error {
   constructor(
@@ -174,6 +241,34 @@ export function createPayPalClient(config: PayPalConfig) {
     const order = parse(createdOrderSchema, result, "create order");
     const approve = order.links?.find((l) => l.rel === "approve" || l.rel === "payer-action");
     return { orderId: order.id, status: order.status, approveUrl: approve?.href ?? null };
+  }
+
+  /** Look an order up. Read-only: changes nothing at PayPal. */
+  async function getOrder(orderId: string): Promise<OrderDetails> {
+    const { result } = await call(() => orders.getOrder({ id: orderId }));
+    const order = parse(orderDetailsSchema, result, "get order");
+    const unit = order.purchaseUnits[0];
+    return {
+      orderId: order.id,
+      status: order.status,
+      amount: unit.amount ? toCents(unit.amount) : null,
+      payeeEmail: unit.payee?.emailAddress ?? null,
+      captures: (unit.payments?.captures ?? []).map((c) => ({ captureId: c.id, status: c.status, amount: c.amount ? toCents(c.amount) : null, createdAt: c.createTime ?? null })),
+    };
+  }
+
+  /** Look a captured payment up. Read-only: changes nothing at PayPal. */
+  async function getCapture(captureId: string): Promise<CaptureDetails> {
+    const { result } = await call(() => payments.getCapturedPayment({ captureId }));
+    const capture = parse(captureDetailsSchema, result, "get capture");
+    return {
+      captureId: capture.id,
+      status: capture.status,
+      amount: capture.amount ? toCents(capture.amount) : null,
+      payeeEmail: capture.payee?.emailAddress ?? null,
+      createdAt: capture.createTime ?? null,
+      orderId: capture.supplementaryData?.relatedIds?.orderId ?? null,
+    };
   }
 
   /** Capture an order the couple has approved in the PayPal popup. Idempotent per order id. */
@@ -249,7 +344,7 @@ export function createPayPalClient(config: PayPalConfig) {
     return parse(verifyResponseSchema, json, "verify webhook").verification_status === "SUCCESS";
   }
 
-  return { createOrder, captureOrder, refundCapture, verifyWebhookSignature };
+  return { createOrder, getOrder, getCapture, captureOrder, refundCapture, verifyWebhookSignature };
 }
 
 export type PayPalClient = ReturnType<typeof createPayPalClient>;
@@ -259,6 +354,30 @@ export type PayPalClient = ReturnType<typeof createPayPalClient>;
 // ---------------------------------------------------------------------------
 
 let defaultClient: PayPalClient | null = null;
+
+/**
+ * A reader over a client: a new frozen object holding only `getOrder`, so handing
+ * it to the agent exposes nothing that moves money, even by reflection.
+ */
+export function readOnly(client: Pick<PayPalClient, "getOrder" | "getCapture">): PayPalReader {
+  const safely = async <T>(fn: () => Promise<T>): Promise<Lookup<T>> => {
+    try {
+      return { ok: true, value: await fn() };
+    } catch (error) {
+      const status = error instanceof PayPalError ? error.status : null;
+      return { ok: false, reason: status === 404 ? "not_found" : status === 401 || status === 403 ? "not_allowed" : "unavailable" };
+    }
+  };
+  const getOrder = (orderId: string) => safely(() => client.getOrder(orderId));
+  const getCapture = (captureId: string) => safely(() => client.getCapture(captureId));
+  return Object.freeze({ getOrder, getCapture });
+}
+
+/** The default reader, or null when PayPal isn't configured (the agent then says so). */
+export function paypalReader(): PayPalReader | null {
+  if (!process.env.PAYPAL_CLIENT_ID || !process.env.PAYPAL_CLIENT_SECRET) return null;
+  return readOnly(paypal());
+}
 
 export function paypal(): PayPalClient {
   if (!defaultClient) {

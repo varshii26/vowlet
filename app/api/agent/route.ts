@@ -2,6 +2,7 @@ import { agentHandler } from "@/lib/agent/handler";
 import { prisma } from "@/lib/db";
 import { modelChain } from "@/lib/llm/config";
 import { createGeminiClient } from "@/lib/llm/gemini";
+import { paypalReader } from "@/lib/paypal";
 import { createRateLimiter } from "@/lib/rate-limit";
 
 // Module scope: one limiter and one client for the life of the server process.
@@ -15,6 +16,8 @@ export async function POST(request: Request) {
     client,
     models: modelChain("agent"),
     prisma,
+    // Read-only: an object holding only getOrder. The agent never gets the full PayPal client.
+    paypal: paypalReader(),
     limiter,
     configured: Boolean(process.env.GEMINI_API_KEY),
   });

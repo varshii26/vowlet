@@ -490,9 +490,31 @@ curl -F file=@seed/contracts/grand-oak-estate.pdf http://localhost:3000/api/cont
 - Anthropic's `citations` feature has no Gemini equivalent. Quote verification (above) and clause ids from tool
   results are the replacement, so #26 needs a decision.
 
+### "Did the payment go through?" (read-only PayPal lookup)
+
+`check_payment_status` answers questions like "Did the photographer payment go through?" by asking PayPal itself. For
+each of the vendor's payments it looks up the **capture** (the payment record, which PayPal keeps) or, before capture,
+the **checkout order**, and reports the status, whether the captured amount matches the payment, and whether it went
+to the vendor's PayPal account. A mismatch is reported as "Check it in PayPal", never as paid. If PayPal can't be
+checked it says why and falls back to Vowlet's own record.
+
+**It can't move money.** The agent route passes the loop `paypalReader()` (`lib/paypal.ts`): a frozen object holding
+only `getOrder` and `getCapture`, which return results instead of throwing. The tool files still import nothing from
+PayPal (the source check enforces it), and a test proves the tool touches nothing on the reader but those lookups.
+
+**Why not the PayPal Agent Toolkit:** `@paypal/agent-toolkit` has adapters for the Vercel AI SDK, OpenAI, LangChain,
+Bedrock and MCP, but not Gemini or the Anthropic SDK. It would also add `ai`, `openai`, `langchain`, `mathjs` and `axios`,
+plus older copies of `zod` (v3) and the PayPal SDK (v1) next to ours. So, per the issue, this uses our own SDK wrapper.
+
+What we found in the sandbox (2026-11-07): checkout orders stop being served (404) some hours after they're created,
+while captures stay readable; and a capture paid to an account the app doesn't own can be refused (401
+`PERMISSION_DENIED`). Hence capture first, order second, and plain reasons when neither answers. Verified against real
+sandbox data: for the live site's $500 DJ payment the agent answered "Yes, the DJ booking fee payment of $500 went
+through successfully. PayPal confirms the funds were captured on 2026-11-07."
+
 ### Agent tools
 
-`lib/agent/tools/` holds the seven tools the agent can call (#17). The agent loop (#18) uses two exports:
+`lib/agent/tools/` holds the seven tools from the spec (#17) plus one read-only PayPal lookup (#31). The agent loop (#18) uses two exports:
 
 ```ts
 import { executeTool, toolDeclarations } from "@/lib/agent/tools";
@@ -510,6 +532,7 @@ await executeTool(name, args, { prisma, today });   // { ok: true, output } or {
 | `compute_date_change_cost` | `newDate` | per-vendor cost, each row with its clause (pure code, `lib/terms.ts`) |
 | `compute_refund_owed` | `vendorId`, `cancelledBy`, `date?` | amount owed back and the clause (pure code) |
 | `propose_action` | `kind`, `reason`, plus the field its kind needs | a pending proposal id |
+| `check_payment_status` | `vendorId` | each payment's Vowlet status plus what PayPal says now (read-only, see below) |
 
 How they keep the agent honest:
 

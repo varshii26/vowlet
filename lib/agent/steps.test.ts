@@ -16,6 +16,11 @@ describe("describeStep", () => {
     expect(label).toBe("Reading the payment schedule for Bloom & Thistle Florals…");
   });
 
+  it("says it is checking with PayPal, naming the vendor from the result", () => {
+    expect(describeStep("check_payment_status", { vendorId: "x" }, ok({ vendorName: "Lumen Photography" })).label).toBe("Checking Lumen Photography's payments with PayPal…");
+    expect(describeStep("check_payment_status", {}, ok({})).label).toBe("Checking payments with PayPal…");
+  });
+
   it("says when it is checking what is due soon", () => {
     expect(describeStep("get_payment_schedule", { unpaidDueWithinDays: 30 }, ok({ payments: [] })).label).toBe("Checking what is due soon…");
   });

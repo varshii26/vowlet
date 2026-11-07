@@ -4,6 +4,7 @@ import { agentSystemPrompt } from "@/lib/agent/prompt";
 import { collectSources, type CitationSource } from "@/lib/agent/sources";
 import { describeStep, type AgentStep } from "@/lib/agent/steps";
 import { executeTool, toolDeclarations } from "@/lib/agent/tools";
+import type { OrderLookup } from "@/lib/agent/tools/types";
 import { addUsage, LlmError, ZERO_USAGE, type GeminiClient, type LlmUsage } from "@/lib/llm/gemini";
 
 /**
@@ -57,6 +58,8 @@ export type AgentRun = {
   /** Models to try, in order, for the first answer. The run then stays on the one that answered. */
   models: string[];
   prisma: PrismaClient;
+  /** Read-only PayPal order lookup for check_payment_status (lib/paypal.ts `paypalReader()`). Nothing that moves money. */
+  paypal?: OrderLookup | null;
   today: Date;
   maxIterations?: number;
   deadlineMs?: number;
@@ -176,7 +179,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
     contents.push(result.content);
     const responses: Part[] = [];
     for (const call of result.functionCalls) {
-      const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today });
+      const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today, paypal: run.paypal });
       yield { type: "step", ...describeStep(call.name, call.args, outcome) };
       if (outcome.ok) collectSources(outcome.output, sources);
 
