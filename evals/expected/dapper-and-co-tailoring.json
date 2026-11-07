@@ -1,0 +1,52 @@
+{
+  "slug": "dapper-and-co-tailoring",
+  "name": "Dapper & Co Tailoring",
+  "payments": [
+    {
+      "label": "Suit full payment",
+      "amountCents": 110000,
+      "anchor": "wedding_date",
+      "offsetDays": -30,
+      "ambiguousText": "The balance of $1,100 (Suit full payment) is due approximately one month before the Event Date."
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 180,
+      "refundPercent": 75,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 25,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 60,
+      "feePercent": 0,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "feePercent": 10,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 25,
+      "flatFee": 0
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "slug": "bloom-and-thistle-florals",
+  "name": "Bloom & Thistle Florals",
+  "payments": [
+    {
+      "label": "Floral deposit",
+      "amountCents": 80000,
+      "anchor": "signing_date"
+    },
+    {
+      "label": "Floral final balance",
+      "amountCents": 160000,
+      "anchor": "wedding_date",
+      "offsetDays": -14
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 60,
+      "refundPercent": 100,
+      "flatFee": 10000
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 50,
+      "flatFee": 10000
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 90,
+      "feePercent": 0,
+      "flatFee": 15000
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 15,
+      "flatFee": 15000
+    }
+  ]
+}

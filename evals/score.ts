@@ -1,6 +1,8 @@
 import type { VerifiedTerms } from "@/lib/extraction/verify";
 import type { VendorSpec } from "@/lib/seed/demo-data";
-import { vendorTotalCents } from "@/lib/seed/demo-data";
+
+/** What a correct extraction contains. A `VendorSpec` satisfies it, and so does an `evals/expected/*.json` file. */
+export type Expected = Pick<VendorSpec, "slug" | "payments" | "cancellation" | "dateChange">;
 
 /**
  * Scores one extraction against the demo data the contract was generated from.
@@ -37,7 +39,7 @@ const tiersKey = (tiers: Array<Record<string, number>>, percentField: string) =>
     .map((t) => `${t.minNoticeDays}:${t[percentField]}:${t.flatFee}`)
     .join(",");
 
-export function scoreExtraction(spec: VendorSpec, terms: VerifiedTerms): ExtractionScore {
+export function scoreExtraction(spec: Expected, terms: VerifiedTerms): ExtractionScore {
   // Payments: each expected payment is matched at most once, on every field.
   const remaining = new Map<string, number>();
   for (const p of spec.payments) {
@@ -54,7 +56,7 @@ export function scoreExtraction(spec: VendorSpec, terms: VerifiedTerms): Extract
     }
   }
 
-  const totalMatches = terms.totalCents === vendorTotalCents(spec);
+  const totalMatches = terms.totalCents === spec.payments.reduce((sum, p) => sum + p.amountCents, 0);
   const cancellationMatches =
     terms.cancellation.found && tiersKey(terms.cancellation.rules as never, "refundPercent") === tiersKey(spec.cancellation as never, "refundPercent");
   const dateChangeMatches =

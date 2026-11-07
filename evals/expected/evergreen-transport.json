@@ -1,0 +1,51 @@
+{
+  "slug": "evergreen-transport",
+  "name": "Evergreen Transport",
+  "payments": [
+    {
+      "label": "Transport full payment",
+      "amountCents": 90000,
+      "anchor": "wedding_date",
+      "offsetDays": -3
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 180,
+      "refundPercent": 75,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 25,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 60,
+      "feePercent": 0,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "feePercent": 10,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 25,
+      "flatFee": 0
+    }
+  ]
+}

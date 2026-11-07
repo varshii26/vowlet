@@ -1,0 +1,51 @@
+{
+  "slug": "starlight-lighting-and-decor",
+  "name": "Starlight Lighting & Decor",
+  "payments": [
+    {
+      "label": "Lighting deposit",
+      "amountCents": 50000,
+      "anchor": "signing_date"
+    },
+    {
+      "label": "Lighting final balance",
+      "amountCents": 50000,
+      "anchor": "wedding_date",
+      "offsetDays": -21
+    }
+  ],
+  "cancellation": [
+    {
+      "minNoticeDays": 180,
+      "refundPercent": 75,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 90,
+      "refundPercent": 50,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 30,
+      "refundPercent": 25,
+      "flatFee": 0
+    },
+    {
+      "minNoticeDays": 0,
+      "refundPercent": 0,
+      "flatFee": 0
+    }
+  ],
+  "dateChange": [
+    {
+      "minNoticeDays": 90,
+      "feePercent": 0,
+      "flatFee": 15000
+    },
+    {
+      "minNoticeDays": 0,
+      "feePercent": 15,
+      "flatFee": 15000
+    }
+  ]
+}
