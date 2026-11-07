@@ -12,6 +12,30 @@ export function modelAnswer(
   return { text, functionCalls: [], content: { role: "model", parts: [{ text }] }, usage, model, ms: 5, rateLimitWaits: 0 };
 }
 
+/**
+ * A model reply that asks for tools. The content carries a thought signature, as
+ * Gemini 3 sends, so tests can check the loop hands the turn back unchanged.
+ */
+export function modelCalls(
+  calls: Array<{ name: string; args?: Record<string, unknown> }>,
+  model = "m1",
+  usage: LlmUsage = { inputTokens: 100, outputTokens: 20, thinkingTokens: 5 },
+): GenerateResult {
+  const functionCalls = calls.map((c) => ({ name: c.name, args: c.args ?? {} }));
+  return {
+    text: "",
+    functionCalls,
+    content: {
+      role: "model",
+      parts: functionCalls.map((fc, i) => ({ functionCall: fc, ...(i === 0 ? { thoughtSignature: "sig-1" } : {}) })),
+    },
+    usage,
+    model,
+    ms: 5,
+    rateLimitWaits: 0,
+  };
+}
+
 export type RecordedRequest = { models: string[]; contents: Content[]; config: Record<string, unknown> };
 
 /** A fake Gemini client that plays back results in order and records each request. */
