@@ -1,0 +1,126 @@
+import { describe, expect, it } from "vitest";
+import { formatIsoDate, toProposalView, type ProposalRow } from "@/lib/proposals/view";
+
+const row = (over: Partial<ProposalRow> & Pick<ProposalRow, "kind" | "payload">): ProposalRow => ({
+  id: "p1",
+  createdAt: new Date("2026-11-07T10:00:00Z"),
+  clause: null,
+  ...over,
+});
+
+describe("formatIsoDate", () => {
+  it("writes a short readable date", () => {
+    expect(formatIsoDate("2027-06-12")).toBe("Jun 12, 2027");
+    expect(formatIsoDate("2026-12-01")).toBe("Dec 1, 2026");
+  });
+
+  it("returns what it was given when it isn't a date", () => {
+    expect(formatIsoDate("someday")).toBe("someday");
+  });
+});
+
+describe("toProposalView", () => {
+  it("describes a payment", () => {
+    const v = toProposalView(
+      row({
+        kind: "pay",
+        payload: { paymentId: "pay1", vendorId: "v1", vendorName: "Grand Oak Estate", label: "Venue second installment", amountCents: 300_000, dueDate: "2026-12-18", reason: "It is next." },
+        clause: { page: 1, vendor: { name: "Grand Oak Estate" } },
+      }),
+    );
+    expect(v).toEqual({
+      id: "p1",
+      kind: "pay",
+      title: "Pay Grand Oak Estate",
+      summary: "Venue second installment, due Dec 18, 2026.",
+      amount: { label: "$3,000", caption: "to pay now" },
+      details: [],
+      draft: null,
+      reason: "It is next.",
+      citation: "Grand Oak Estate contract, page 1",
+      paymentId: "pay1",
+      approvable: true,
+      createdAt: "2026-11-07T10:00:00.000Z",
+    });
+  });
+
+  it("describes a reschedule, with the fee per vendor", () => {
+    const v = toProposalView(
+      row({
+        kind: "reschedule",
+        payload: {
+          previousDate: "2027-04-17",
+          newDate: "2027-06-12",
+          totalCostCents: 133_000,
+          charges: [
+            { vendorId: "a", vendorName: "Grand Oak Estate", costCents: 45_000, clauseId: "c1" },
+            { vendorId: "b", vendorName: "Bloom & Thistle Florals", costCents: 15_000, clauseId: null },
+          ],
+          reason: "They asked.",
+        },
+      }),
+    );
+    expect(v.title).toBe("Move the wedding");
+    expect(v.summary).toBe("From Apr 17, 2027 to Jun 12, 2027. Every payment date moves with it.");
+    expect(v.amount).toEqual({ label: "$1,330", caption: "in vendor change fees" });
+    expect(v.details).toEqual(["Grand Oak Estate: $450", "Bloom & Thistle Florals: $150"]);
+    expect(v.paymentId).toBeNull();
+    expect(v.citation).toBeNull();
+  });
+
+  it("says there are no fees when there are none", () => {
+    const v = toProposalView(row({ kind: "reschedule", payload: { previousDate: "2027-04-17", newDate: "2027-04-24", totalCostCents: 0, charges: [], reason: "" } }));
+    expect(v.amount).toEqual({ label: "$0", caption: "no change fees" });
+    expect(v.details).toEqual([]);
+  });
+
+  it("describes a refund request with the drafted message and who cancelled", () => {
+    const payload = {
+      vendorId: "v",
+      vendorName: "Bloom & Thistle Florals",
+      cancelledBy: "vendor",
+      cancellationDate: "2026-11-07",
+      owedCents: 80_000,
+      paidCents: 80_000,
+      calculation: "Vendor cancelled, so all $800 paid is owed back.",
+      message: "Dear Bloom & Thistle, please refund.",
+      reason: "The florist cancelled.",
+    };
+    const v = toProposalView(row({ kind: "refund_request", payload, clause: { page: 2, vendor: { name: "Bloom & Thistle Florals" } } }));
+    expect(v.title).toBe("Request a refund");
+    expect(v.summary).toBe("Ask Bloom & Thistle Florals for $800 back of the $800 paid.");
+    expect(v.amount).toEqual({ label: "$800", caption: "to ask back" });
+    expect(v.details).toEqual(["Vendor cancelled, so all $800 paid is owed back.", "Cancelled by the vendor on Nov 7, 2026."]);
+    expect(v.draft).toBe("Dear Bloom & Thistle, please refund.");
+    expect(v.citation).toBe("Bloom & Thistle Florals contract, page 2");
+
+    const couple = toProposalView(row({ kind: "refund_request", payload: { ...payload, cancelledBy: "couple" } }));
+    expect(couple.details[1]).toBe("Cancelled by you on Nov 7, 2026.");
+  });
+
+  it("describes a note", () => {
+    const v = toProposalView(row({ kind: "message", payload: { text: "The deposit is non-refundable.", reason: "Explaining." } }));
+    expect(v).toMatchObject({ title: "A note for you", summary: "The deposit is non-refundable.", amount: null, draft: null, approvable: true });
+  });
+
+  it("marks a proposal whose details can't be read as not approvable, instead of guessing", () => {
+    for (const kind of ["pay", "reschedule", "refund_request", "message"] as const) {
+      for (const payload of [null, {}, "text", { amountCents: "lots" }]) {
+        const v = toProposalView(row({ kind, payload }));
+        expect(v.approvable, `${kind} ${JSON.stringify(payload)}`).toBe(false);
+        expect(v.title).toBe("Unreadable proposal");
+        expect(v.amount).toBeNull();
+        expect(v.paymentId).toBeNull();
+      }
+    }
+  });
+
+  it("keeps the clause citation even for an unreadable proposal", () => {
+    expect(toProposalView(row({ kind: "pay", payload: {}, clause: { page: 3, vendor: { name: "DJ Marlow Sound" } } })).citation).toBe("DJ Marlow Sound contract, page 3");
+  });
+
+  it("is plain data that survives JSON, so it can cross from the server to the browser", () => {
+    const v = toProposalView(row({ kind: "message", payload: { text: "hi", reason: "" } }));
+    expect(JSON.parse(JSON.stringify(v))).toEqual(v);
+  });
+});
