@@ -193,6 +193,52 @@ curl -F file=@seed/contracts/grand-oak-estate.pdf http://localhost:3000/api/cont
 - Anthropic's `citations` feature has no Gemini equivalent. Quote verification (above) and clause ids from tool
   results are the replacement, so #26 needs a decision.
 
+### Agent tools
+
+`lib/agent/tools/` holds the seven tools the agent can call (#17). The agent loop (#18) uses two exports:
+
+```ts
+import { executeTool, toolDeclarations } from "@/lib/agent/tools";
+
+toolDeclarations();                                  // pass as `tools: [{ functionDeclarations: ... }]` to Gemini
+await executeTool(name, args, { prisma, today });   // { ok: true, output } or { ok: false, error }, never throws
+```
+
+| Tool | Input | Returns |
+|---|---|---|
+| `get_wedding` | none | wedding date, today, budget, paid / scheduled / remaining totals |
+| `get_vendors` | `status?` | id, name, category, status, contract total, paid so far |
+| `get_payment_schedule` | `vendorId?`, `from?`, `to?`, `unpaidDueWithinDays?` | payments with computed due dates and status |
+| `read_clause` | `vendorId`, `kind` | exact clause text with page |
+| `compute_date_change_cost` | `newDate` | per-vendor cost, each row with its clause (pure code, `lib/terms.ts`) |
+| `compute_refund_owed` | `vendorId`, `cancelledBy`, `date?` | amount owed back and the clause (pure code) |
+| `propose_action` | `kind`, `reason`, plus the field its kind needs | a pending proposal id |
+
+How they keep the agent honest:
+
+- **The model never supplies a number that matters.** Tools take ids and dates, and code computes every amount. Even
+  `propose_action` takes no amount or payee: for a refund request the model says which vendor and who cancelled, and the
+  tool works out the amount, so a made-up figure can't be stored. Extra arguments are dropped before the tool runs.
+- **No tool can move money.** `propose_action` only inserts a pending `Proposal` row and an activity-log entry. The
+  couple approves in the app, and only then does anything happen. Tests prove it two ways: a database snapshot is
+  unchanged by every proposal kind, and a source check fails if any tool file imports PayPal or the payment service, or
+  writes to payments, vendors, the wedding, terms or clauses.
+- **Contract text is data.** `read_clause` labels its output as text to quote, never instructions. A proposal also can't
+  be talked into paying an attacker (a test feeds it exactly that).
+- **Errors go back to the model, not to a crash.** A fixable problem (a bad date, an unknown vendor, a past date) is
+  returned as a message the model can act on, for example `newDate: must be a date written YYYY-MM-DD`. Anything
+  unexpected is logged for us and the model only sees a generic failure.
+- **Vendors are found the way people say them:** an id, a name, part of a name, or a category only one vendor has ("the
+  florist"). If several match, the tool lists them instead of guessing.
+- **Answers can cite in words.** Every clause id comes with a `citation` such as `Grand Oak Estate contract, page 2`.
+  Tell the model to cite with that, not the id.
+- **"What do we owe in the next 30 days?"** uses `unpaidDueWithinDays` (including anything overdue), so the date
+  arithmetic happens in code, not in the model.
+
+Tried against the real model: asked "what do we owe in the next 30 days", "what if we move to June 12" and "the florist
+cancelled, what now", `gemini-3.5-flash-lite` called the right tools with the right arguments, quoted only numbers the
+tools returned, and recorded a reschedule and a drafted refund request as pending proposals.
+
 ### Quote verification
 
 The model quotes the clause behind every fact it extracts; `verifyQuote(pages, quote)` in `lib/quotes.ts` checks that the
