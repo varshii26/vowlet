@@ -152,3 +152,20 @@ h3 {
     transition-duration: 1ms !important;
   }
 }
+
+/*
+ * Printing the whole page (Ctrl+P). The "Print schedule" button prints the
+ * timeline alone through Bryntum; this keeps a page print clean too: no agent
+ * panel, payment drawer or buttons on paper.
+ */
+@media print {
+  aside[aria-label="Ask Vowlet"],
+  [role="dialog"],
+  .vw-no-print,
+  button {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+  }
+}

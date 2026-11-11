@@ -7,10 +7,12 @@
 
 /*
  * Theme: match the app (cream header, warm lines, rosewood accent, app font).
+ * Scoped to our wrapper on the page, and to `.b-export`, the body of the page
+ * Bryntum's Print feature renders, so the printout keeps the same look.
  * Variables are set on the Gantt element itself, so they win over the theme's
  * :root values by inheritance.
  */
-.vw-gantt .b-gantt {
+:is(.vw-gantt, .b-export) .b-gantt {
   --b-primary: #a8435a;
   --b-grid-header-background: #f7f1ea;
   --b-grid-header-color: #6b5d55;
@@ -22,22 +24,23 @@
   --b-grid-cell-selected-background: #f7e8eb;
   --b-grid-cell-hover-selected-background: #f3dfe4;
   --b-grid-cell-selected-color: #2a221e;
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  /* The printout (Print feature) has no <html> font variable, so name Geist directly as well. */
+  font-family: var(--font-geist-sans, Geist, "Geist Fallback"), system-ui, sans-serif;
   font-size: 13px;
 }
 
 /* Vendor rows read as group headings. */
-.vw-gantt .b-grid-row:has(.b-tree-parent-cell) .b-tree-cell-value {
+:is(.vw-gantt, .b-export) .b-grid-row:has(.b-tree-parent-cell) .b-tree-cell-value {
   font-weight: 600;
 }
 
 /* The wedding row stands out. */
-.vw-gantt .b-gantt-task.wedding {
+:is(.vw-gantt, .b-export) .b-gantt-task.wedding {
   filter: drop-shadow(0 0 4px rgb(168 67 90 / 0.45));
 }
 
 /* Payments look clickable. */
-.vw-gantt .b-gantt-task.payment {
+:is(.vw-gantt, .b-export) .b-gantt-task.payment {
   cursor: pointer;
 }
 
@@ -166,20 +169,20 @@
  * while a preview shows, each moved milestone keeps a faded diamond at its old
  * date, in the theme's warm neutrals, so before and after read side by side.
  */
-.vw-gantt .b-task-baseline.vw-ghost {
+:is(.vw-gantt, .b-export) .b-task-baseline.vw-ghost {
   --b-baseline-background: #d9c6b8;
   --b-baseline-border-color: transparent;
   opacity: 0.75;
   cursor: help;
 }
-.vw-gantt .b-task-baseline-milestone.vw-ghost::before {
+:is(.vw-gantt, .b-export) .b-task-baseline-milestone.vw-ghost::before {
   width: 9px;
   height: 9px;
   background: #f7f1ea;
   border: 1.5px dashed #a8435a;
   opacity: 0.8;
 }
-.vw-gantt .b-task-baseline-milestone.vw-ghost {
+:is(.vw-gantt, .b-export) .b-task-baseline-milestone.vw-ghost {
   background: transparent;
 }
 
@@ -194,11 +197,11 @@
 }
 
 /* Summary footer: cash needed each month. The busiest month stands out. */
-.vw-gantt .b-grid-footer-container {
+:is(.vw-gantt, .b-export) .b-grid-footer-container {
   background: #f7f1ea;
   border-top: 1px solid #e9dfd4;
 }
-.vw-gantt .b-grid-footer-container .b-grid-footer {
+:is(.vw-gantt, .b-export) .b-grid-footer-container .b-grid-footer {
   color: #6b5d55;
   font-weight: 600;
 }

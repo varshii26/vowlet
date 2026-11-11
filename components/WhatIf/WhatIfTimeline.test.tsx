@@ -10,12 +10,25 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 
 // The real chart needs Bryntum; this stand-in shows the dates it was handed and
 // exposes the drop callback, which is all the what-if relies on.
-const chart = vi.hoisted(() => ({ drop: (() => {}) as (iso: string) => void, data: null as unknown }));
+const chart = vi.hoisted(() => ({
+  drop: (() => {}) as (iso: string) => void,
+  data: null as unknown,
+  printReady: null as ((print: (() => Promise<void>) | null) => void) | null,
+}));
 vi.mock("@/components/Gantt/PaymentGantt", async () => {
   const { createElement } = await import("react");
   return {
-    PaymentGantt: ({ data, onWeddingDateChange }: { data: TimelineData; onWeddingDateChange: (iso: string) => void }) => {
+    PaymentGantt: ({
+      data,
+      onWeddingDateChange,
+      onPrintReady,
+    }: {
+      data: TimelineData;
+      onWeddingDateChange: (iso: string) => void;
+      onPrintReady?: (print: (() => Promise<void>) | null) => void;
+    }) => {
       chart.drop = onWeddingDateChange;
+      chart.printReady = onPrintReady ?? null;
       chart.data = data;
       const days = data.tasks.flatMap((t) => [t, ...(t.children ?? [])]).map((t) => `${t.id}=${t.startDate ?? ""}`);
       return createElement("ul", { "aria-label": "chart" }, days.map((d) => createElement("li", { key: d }, d)));
@@ -267,5 +280,35 @@ describe("WhatIfTimeline", () => {
     await act(async () => resolvers[0](new Response(JSON.stringify(previewBody))));
     expect(screen.getByText("$700")).toBeTruthy();
     expect(screen.queryByText("$500", { selector: "span.text-2xl" })).toBeNull();
+  });
+});
+
+describe("Print schedule button", () => {
+  const button = () => screen.getByRole("button", { name: /print schedule/i }) as HTMLButtonElement;
+
+  it("waits for the chart, then prints through it", async () => {
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />, { wrapper: ToastProvider });
+    expect(button().disabled).toBe(true); // Bryntum hasn't loaded yet
+
+    let finish = () => {};
+    const print = vi.fn(() => new Promise<void>((resolve) => (finish = resolve)));
+    act(() => chart.printReady!(print));
+    expect(button().disabled).toBe(false);
+
+    const el = button();
+    fireEvent.click(el);
+    expect(print).toHaveBeenCalledTimes(1);
+    expect(el.textContent).toBe("Preparing…");
+    expect(el.disabled).toBe(true);
+    await act(async () => finish());
+    expect(el.textContent).toBe("Print schedule");
+  });
+
+  it("says so when the print dialog can't open", async () => {
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />, { wrapper: ToastProvider });
+    act(() => chart.printReady!(vi.fn(async () => Promise.reject(new Error("blocked")))));
+    await act(async () => fireEvent.click(button()));
+    expect(screen.getByText(/couldn't open the print dialog/i)).toBeTruthy();
+    expect(button().disabled).toBe(false);
   });
 });
