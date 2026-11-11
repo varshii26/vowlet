@@ -50,9 +50,9 @@ const need = <T>(value: T | undefined, kind: Kind, field: string): T => {
   return value;
 };
 
-async function draftPay(input: Input, { prisma }: ToolContext): Promise<Draft> {
+async function draftPay(input: Input, { prisma, weddingId }: ToolContext): Promise<Draft> {
   const paymentId = need(input.paymentId, "pay", "paymentId");
-  const wedding = await loadWedding(prisma);
+  const wedding = await loadWedding(prisma, weddingId);
   const payment = await prisma.payment.findFirst({
     where: { id: paymentId, vendor: { weddingId: wedding.id } },
     include: { vendor: true },
@@ -97,10 +97,10 @@ async function movingPayments(prisma: PrismaClient, weddingId: string, from: Dat
     .slice(0, MOVING_PREVIEW);
 }
 
-async function draftReschedule(input: Input, { prisma, today }: ToolContext): Promise<Draft> {
+async function draftReschedule(input: Input, { prisma, today, weddingId }: ToolContext): Promise<Draft> {
   const newDate = need(input.newDate, "reschedule", "newDate");
   const target = parseIsoDate(newDate);
-  const { wedding, result, citations, budget } = await computeDateChange(prisma, target, today);
+  const { wedding, result, citations, budget } = await computeDateChange(prisma, weddingId, target, today);
   if (daysBetweenUtc(wedding.date, target) === 0) throw new ToolError(`${newDate} is already the wedding date.`);
 
   // Largest fee first, the same order as the agent's answer table.
@@ -125,12 +125,12 @@ async function draftReschedule(input: Input, { prisma, today }: ToolContext): Pr
   };
 }
 
-async function draftRefund(input: Input, { prisma, today }: ToolContext): Promise<Draft> {
+async function draftRefund(input: Input, { prisma, today, weddingId }: ToolContext): Promise<Draft> {
   const vendorRef = need(input.vendorId, "refund_request", "vendorId");
   const cancelledBy = need(input.cancelledBy, "refund_request", "cancelledBy");
   const message = need(input.message, "refund_request", "message (the drafted request)");
 
-  const { vendor, result } = await computeRefund(prisma, vendorRef, cancelledBy, today);
+  const { vendor, result } = await computeRefund(prisma, weddingId, vendorRef, cancelledBy, today);
   if (result.owedCents <= 0) {
     throw new ToolError(`Nothing is owed back by ${vendor.name} (${result.reason}), so there is no refund to request. Explain that to the couple instead.`);
   }
@@ -183,8 +183,8 @@ export const proposeAction = defineTool({
     "Propose something for the couple to approve: pay a payment, reschedule the wedding, request a refund from a vendor, or leave a message. This only records a proposal. Nothing is paid, changed or sent until the couple approves it. Give ids and dates only: amounts are worked out for you.",
   inputSchema,
   run: async (input, ctx) => {
-    const { prisma } = ctx;
-    const wedding = await loadWedding(prisma);
+    const { prisma, weddingId } = ctx;
+    const wedding = await loadWedding(prisma, weddingId);
 
     const draft =
       input.kind === "pay"

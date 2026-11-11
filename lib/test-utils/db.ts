@@ -23,3 +23,13 @@ export function createTestDatabase(): { prisma: PrismaClient; cleanup: () => Pro
     },
   };
 }
+
+/**
+ * The id of the only wedding in a test database. Most tests seed one wedding and
+ * every wedding-scoped function now takes its id, so this is the one-liner for
+ * "the wedding this test is about". An empty database gives an id that matches
+ * nothing, so "no wedding yet" still behaves as "no wedding yet".
+ */
+export async function soleWeddingId(prisma: PrismaClient): Promise<string> {
+  return (await prisma.wedding.findFirst({ select: { id: true } }))?.id ?? "no-such-wedding";
+}

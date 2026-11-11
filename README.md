@@ -327,6 +327,14 @@ one click: nobody has to sign up to see it.
   address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`); once
   onboarding exists (#104), a signed-in user with no wedding is sent there from any page. Sign-ups are rate limited to 10
   per address per 10 minutes, shared with `POST /api/register`.
+- **Onboarding** (`/onboarding`, #104): a signed-in user with no wedding is sent here from the dashboard. Names, date and an
+  optional budget (parsed to cents, `lib/onboarding/rules.ts`) create their one wedding; a double submit keeps the first.
+  The dashboard then shows an empty state with one next step (upload a contract) and starter questions for the assistant.
+- **Every wedding lookup is by the signed-in couple's wedding id** (`lib/auth/wedding.ts`), never "the first wedding": the
+  dashboard, the assistant's tools, what-if, uploads, proposals and activity. The id comes from the session on the
+  server and is never taken from the browser or the model. `lib/auth/wedding-isolation.test.ts` runs two couples in one
+  database and checks each sees only their own. Signed-out visitors still see the shared demo until #105 adds the
+  redirects. **Reset demo** is hidden for real accounts; the reset itself still wipes every wedding until #108.
 - **Lockout:** 5 failed sign-ins for one email, or 30 from one address, in 10 minutes locks further attempts out, **even
   with the right password** (`lib/auth/attempts.ts`). Only failures count, and a success clears the email's count. The
   limiter is shared by the sign-in form and the Auth.js API endpoint, since an attacker would use the endpoint directly.

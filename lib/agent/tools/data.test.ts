@@ -21,7 +21,7 @@ const refusal = (ref: string) => find(ref).then(() => "", (e) => (e instanceof T
 
 describe("loadWedding", () => {
   it("returns the wedding", async () => {
-    expect((await loadWedding(prisma)).coupleNames).toBe("Priya & Sam");
+    expect((await loadWedding(prisma, weddingId)).coupleNames).toBe("Priya & Sam");
   });
 });
 

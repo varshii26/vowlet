@@ -4,7 +4,7 @@ import { TODAY, ok } from "@/lib/agent/tools/test-utils";
 import { loadPendingProposals } from "@/lib/proposals/data";
 import { proposalHandler } from "@/lib/proposals/handler";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -96,17 +96,17 @@ describe("loadPendingProposals", () => {
     await call(c, { action: "dismiss" });
     await call(a, { action: "approve" });
 
-    const pending = await loadPendingProposals(prisma);
+    const pending = await loadPendingProposals(prisma, await soleWeddingId(prisma));
     expect(pending.map((p) => p.id)).toEqual([b]);
     expect(pending[0]).toMatchObject({ kind: "reschedule", title: "Move the wedding", approvable: true });
   });
 
   it("includes the clause citation in words", async () => {
     await propose({ kind: "refund_request", vendorId: "Grand Oak Estate", cancelledBy: "couple", message: "Please refund us." });
-    expect((await loadPendingProposals(prisma))[0].citation).toBe("Grand Oak Estate contract, page 2");
+    expect((await loadPendingProposals(prisma, await soleWeddingId(prisma)))[0].citation).toBe("Grand Oak Estate contract, page 2");
   });
 
   it("is empty when nothing is waiting", async () => {
-    expect(await loadPendingProposals(prisma)).toEqual([]);
+    expect(await loadPendingProposals(prisma, await soleWeddingId(prisma))).toEqual([]);
   });
 });

@@ -2,15 +2,20 @@ import Link from "next/link";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { ActivityFeed } from "@/components/Dashboard/ActivityFeed";
 import { PAYMENT_LISTS_ID } from "@/components/Dashboard/anchors";
+import { EmptyDashboard } from "@/components/Dashboard/EmptyDashboard";
 import { DashboardShell } from "@/components/Dashboard/DashboardShell";
 import { SummaryBar } from "@/components/Dashboard/SummaryBar";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
 import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 import { Tabs } from "@/components/ui/Tabs";
-import { VendorList, type VendorCardData } from "@/components/Vendors/VendorList";
+import {
+  VendorList,
+  type VendorCardData,
+} from "@/components/Vendors/VendorList";
 import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
 import { loadActivity } from "@/lib/activity";
+import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
 import { dashboardSummary } from "@/lib/dashboard";
 import { resetIfIdle } from "@/lib/demo/idle-reset";
 import { prisma } from "@/lib/db";
@@ -27,13 +32,17 @@ export default async function Home() {
   // Judges share one database: a demo left changed and idle goes back to the
   // seed before this visit reads it (lib/demo/auto-reset.ts).
   await resetIfIdle();
-  const input = await loadTimelineInput(prisma);
+  // A signed-in user with no wedding goes to onboarding; everyone else gets their own wedding (or the demo, signed out).
+  const { weddingId, isDemo } = await requireWeddingOrOnboarding();
+  const input = weddingId ? await loadTimelineInput(prisma, weddingId) : null;
 
-  if (!input) {
+  if (!weddingId || !input) {
     return (
       <main className="mx-auto w-full max-w-6xl p-8">
         <h1 className="text-3xl">Vowlet</h1>
-        <p className="mt-4 text-muted">No wedding found yet. Run `npm run db:seed` to load the demo.</p>
+        <p className="mt-4 text-muted">
+          No wedding found yet. Run `npm run db:seed` to load the demo.
+        </p>
       </main>
     );
   }
@@ -42,10 +51,16 @@ export default async function Home() {
   // Every unpaid payment for the tab; the list has no per-row Pay buttons, so it stays light.
   const upcoming = selectUpcomingPayments(input, now, Number.MAX_SAFE_INTEGER);
   const [proposals, wedding, activity, categories] = await Promise.all([
-    loadPendingProposals(prisma),
-    prisma.wedding.findFirst({ select: { budget: true } }),
-    loadActivity(prisma),
-    prisma.vendor.findMany({ select: { id: true, category: true } }),
+    loadPendingProposals(prisma, weddingId),
+    prisma.wedding.findUnique({
+      where: { id: weddingId },
+      select: { budget: true },
+    }),
+    loadActivity(prisma, weddingId),
+    prisma.vendor.findMany({
+      where: { weddingId },
+      select: { id: true, category: true },
+    }),
   ]);
   const summary = dashboardSummary(input, wedding?.budget ?? 0, upcoming, now);
   const { details } = buildTimeline(input, now);
@@ -68,7 +83,8 @@ export default async function Home() {
       <Link href="/upload" className="btn btn-secondary">
         Upload contracts
       </Link>
-      <ResetDemoButton />
+      {/* Reset wipes and reseeds everything: only for the shared demo, never a couple's real data. */}
+      {isDemo && <ResetDemoButton />}
     </div>
   );
 
@@ -76,7 +92,9 @@ export default async function Home() {
     <DashboardShell
       details={details}
       pendingProposalIds={proposals.map((p) => p.id)}
-      aside={<AgentPanel proposals={proposals} />}
+      aside={
+        <AgentPanel proposals={proposals} empty={input.vendors.length === 0} />
+      }
       main={
         <div className="mx-auto w-full max-w-[1400px] space-y-6 px-8 py-6">
           <SummaryBar
@@ -87,17 +105,41 @@ export default async function Home() {
             next={summary.next}
             actions={actions}
           />
-          {/* The hero: sized so the chart fills the rest of a 1440×900 screen. */}
-          <WhatIfTimeline input={input} todayIso={toIsoDate(now)} className="h-[max(28rem,calc(100vh-19.5rem))]" />
-          <Tabs
-            id={PAYMENT_LISTS_ID}
-            label="More about your payments"
-            tabs={[
-              { id: "upcoming", label: "Upcoming", count: upcoming.length, content: <UpcomingPayments payments={upcoming} /> },
-              { id: "vendors", label: "Vendors", count: vendors.length, content: <VendorList vendors={vendors} /> },
-              { id: "activity", label: "Activity", content: <ActivityFeed items={activity} /> },
-            ]}
-          />
+          {input.vendors.length === 0 ? (
+            <EmptyDashboard />
+          ) : (
+            <>
+              {/* The hero: sized so the chart fills the rest of a 1440×900 screen. */}
+              <WhatIfTimeline
+                input={input}
+                todayIso={toIsoDate(now)}
+                className="h-[max(28rem,calc(100vh-19.5rem))]"
+              />
+              <Tabs
+                id={PAYMENT_LISTS_ID}
+                label="More about your payments"
+                tabs={[
+                  {
+                    id: "upcoming",
+                    label: "Upcoming",
+                    count: upcoming.length,
+                    content: <UpcomingPayments payments={upcoming} />,
+                  },
+                  {
+                    id: "vendors",
+                    label: "Vendors",
+                    count: vendors.length,
+                    content: <VendorList vendors={vendors} />,
+                  },
+                  {
+                    id: "activity",
+                    label: "Activity",
+                    content: <ActivityFeed items={activity} />,
+                  },
+                ]}
+              />
+            </>
+          )}
           <footer className="flex justify-center pb-2">
             <AccuracyBadge />
           </footer>

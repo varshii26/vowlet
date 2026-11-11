@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import type { PrismaClient } from "@/generated/prisma/client";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { loadTimelineInput } from "@/lib/timeline-data";
 import { confirmHandler, uploadedContractPath, type ConfirmDeps } from "@/lib/upload/confirm";
 import type { ReviewedContract } from "@/lib/upload/schema";
@@ -72,6 +72,7 @@ function request(body: unknown, file: Uint8Array | string | null = grandOak) {
 const deps = (over: Partial<ConfirmDeps> = {}): ConfirmDeps => ({
   prisma,
   limiter: createRateLimiter({ max: 100, windowMs: 60_000 }),
+  resolveWeddingId: () => soleWeddingId(prisma),
   rootDir: root,
   ...over,
 });
@@ -123,9 +124,32 @@ describe("POST /api/contracts/confirm", () => {
     expect(log?.message).toContain("Grand Oak Estate (uploaded)");
   });
 
+  it("adds the vendor to the signed-in couple's own wedding, and never to the demo", async () => {
+    const demoWedding = await prisma.wedding.findFirstOrThrow();
+    const owner = await prisma.user.create({ data: { email: "owner@example.com" } });
+    const mine = await prisma.wedding.create({ data: { userId: owner.id, coupleNames: "Ana & Ben", date: new Date("2027-09-04"), budget: 0 } });
+
+    const r = await confirm(review(), undefined, { resolveWeddingId: async () => mine.id });
+    expect(r.status).toBe(200);
+
+    expect((await prisma.vendor.findUniqueOrThrow({ where: { id: r.body.vendorId } })).weddingId).toBe(mine.id);
+    expect(await prisma.vendor.count({ where: { weddingId: mine.id } })).toBe(1);
+    expect(await prisma.vendor.count({ where: { weddingId: demoWedding.id } })).toBe(14); // the demo is untouched
+    // The first vendor of a new wedding gets the first sandbox payee, not one counted from the demo's 14.
+    expect(await uploadedVendor()).toMatchObject({ weddingId: mine.id });
+  });
+
+  it("answers 409 for an account that hasn't set up a wedding yet, and saves nothing", async () => {
+    const before = await prisma.vendor.count();
+    const r = await confirm(review(), undefined, { resolveWeddingId: async () => null });
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: "no_wedding", message: "Set up your wedding first, then add contracts to it." });
+    expect(await prisma.vendor.count()).toBe(before);
+  });
+
   it("puts the new vendor on the dashboard timeline", async () => {
     const r = await confirm(review());
-    const input = await loadTimelineInput(prisma);
+    const input = await loadTimelineInput(prisma, await soleWeddingId(prisma));
     const row = input?.vendors.find((v) => v.id === r.body.vendorId);
     expect(row?.payments).toHaveLength(3);
   });

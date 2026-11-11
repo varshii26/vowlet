@@ -5,7 +5,7 @@ import { dashboardSummary } from "@/lib/dashboard";
 import { selectUpcomingPayments } from "@/lib/payments/upcoming";
 import { seedDemo } from "@/lib/seed/demo";
 import { WEDDING } from "@/lib/seed/demo-data";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { loadTimelineInput } from "@/lib/timeline-data";
 
 let prisma: PrismaClient;
@@ -17,7 +17,7 @@ beforeAll(async () => {
 afterAll(async () => cleanup());
 
 async function load() {
-  const input = (await loadTimelineInput(prisma))!;
+  const input = (await loadTimelineInput(prisma, await soleWeddingId(prisma)))!;
   return dashboardSummary(input, WEDDING.budgetCents, selectUpcomingPayments(input, TODAY), TODAY);
 }
 

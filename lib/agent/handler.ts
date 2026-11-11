@@ -27,6 +27,8 @@ export type AgentHandlerDeps = {
   /** Read-only PayPal order lookup, or null when PayPal isn't configured. */
   paypal?: OrderLookup | null;
   limiter: RateLimiter;
+  /** The wedding the signed-in caller is working on, from their session; null if they have none yet. */
+  resolveWeddingId: () => Promise<string | null>;
   /** False when GEMINI_API_KEY is not set. */
   configured: boolean;
   today?: () => Date;
@@ -55,6 +57,10 @@ export async function agentHandler(request: Request, deps: AgentHandlerDeps): Pr
   const body = bodySchema.safeParse(raw);
   if (!body.success) return fail(400, "bad_request", body.error.issues[0]?.message ?? "That request wasn't understood.");
 
+  // The assistant answers about the caller's own wedding. Without one there is nothing to ask about, and no quota is spent.
+  const weddingId = await deps.resolveWeddingId();
+  if (!weddingId) return fail(409, "no_wedding", "Set up your wedding first, then ask away.");
+
   // Only a valid question counts: a malformed request costs no quota, so it must not use up
   // the shared allowance and lock real users out.
   const limit = deps.limiter.check();
@@ -80,6 +86,7 @@ export async function agentHandler(request: Request, deps: AgentHandlerDeps): Pr
           client: deps.client,
           models: deps.models,
           prisma: deps.prisma,
+          weddingId,
           paypal: deps.paypal ?? null,
           today: deps.today?.() ?? new Date(),
           signal: stop.signal,

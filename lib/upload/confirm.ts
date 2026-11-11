@@ -19,6 +19,8 @@ export const uploadedContractPath = (vendorId: string) => `${UPLOADS_DIR}/${vend
 export type ConfirmDeps = {
   prisma: PrismaClient;
   limiter: RateLimiter;
+  /** The wedding the signed-in caller is working on, from their session; null if they have none yet. */
+  resolveWeddingId: () => Promise<string | null>;
   /** The app root that `contractPath` is relative to. Defaults to the working directory. */
   rootDir?: string;
   /** Sandbox payee emails for vendors uploaded without one (PAYPAL_VENDOR_EMAILS). */
@@ -103,8 +105,10 @@ export async function confirmHandler(request: Request, deps: ConfirmDeps): Promi
     return fail(422, "needs_confirmation", `Please confirm these before saving: ${pending.join(", ")}.`);
   }
 
-  const wedding = await deps.prisma.wedding.findFirst();
-  if (!wedding) return fail(409, "no_wedding", "There's no wedding to add this vendor to. Reset the demo first.");
+  // The vendor goes into the signed-in couple's own wedding, never "the first one".
+  const weddingId = await deps.resolveWeddingId();
+  const wedding = weddingId ? await deps.prisma.wedding.findUnique({ where: { id: weddingId } }) : null;
+  if (!wedding) return fail(409, "no_wedding", "Set up your wedding first, then add contracts to it.");
 
   const rootDir = deps.rootDir ?? process.cwd();
   let written = null as string | null;

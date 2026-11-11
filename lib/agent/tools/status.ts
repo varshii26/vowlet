@@ -96,8 +96,8 @@ export const checkPaymentStatus = defineTool({
   inputSchema: z.object({
     vendorId: z.string().describe("A vendor id or name."),
   }),
-  run: async ({ vendorId }, { prisma, paypal }) => {
-    const wedding = await loadWedding(prisma);
+  run: async ({ vendorId }, { prisma, paypal, weddingId }) => {
+    const wedding = await loadWedding(prisma, weddingId);
     const vendor = await resolveVendor(prisma, wedding.id, vendorId);
     const payments = await prisma.payment.findMany({ where: { vendorId: vendor.id }, orderBy: { label: "asc" } });
 

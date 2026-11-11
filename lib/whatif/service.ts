@@ -77,23 +77,25 @@ export function feeBasis(rule: DateChangeRule | null, costCents: number, reason:
   return parts.join(" plus ");
 }
 
-async function currentWedding(prisma: PrismaClient) {
-  return prisma.wedding.findFirst();
+/** The couple's wedding, by the id the server resolved from their session. */
+async function currentWedding(prisma: PrismaClient, weddingId: string) {
+  return prisma.wedding.findUnique({ where: { id: weddingId } });
 }
 
 /** Per-vendor date-change costs if the wedding moved to `newDate` (YYYY-MM-DD). Changes nothing. */
 export async function previewDateChange(
   prisma: PrismaClient,
+  weddingId: string,
   newDate: string,
   now: Date,
 ): Promise<({ ok: true } & WhatIfPreview) | WhatIfFailure> {
   const today = startOfUtcDay(now);
   const target = parseIsoDate(newDate);
-  const wedding = await currentWedding(prisma);
+  const wedding = await currentWedding(prisma, weddingId);
   if (!wedding) return failure("no_wedding", "There is no wedding set up yet.", 404);
   if (daysBetweenUtc(today, target) < 0) return failure("in_past", `${newDate} has already passed. Pick a date from today on.`);
 
-  const { result, citations, vendors, budget } = await computeDateChange(prisma, target, today);
+  const { result, citations, vendors, budget } = await computeDateChange(prisma, weddingId, target, today);
   const clauses = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, { text: v.clauses[0].text, page: v.clauses[0].page }] as const] : [])));
   const cancelled = new Set(vendors.filter((v) => v.status === "cancelled").map((v) => v.id));
   const kindOf = (row: (typeof result.rows)[number]): WhatIfRowKind =>
@@ -129,11 +131,12 @@ export const DRAG_REASON = "Moved by dragging the wedding day on the timeline.";
  */
 export async function applyDateChange(
   prisma: PrismaClient,
+  weddingId: string,
   input: { newDate: string; previousDate: string },
   now: Date,
 ): Promise<{ ok: true; message: string; proposalId: string } | WhatIfFailure> {
   const today = startOfUtcDay(now);
-  const wedding = await currentWedding(prisma);
+  const wedding = await currentWedding(prisma, weddingId);
   if (!wedding) return failure("no_wedding", "There is no wedding set up yet.", 404);
 
   const current = toIsoDate(wedding.date);
@@ -147,7 +150,7 @@ export async function applyDateChange(
 
   let proposalId: string;
   try {
-    const recorded = (await proposeAction.execute({ kind: "reschedule", newDate: input.newDate, reason: DRAG_REASON }, { prisma, today })) as {
+    const recorded = (await proposeAction.execute({ kind: "reschedule", newDate: input.newDate, reason: DRAG_REASON }, { prisma, today, weddingId })) as {
       proposalId: string;
     };
     proposalId = recorded.proposalId;

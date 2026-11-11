@@ -12,7 +12,12 @@ import type { ProposalView } from "@/lib/proposals/view";
 
 const SUGGESTIONS = ["What do we owe in the next 30 days?", "What if we move the wedding to June 12?", "The florist cancelled, what now?"];
 
+/** Before any contract is added there is nothing to calculate, so the first questions are about getting started. */
+const STARTER_SUGGESTIONS = ["How do I add my vendor contracts?", "What does Vowlet do with a contract?", "What can I ask you once my contracts are in?"];
+
 type Props = {
+  /** True when the wedding has no vendors yet: the suggestions then help the couple get started. */
+  empty?: boolean;
   /** Proposals waiting for the couple, from the database. Each shows under the answer that made it. */
   proposals?: ProposalView[];
 };
@@ -24,7 +29,7 @@ type Props = {
  * earlier visits wait at the top. The assistant cannot pay or change anything
  * itself.
  */
-export function AgentPanel({ proposals = [] }: Props) {
+export function AgentPanel({ proposals = [], empty = false }: Props) {
   const router = useRouter();
   const ganttFocus = useGanttFocus();
   const { messages, steps, activity, running, send, stop, clear } = useAgentChat({
@@ -85,7 +90,7 @@ export function AgentPanel({ proposals = [] }: Props) {
           <div className="space-y-3 pt-2">
             <p className="text-sm text-muted">Try one of these:</p>
             <div className="flex flex-col items-start gap-2" aria-label="Suggested questions">
-              {SUGGESTIONS.map((suggestion) => (
+              {(empty ? STARTER_SUGGESTIONS : SUGGESTIONS).map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"

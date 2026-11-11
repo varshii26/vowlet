@@ -7,7 +7,7 @@ import type { GeminiClient } from "@/lib/llm/gemini";
 import { fakeGemini, modelAnswer, modelCalls } from "@/lib/llm/test-utils";
 import { createRateLimiter } from "@/lib/rate-limit";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -19,7 +19,7 @@ afterAll(async () => cleanup());
 beforeEach(async () => seedDemo(prisma));
 
 function deps(client: GeminiClient, over: Partial<AgentHandlerDeps> = {}): AgentHandlerDeps {
-  return { client, models: ["m1"], prisma, limiter: createRateLimiter({ max: 100, windowMs: 60_000 }), configured: true, today: () => TODAY, ...over };
+  return { client, models: ["m1"], prisma, limiter: createRateLimiter({ max: 100, windowMs: 60_000 }), resolveWeddingId: () => soleWeddingId(prisma), configured: true, today: () => TODAY, ...over };
 }
 
 const post = (body: unknown, signal?: AbortSignal) =>
@@ -117,6 +117,13 @@ describe("requests it refuses", () => {
     const r = await refused({ question: "hi" }, { configured: false });
     expect(r.res.status).toBe(503);
     expect(r.body.error.code).toBe("not_configured");
+    expect(r.modelCalls).toBe(0);
+  });
+
+  it("answers 409 for an account that hasn't set up a wedding, without calling the model or using quota", async () => {
+    const r = await refused({ question: "hi" }, { resolveWeddingId: async () => null });
+    expect(r.res.status).toBe(409);
+    expect(r.body.error).toEqual({ code: "no_wedding", message: "Set up your wedding first, then ask away." });
     expect(r.modelCalls).toBe(0);
   });
 

@@ -44,6 +44,11 @@ export type OrderLookup = {
 
 export type ToolContext = {
   prisma: PrismaClient;
+  /**
+   * The wedding this run is about: the signed-in couple's own, set by the server from
+   * their session. Never from the model, so no tool can reach another couple's data.
+   */
+  weddingId: string;
   /** "Today", passed in so results are reproducible in tests. */
   today: Date;
   /** Read-only PayPal order lookup. Absent when PayPal isn't configured. */

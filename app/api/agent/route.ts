@@ -1,4 +1,5 @@
 import { agentHandler } from "@/lib/agent/handler";
+import { requestWeddingId } from "@/lib/auth/request-wedding";
 import { prisma } from "@/lib/db";
 import { modelChain } from "@/lib/llm/config";
 import { createGeminiClient } from "@/lib/llm/gemini";
@@ -19,6 +20,7 @@ export async function POST(request: Request) {
     // Read-only: an object holding only getOrder. The agent never gets the full PayPal client.
     paypal: paypalReader(),
     limiter,
+    resolveWeddingId: requestWeddingId,
     configured: Boolean(process.env.GEMINI_API_KEY),
   });
 }

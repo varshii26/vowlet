@@ -1,3 +1,4 @@
+import { requestWeddingId } from "@/lib/auth/request-wedding";
 import { prisma } from "@/lib/db";
 import { modelChain } from "@/lib/llm/config";
 import { createGeminiClient } from "@/lib/llm/gemini";
@@ -13,6 +14,7 @@ const client = createGeminiClient({ timeoutMs: 10_000, maxRetries: 0, maxWaitMs:
 export async function POST(request: Request) {
   return explainWhatIfHandler(request, {
     prisma,
+    resolveWeddingId: requestWeddingId,
     client,
     models: modelChain("agent"),
     limiter,

@@ -5,7 +5,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { agentTools, executeTool, toolDeclarations } from "@/lib/agent/tools";
 import { TODAY, ok, refused } from "@/lib/agent/tools/test-utils";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -96,7 +96,7 @@ describe("toolDeclarations", () => {
 
 describe("executeTool", () => {
   it("returns a tool's output", async () => {
-    const outcome = await executeTool("get_wedding", {}, { prisma, today: TODAY });
+    const outcome = await executeTool("get_wedding", {}, { prisma, today: TODAY, weddingId: await soleWeddingId(prisma) });
     expect(outcome.ok).toBe(true);
   });
 
@@ -118,16 +118,16 @@ describe("executeTool", () => {
 
   it("returns arguments of the wrong type as an error too, never a crash", async () => {
     for (const args of ["a string", 42, [], { vendorId: 5, kind: {} }, true]) {
-      const outcome = await executeTool("read_clause", args, { prisma, today: TODAY });
+      const outcome = await executeTool("read_clause", args, { prisma, today: TODAY, weddingId: await soleWeddingId(prisma) });
       expect(outcome.ok, JSON.stringify(args)).toBe(false);
     }
   });
 
   it("hides unexpected failures behind a generic message, and logs them for us", async () => {
-    const broken = { wedding: { findFirst: () => Promise.reject(new TypeError("SECRET connection string")) } } as unknown as PrismaClient;
+    const broken = { wedding: { findUnique: () => Promise.reject(new TypeError("SECRET connection string")) } } as unknown as PrismaClient;
     const log = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      const outcome = await executeTool("get_wedding", {}, { prisma: broken, today: TODAY });
+      const outcome = await executeTool("get_wedding", {}, { prisma: broken, today: TODAY, weddingId: "any-wedding" });
       expect(outcome).toEqual({ ok: false, error: "That tool failed unexpectedly. Try again, or answer without it." });
       expect(JSON.stringify(outcome)).not.toContain("SECRET");
       expect(log).toHaveBeenCalledWith(expect.stringContaining("get_wedding"), "SECRET connection string");
