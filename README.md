@@ -197,8 +197,8 @@ Proof it holds, run against the real model:
 `evals/expected/` (amounts, anchors, offsets and rule tiers must match exactly).
 
 **Extraction accuracy: 100% (65/65 fields) on 14 contracts, 100% of quotes verified in the PDF.** The deliberately vague
-clause was flagged for review and no clear payment was wrongly flagged (`gemini-3.5-flash-lite`, 2026-11-11). The app shows
-the same result as a badge (dashboard footer and upload page), read from `evals/results.json`, which the run writes.
+clause was flagged for review and no clear payment was wrongly flagged (`gemini-3.5-flash-lite`, 2026-11-11). The run also
+writes `evals/results.json`, which a test checks these numbers against.
 
 These are generated contracts and one run on one day, so this shows the pipeline works on this kind of document, not
 that it is perfect on any real contract. The answer keys are generated from the same data as the PDFs, not read
@@ -931,8 +931,8 @@ whether the deliberately vague clause was flagged for review). It prints a row p
 fails outright; `--min 90` also fails under 90% accuracy, and `--only a,b` runs a subset. Needs `GEMINI_API_KEY`.
 
 A full run with no failures also writes `evals/results.json` (accuracy, fields, contracts, quote rate, model, date). The
-app's **accuracy badge** reads that file, so the number on screen always comes from a real run and is never typed by
-hand; commit it after a run. A test checks the README's numbers match it, so the two can't drift apart.
+numbers in this README come from that file, never typed by hand; commit it after a run. A test checks the README's
+numbers match it, so the two can't drift apart. (The app no longer shows an accuracy badge.)
 
 **Extraction accuracy: 100% (65/65 fields) on 14 contracts, 100% of quotes verified** (`gemini-3.5-flash-lite`, 2026-11-11;
 the vague clause was flagged and no clear payment was). One run on one day, and these are generated contracts, so it says

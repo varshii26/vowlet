@@ -2,11 +2,16 @@ import { z } from "zod";
 import type { ExtractionScore } from "@/evals/score";
 
 /**
- * The latest full `npm run eval`, as evals/results.json. The run writes it, the
- * app shows it (the accuracy badge), so the numbers on screen are never typed
- * by hand. Only a full run over every sample contract with no failures writes
+ * The latest full `npm run eval`, as evals/results.json. The run writes it, and a
+ * test checks the README's numbers against it, so they are never typed by hand. Only a full run over every sample contract with no failures writes
  * the file: a partial or broken run would understate or overstate the result.
  */
+/** "100%", "98.5%": one decimal, none when it's whole. */
+export function formatPercent(share: number): string {
+  const tenths = Math.round(share * 1000) / 10;
+  return `${Number.isInteger(tenths) ? tenths.toFixed(0) : tenths.toFixed(1)}%`;
+}
+
 export const evalResultsSchema = z.object({
   /** Share of fields extracted exactly right, 0 to 1. */
   accuracy: z.number().min(0).max(1),

@@ -1,9 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildResults, evalResultsSchema } from "@/evals/results";
+import { buildResults, evalResultsSchema, formatPercent } from "@/evals/results";
 import type { ExtractionScore } from "@/evals/score";
-import { formatPercent } from "@/components/ui/AccuracyBadge";
 
 const score = (correct: number, total: number, quoteRate: number) => ({ correct, total, quoteRate }) as ExtractionScore;
 
