@@ -12,7 +12,7 @@ const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
  * Wipe all data and write the Priya & Sam demo. Used by the CLI seed, startup
  * seeding and (later) the "Reset demo" button.
  */
-export async function seedDemo(prisma: PrismaClient): Promise<void> {
+export async function seedDemo(prisma: PrismaClient, options: { message?: string } = {}): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.eventLog.deleteMany();
     await tx.proposal.deleteMany();
@@ -91,7 +91,7 @@ export async function seedDemo(prisma: PrismaClient): Promise<void> {
       data: {
         weddingId: wedding.id,
         type: "demo_seeded",
-        message: `Loaded demo wedding for ${WEDDING.coupleNames}`,
+        message: options.message ?? `Loaded demo wedding for ${WEDDING.coupleNames}`,
       },
     });
   });

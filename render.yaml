@@ -31,3 +31,6 @@ services:
       # Bryntum Gantt Enterprise license (trial) key. Baked into the page at build time, like the PayPal client id.
       - key: NEXT_PUBLIC_BRYNTUM_LICENSE_KEY
         sync: false
+      # Judges share one database: a demo left changed and idle this long is reset on the next visit.
+      - key: DEMO_AUTO_RESET_MINUTES
+        value: "30"

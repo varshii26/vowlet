@@ -10,6 +10,7 @@ import { VendorList, type VendorCardData } from "@/components/Vendors/VendorList
 import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
 import { loadActivity } from "@/lib/activity";
 import { dashboardSummary } from "@/lib/dashboard";
+import { resetIfIdle } from "@/lib/demo/idle-reset";
 import { prisma } from "@/lib/db";
 import { selectUpcomingPayments } from "@/lib/payments/upcoming";
 import { loadPendingProposals } from "@/lib/proposals/data";
@@ -21,6 +22,9 @@ import { loadTimelineInput } from "@/lib/timeline-data";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  // Judges share one database: a demo left changed and idle goes back to the
+  // seed before this visit reads it (lib/demo/auto-reset.ts).
+  await resetIfIdle();
   const input = await loadTimelineInput(prisma);
 
   if (!input) {
