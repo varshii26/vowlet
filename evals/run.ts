@@ -8,8 +8,8 @@
  * Needs GEMINI_API_KEY in .env.local. Exits 1 if any extraction fails outright or
  * the accuracy is under --min (default: no minimum). Uses the same models as the app.
  *
- * A full run with no failures writes evals/results.json, which the app's accuracy
- * badge reads (evals/results.ts). Commit it with the README numbers.
+ * A full run with no failures writes evals/results.json, which a test checks the
+ * README's numbers against (evals/results.ts). Commit it with the README numbers.
  */
 import { config } from "dotenv";
 import { readFile, readdir, writeFile } from "node:fs/promises";
@@ -88,7 +88,7 @@ async function main() {
       new Date(),
     );
     await writeFile(path.join(process.cwd(), "evals", "results.json"), resultsJson(results));
-    console.log("Wrote evals/results.json (shown in the app's accuracy badge).");
+    console.log("Wrote evals/results.json (the README numbers are checked against it).");
   }
 
   if (failed > 0 || (min !== null && accuracy * 100 < min)) process.exit(1);

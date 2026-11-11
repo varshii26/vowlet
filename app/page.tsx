@@ -8,7 +8,6 @@ import { DashboardShell } from "@/components/Dashboard/DashboardShell";
 import { SummaryBar } from "@/components/Dashboard/SummaryBar";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
-import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 import { Tabs } from "@/components/ui/Tabs";
 import {
   VendorList,
@@ -142,9 +141,6 @@ export default async function Home() {
               />
             </>
           )}
-          <footer className="flex justify-center pb-2">
-            <AccuracyBadge />
-          </footer>
         </div>
       }
     />

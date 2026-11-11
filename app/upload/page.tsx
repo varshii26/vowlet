@@ -3,7 +3,6 @@ import Link from "next/link";
 import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
 import { AccountHeader } from "@/components/Account/AccountHeader";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
-import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 
 export const metadata: Metadata = { title: "Upload contracts · Vowlet" };
 
@@ -25,7 +24,6 @@ export default async function UploadPage() {
           Anything it isn&apos;t sure of is marked <span className="font-medium text-amber-800">Please confirm</span>. Amounts are worked out in code, never by
           the AI.
         </p>
-        <AccuracyBadge />
       </header>
       <UploadContracts />
     </main>
