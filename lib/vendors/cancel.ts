@@ -20,6 +20,8 @@ import type { CancelledBy } from "@/lib/terms";
 
 export type CancelPreview = {
   vendorId: string;
+  /** The vendor's own wedding: the cancel flow is by vendor id, so the wedding comes from the vendor. */
+  weddingId: string;
   vendorName: string;
   cancelledBy: CancelledBy;
   cancellationDate: string;
@@ -97,13 +99,14 @@ export async function previewCancellation(
   if (!vendor) return { ok: false, code: "not_found", message: "That vendor doesn't exist.", status: 404 };
   if (vendor.status === "cancelled") return { ok: false, code: "already_cancelled", message: `${vendor.name} is already cancelled.`, status: 409 };
 
-  const { wedding, result } = await computeRefund(prisma, vendor.id, cancelledBy, today);
+  const { wedding, result } = await computeRefund(prisma, vendor.weddingId, vendor.id, cancelledBy, today);
   const clause = result.clauseId ? await prisma.clause.findUnique({ where: { id: result.clauseId } }) : null;
   const cite = clause ? citation(vendor.name, clause.page) : null;
 
   return {
     ok: true,
     vendorId: vendor.id,
+    weddingId: vendor.weddingId,
     vendorName: vendor.name,
     cancelledBy,
     cancellationDate: toIsoDate(today),
@@ -156,7 +159,7 @@ export async function confirmCancellation(
   try {
     const recorded = (await proposeAction.execute(
       { kind: "refund_request", vendorId: preview.vendorId, cancelledBy, message: preview.draft, reason: CANCEL_REASON },
-      { prisma, today: startOfUtcDay(now) },
+      { prisma, today: startOfUtcDay(now), weddingId: preview.weddingId },
     )) as { proposalId: string };
     proposalId = recorded.proposalId;
   } catch (error) {

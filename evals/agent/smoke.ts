@@ -1,3 +1,4 @@
+import { soleWeddingId } from "@/lib/test-utils/db";
 import type { Content } from "@google/genai";
 import type { PrismaClient } from "@/generated/prisma/client";
 import type { ProposalSummary } from "@/lib/agent/loop";
@@ -160,7 +161,7 @@ export const SMOKE_CASES: SmokeCase[] = [
 /** Builds the expected-value helper for a case: runs a tool for real on the given database. */
 export function expectFrom(prisma: PrismaClient, today: Date) {
   return async (tool: string, args: unknown = {}) => {
-    const outcome = await executeTool(tool, args, { prisma, today });
+    const outcome = await executeTool(tool, args, { prisma, today, weddingId: await soleWeddingId(prisma) });
     if (!outcome.ok) throw new Error(`working out the expected ${tool} failed: ${outcome.error}`);
     return outcome.output as Record<string, unknown>;
   };

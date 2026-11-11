@@ -11,8 +11,8 @@ import { dateChangeCost, refundOwed, type DateChangeResult, type RefundResult } 
 const money = (cents: number) => ({ cents, label: formatCents(cents) });
 
 /** What it costs to move the wedding to `newDate`, per vendor. Used by the tool and by reschedule proposals. */
-export async function computeDateChange(prisma: PrismaClient, newDate: Date, today: Date) {
-  const wedding = await loadWedding(prisma);
+export async function computeDateChange(prisma: PrismaClient, weddingId: string, newDate: Date, today: Date) {
+  const wedding = await loadWedding(prisma, weddingId);
   const vendors = await prisma.vendor.findMany({
     where: { weddingId: wedding.id },
     include: { terms: true, clauses: { where: { kind: "date_change" }, orderBy: { page: "asc" } } },
@@ -47,11 +47,12 @@ export async function computeDateChange(prisma: PrismaClient, newDate: Date, tod
 /** What a vendor owes back if the wedding is cancelled on `cancellationDate`. Used by the tool and by refund proposals. */
 export async function computeRefund(
   prisma: PrismaClient,
+  weddingId: string,
   vendorRef: string,
   cancelledBy: "couple" | "vendor",
   cancellationDate: Date,
 ) {
-  const wedding = await loadWedding(prisma);
+  const wedding = await loadWedding(prisma, weddingId);
   const vendor = await resolveVendor(prisma, wedding.id, vendorRef);
   const [terms, payments, clause] = await Promise.all([
     prisma.terms.findUnique({ where: { vendorId: vendor.id } }),
@@ -77,8 +78,8 @@ export const computeDateChangeCostTool = defineTool({
   inputSchema: z.object({
     newDate: isoDateSchema.describe("The new wedding date, written YYYY-MM-DD."),
   }),
-  run: async ({ newDate }, { prisma, today }) => {
-    const { wedding, result, citations, budget } = await computeDateChange(prisma, parseIsoDate(newDate), today);
+  run: async ({ newDate }, { prisma, today, weddingId }) => {
+    const { wedding, result, citations, budget } = await computeDateChange(prisma, weddingId, parseIsoDate(newDate), today);
     const biggest = largestCharge(result.rows);
     return {
       currentDate: toIsoDate(wedding.date),
@@ -118,9 +119,9 @@ export const computeRefundOwedTool = defineTool({
     cancelledBy: z.enum(["couple", "vendor"]).describe("Who cancels: the couple, or the vendor (for example 'the florist cancelled')."),
     date: isoDateSchema.optional().describe("The cancellation date, YYYY-MM-DD. Defaults to today."),
   }),
-  run: async ({ vendorId, cancelledBy, date }, { prisma, today }) => {
+  run: async ({ vendorId, cancelledBy, date }, { prisma, today, weddingId }) => {
     const when = date ? parseIsoDate(date) : today;
-    const { vendor, result, citation: clauseCitation } = await computeRefund(prisma, vendorId, cancelledBy, when);
+    const { vendor, result, citation: clauseCitation } = await computeRefund(prisma, weddingId, vendorId, cancelledBy, when);
     return {
       vendorId: vendor.id,
       vendorName: vendor.name,

@@ -6,7 +6,7 @@ import { executeTool } from "@/lib/agent/tools";
 import { TODAY } from "@/lib/agent/tools/test-utils";
 import type { OrderLookup } from "@/lib/agent/tools/types";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -43,7 +43,7 @@ function spyLookup(answers: { order?: () => Promise<OrderResult>; capture?: () =
 }
 
 async function check(vendor: string, paypal: OrderLookup | null) {
-  const outcome = await executeTool("check_payment_status", { vendorId: vendor }, { prisma, today: TODAY, paypal });
+  const outcome = await executeTool("check_payment_status", { vendorId: vendor }, { prisma, today: TODAY, paypal, weddingId: await soleWeddingId(prisma) });
   if (!outcome.ok) throw new Error(outcome.error);
   return outcome.output as { vendorName: string; payments: Array<{ label: string; vowletStatus: string; summary: string; paypal: Record<string, unknown> }> };
 }

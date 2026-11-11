@@ -5,7 +5,7 @@ import { dateChangeRulesSchema } from "@/lib/rules";
 import { toIsoDate } from "@/lib/schedule";
 import { seedDemo } from "@/lib/seed/demo";
 import { dateChangeCost } from "@/lib/terms";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { LlmError } from "@/lib/llm/gemini";
 import { fakeGemini, modelAnswer } from "@/lib/llm/test-utils";
 import { formatCents } from "@/lib/money";
@@ -30,11 +30,11 @@ const post = (body: unknown) =>
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 const preview = async (body: unknown) => {
-  const res = await whatIfHandler(post(body), { prisma, now: () => TODAY });
+  const res = await whatIfHandler(post(body), { prisma, resolveWeddingId: () => soleWeddingId(prisma), now: () => TODAY });
   return { status: res.status, body: await res.json() };
 };
 const apply = async (body: unknown) => {
-  const res = await applyWhatIfHandler(post(body), { prisma, now: () => TODAY });
+  const res = await applyWhatIfHandler(post(body), { prisma, resolveWeddingId: () => soleWeddingId(prisma), now: () => TODAY });
   return { status: res.status, body: await res.json() };
 };
 const weddingDate = async () => toIsoDate((await prisma.wedding.findFirstOrThrow()).date);
@@ -172,10 +172,29 @@ describe("POST /api/whatif/apply", () => {
   });
 });
 
+describe("an account that hasn't set up a wedding", () => {
+  const none = { prisma, resolveWeddingId: async () => null, now: () => TODAY };
+  const body = { newDate: "2027-06-12", previousDate: "2027-04-17" };
+
+  it("gets 409 from the preview, the apply and the explain, and nothing is changed", async () => {
+    const before = await weddingDate();
+    for (const res of [
+      await whatIfHandler(post(body), none),
+      await applyWhatIfHandler(post(body), none),
+      await explainWhatIfHandler(post(body), { ...none, client: fakeGemini().client, models: ["m1"], configured: true, limiter: createRateLimiter({ max: 10, windowMs: 60_000 }) }),
+    ]) {
+      expect(res.status).toBe(409);
+      expect((await res.json()).error).toEqual({ code: "no_wedding", message: "Set up your wedding first." });
+    }
+    expect(await weddingDate()).toBe(before);
+  });
+});
+
 describe("POST /api/whatif/explain", () => {
   const explain = async (body: unknown, client = fakeGemini().client, opts: { configured?: boolean; max?: number } = {}) => {
     const res = await explainWhatIfHandler(post(body), {
       prisma,
+      resolveWeddingId: () => soleWeddingId(prisma),
       now: () => TODAY,
       client,
       models: ["m1"],

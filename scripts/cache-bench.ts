@@ -8,6 +8,7 @@
  *
  * Needs GEMINI_API_KEY in .env.local. Spends a few free-tier requests per question.
  */
+import { weddingIdFor } from "@/lib/auth/wedding";
 import { config } from "dotenv";
 import { copyFileSync, existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -44,7 +45,7 @@ async function main() {
         let model = "-";
         let steps = 0;
         let failed = "";
-        for await (const event of runAgent({ question, client, models, prisma, today: new Date() })) {
+        for await (const event of runAgent({ question, client, models, prisma, weddingId: (await weddingIdFor(prisma, null)) ?? "", today: new Date() })) {
           if (event.type === "answer") {
             usage = event.usage;
             model = event.model ?? "-";

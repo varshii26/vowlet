@@ -24,8 +24,8 @@ export function activityTone(type: string): ActivityTone {
 
 export const ACTIVITY_LIMIT = 12;
 
-/** The most recent activity, newest first. Every action that changes something writes an EventLog row. */
-export async function loadActivity(prisma: PrismaClient, limit = ACTIVITY_LIMIT): Promise<ActivityItem[]> {
-  const rows = await prisma.eventLog.findMany({ orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
+/** The wedding's most recent activity, newest first. Every action that changes something writes an EventLog row. */
+export async function loadActivity(prisma: PrismaClient, weddingId: string, limit = ACTIVITY_LIMIT): Promise<ActivityItem[]> {
+  const rows = await prisma.eventLog.findMany({ where: { weddingId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: limit });
   return rows.map((r) => ({ id: r.id, type: r.type, message: r.message, at: r.createdAt.toISOString(), tone: activityTone(r.type) }));
 }

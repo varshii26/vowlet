@@ -5,7 +5,7 @@ import { useId, type ReactNode } from "react";
 type Props = {
   name: string;
   label: string;
-  type?: "text" | "email";
+  type?: "text" | "email" | "date";
   autoComplete: string;
   required?: boolean;
   defaultValue?: string;

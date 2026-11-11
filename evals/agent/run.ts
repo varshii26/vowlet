@@ -15,7 +15,7 @@ import { runAgent } from "@/lib/agent/loop";
 import { createGeminiClient, type GeminiClient } from "@/lib/llm/gemini";
 import { modelChain } from "@/lib/llm/config";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 config({ path: ".env.local" });
 
@@ -58,7 +58,7 @@ async function main() {
       let proposals: RunRecord["proposals"] = [];
       let sources: RunRecord["sources"] = [];
       let error = "";
-      for await (const event of runAgent({ question: smoke.question, client, models, prisma, today: TODAY })) {
+      for await (const event of runAgent({ question: smoke.question, client, models, prisma, weddingId: await soleWeddingId(prisma), today: TODAY })) {
         if (event.type === "answer") ({ text: answer, proposals, sources } = event);
         if (event.type === "error") error = event.message;
       }

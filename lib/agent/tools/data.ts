@@ -9,8 +9,8 @@ import { summarizeBudget, type BudgetSummary } from "@/lib/budget";
  */
 export const citation = (vendorName: string, page: number) => `${vendorName} contract, page ${page}`;
 
-export async function loadWedding(prisma: PrismaClient) {
-  const wedding = await prisma.wedding.findFirst();
+export async function loadWedding(prisma: PrismaClient, weddingId: string) {
+  const wedding = await prisma.wedding.findUnique({ where: { id: weddingId } });
   if (!wedding) throw new ToolError("There is no wedding set up yet.");
   return wedding;
 }

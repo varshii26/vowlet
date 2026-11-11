@@ -3,7 +3,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { loadTimelineInput } from "@/lib/timeline-data";
 import { buildTimeline, paymentTaskId } from "@/lib/timeline";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -16,12 +16,12 @@ afterAll(async () => cleanup());
 
 describe("loadTimelineInput", () => {
   it("returns null when there is no wedding", async () => {
-    expect(await loadTimelineInput(prisma)).toBeNull();
+    expect(await loadTimelineInput(prisma, await soleWeddingId(prisma))).toBeNull();
   });
 
   it("loads the demo wedding, vendors, payments and clauses", async () => {
     await seedDemo(prisma);
-    const input = (await loadTimelineInput(prisma))!;
+    const input = (await loadTimelineInput(prisma, await soleWeddingId(prisma)))!;
 
     expect(input.wedding.coupleNames).toBe("Priya & Sam");
     expect(input.wedding.date.toISOString()).toBe("2027-04-17T00:00:00.000Z");
@@ -31,7 +31,7 @@ describe("loadTimelineInput", () => {
   });
 
   it("loads each vendor's terms with the clauses they come from, for the deadline indicators", async () => {
-    const input = (await loadTimelineInput(prisma))!;
+    const input = (await loadTimelineInput(prisma, await soleWeddingId(prisma)))!;
     const grandOak = input.vendors.find((v) => v.name === "Grand Oak Estate")!;
     const clauses = await prisma.clause.findMany({ where: { vendorId: grandOak.id, kind: { in: ["cancellation", "date_change"] } } });
     expect(grandOak.terms!.cancellation.length).toBeGreaterThan(0);
@@ -46,7 +46,7 @@ describe("loadTimelineInput", () => {
   });
 
   it("feeds buildTimeline: 14 vendor rows, 23 milestones, 23 links", async () => {
-    const data = buildTimeline((await loadTimelineInput(prisma))!, new Date("2026-11-07T00:00:00Z"));
+    const data = buildTimeline((await loadTimelineInput(prisma, await soleWeddingId(prisma)))!, new Date("2026-11-07T00:00:00Z"));
     expect(data.tasks).toHaveLength(15);
     expect(data.tasks.flatMap((t) => t.children ?? [])).toHaveLength(23);
     expect(data.dependencies).toHaveLength(23);
@@ -56,7 +56,7 @@ describe("loadTimelineInput", () => {
     const payment = await prisma.payment.findFirstOrThrow({ where: { label: "Venue second installment" } });
     const today = new Date("2026-11-07T00:00:00Z");
     const classOf = async () => {
-      const data = buildTimeline((await loadTimelineInput(prisma))!, today);
+      const data = buildTimeline((await loadTimelineInput(prisma, await soleWeddingId(prisma)))!, today);
       return data.tasks.flatMap((t) => t.children ?? []).find((t) => t.id === paymentTaskId(payment.id))!.cls;
     };
 
@@ -72,7 +72,7 @@ describe("loadTimelineInput", () => {
     await prisma.vendor.update({ where: { id: vendor.id }, data: { status: "cancelled" } });
     await prisma.payment.updateMany({ where: { vendorId: vendor.id }, data: { status: "void" } });
 
-    const data = buildTimeline((await loadTimelineInput(prisma))!, new Date("2026-11-07T00:00:00Z"));
+    const data = buildTimeline((await loadTimelineInput(prisma, await soleWeddingId(prisma)))!, new Date("2026-11-07T00:00:00Z"));
     const row = data.tasks.find((t) => t.id === `vendor-${vendor.id}`)!;
     expect(row.cls).toBe("vendor vendor-cancelled");
     expect(row.children!.every((c) => c.cls === "payment payment-void")).toBe(true);

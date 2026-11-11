@@ -5,7 +5,7 @@ import { TODAY } from "@/lib/agent/tools/test-utils";
 import { LlmError, type GeminiClient } from "@/lib/llm/gemini";
 import { fakeGemini, modelAnswer, modelCalls } from "@/lib/llm/test-utils";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -20,7 +20,7 @@ const MODELS = ["m1", "m2"];
 
 async function collect(client: GeminiClient, over: Partial<AgentRun> = {}): Promise<AgentEvent[]> {
   const events: AgentEvent[] = [];
-  for await (const event of runAgent({ question: "What do we owe?", client, models: MODELS, prisma, today: TODAY, ...over })) events.push(event);
+  for await (const event of runAgent({ question: "What do we owe?", client, models: MODELS, prisma, weddingId: await soleWeddingId(prisma), today: TODAY, ...over })) events.push(event);
   return events;
 }
 

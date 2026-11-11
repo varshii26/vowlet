@@ -14,8 +14,8 @@ export const getWedding = defineTool({
   description:
     "The wedding date, today's date, the budget, and totals: paid (already paid to vendors), scheduled (payments still to make to active vendors) and remaining budget (budget minus paid minus scheduled; negative means over budget).",
   inputSchema: z.object({}),
-  run: async (_input, { prisma, today }) => {
-    const wedding = await loadWedding(prisma);
+  run: async (_input, { prisma, today, weddingId }) => {
+    const wedding = await loadWedding(prisma, weddingId);
     const [vendors, totals] = await Promise.all([
       prisma.vendor.findMany({ where: { weddingId: wedding.id }, select: { status: true } }),
       loadBudgetSummary(prisma, wedding),
@@ -42,8 +42,8 @@ export const getVendors = defineTool({
   inputSchema: z.object({
     status: z.enum(["active", "cancelled"]).optional().describe("Only vendors with this status. Omit for all."),
   }),
-  run: async ({ status }, { prisma }) => {
-    const wedding = await loadWedding(prisma);
+  run: async ({ status }, { prisma, weddingId }) => {
+    const wedding = await loadWedding(prisma, weddingId);
     const vendors = await prisma.vendor.findMany({
       where: { weddingId: wedding.id, ...(status ? { status } : {}) },
       include: { payments: true },
@@ -81,13 +81,13 @@ export const getPaymentSchedule = defineTool({
       .optional()
       .describe("Unpaid payments due within this many days from today, including overdue ones. Do not combine with from or to."),
   }),
-  run: async (input, { prisma, today }) => {
+  run: async (input, { prisma, today, weddingId }) => {
     if (input.unpaidDueWithinDays !== undefined && (input.from || input.to)) {
       throw new ToolError("Use unpaidDueWithinDays on its own, or from/to, not both.");
     }
     if (input.from && input.to && input.from > input.to) throw new ToolError("from must not be after to.");
 
-    const wedding = await loadWedding(prisma);
+    const wedding = await loadWedding(prisma, weddingId);
     const vendor = input.vendorId ? await resolveVendor(prisma, wedding.id, input.vendorId) : null;
     const vendors = await prisma.vendor.findMany({
       where: { weddingId: wedding.id, ...(vendor ? { id: vendor.id } : {}) },
@@ -140,8 +140,8 @@ export const readClause = defineTool({
     vendorId: z.string().describe("A vendor id or name."),
     kind: z.enum(["payment", "cancellation", "date_change", "other"]).describe("Which kind of clause."),
   }),
-  run: async ({ vendorId, kind }, { prisma }) => {
-    const wedding = await loadWedding(prisma);
+  run: async ({ vendorId, kind }, { prisma, weddingId }) => {
+    const wedding = await loadWedding(prisma, weddingId);
     const vendor = await resolveVendor(prisma, wedding.id, vendorId);
     const clauses = await prisma.clause.findMany({ where: { vendorId: vendor.id, kind }, orderBy: [{ page: "asc" }, { id: "asc" }] });
     if (clauses.length === 0) throw new ToolError(`${vendor.name} has no ${kind} clause on file.`);

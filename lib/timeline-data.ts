@@ -7,8 +7,9 @@ import type { TimelineInput } from "@/lib/timeline";
  * Load the wedding, its vendors and their payments for the timeline. Returns
  * null when there is no wedding yet. Server only: it reads the database.
  */
-export async function loadTimelineInput(prisma: PrismaClient): Promise<TimelineInput | null> {
-  const wedding = await prisma.wedding.findFirst({
+export async function loadTimelineInput(prisma: PrismaClient, weddingId: string): Promise<TimelineInput | null> {
+  const wedding = await prisma.wedding.findUnique({
+    where: { id: weddingId },
     include: {
       vendors: {
         orderBy: { name: "asc" },

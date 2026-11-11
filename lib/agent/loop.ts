@@ -61,6 +61,8 @@ export type AgentRun = {
   /** Models to try, in order, for the first answer. The run then stays on the one that answered. */
   models: string[];
   prisma: PrismaClient;
+  /** The signed-in couple's wedding, from their session. The tools only ever see this one. */
+  weddingId: string;
   /** Read-only PayPal order lookup for check_payment_status (lib/paypal.ts `paypalReader()`). Nothing that moves money. */
   paypal?: OrderLookup | null;
   today: Date;
@@ -184,7 +186,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
     contents.push(result.content);
     const responses: Part[] = [];
     for (const call of result.functionCalls) {
-      const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today, paypal: run.paypal });
+      const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today, paypal: run.paypal, weddingId: run.weddingId });
       yield { type: "step", ...describeStep(call.name, call.args, outcome) };
       if (outcome.ok) collectSources(outcome.output, sources);
       calls.push({ tool: call.name, args: call.args, ok: outcome.ok, output: outcome.ok ? outcome.output : null });
