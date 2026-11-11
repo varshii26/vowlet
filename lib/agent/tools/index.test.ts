@@ -171,6 +171,45 @@ describe("no tool can move money", () => {
     }
   });
 
+  it("never queries without the wedding scope", () => {
+    // Every query that starts at a table keyed by the wedding must name the wedding id; every query on a
+    // child table (payments, terms, clauses) must go through a vendor the wedding already owns.
+    const ROOT = ["vendor", "proposal", "eventLog", "wedding"];
+    const CHILD = ["payment", "terms", "clause"];
+    let checked = 0;
+    for (const { file, text } of sources) {
+      for (const match of text.matchAll(/(?:prisma|tx)\.(\w+)\.(findMany|findFirst|findUnique|findUniqueOrThrow|findFirstOrThrow|count|aggregate|groupBy)\(/g)) {
+        const model = match[1];
+        // The call's arguments: up to the next query or the end of the statement, whichever is first.
+        const rest = text.slice(match.index! + match[0].length);
+        const next = rest.search(/(?:prisma|tx)\.\w+\.\w+\(/);
+        const call = rest.slice(0, Math.min(next === -1 ? 400 : next, 400));
+        const where = `${file}: ${match[0]}${call.slice(0, 80).replace(/\s+/g, " ")}`;
+        if (ROOT.includes(model)) expect(call, where).toMatch(/weddingId|wedding\.id|id: weddingId/);
+        else if (CHILD.includes(model)) expect(call, where).toMatch(/vendorId|weddingId|vendor: \{/);
+        else expect.fail(`${where}: a table this check doesn't know`);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(10); // the pattern really found the queries
+  });
+
+  it("nothing outside tests and the seed looks up \"the\" wedding without an owner", () => {
+    const roots = ["app", "lib", "components"];
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\.|test-utils|seed/.test(full)) {
+          if (/\.wedding\.(findFirst|findMany|count)\(/.test(readFileSync(full, "utf8"))) offenders.push(full);
+        }
+      }
+    };
+    for (const r of roots) walk(path.join(process.cwd(), r));
+    expect(offenders).toEqual([]);
+  });
+
   it("never writes to payments, vendors, the wedding, terms or clauses", () => {
     for (const { file, text } of sources) {
       expect(text, file).not.toMatch(/\.(payment|vendor|wedding|terms|clause)\.(update|updateMany|create|createMany|delete|deleteMany|upsert)\b/);

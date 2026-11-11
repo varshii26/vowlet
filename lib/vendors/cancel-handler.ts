@@ -14,7 +14,7 @@ const fail = (status: number, code: string, message: string) => Response.json({ 
  * vendor cancelled and its paid payments refund requested. Nothing is sent and no
  * refund is issued; the drafted request comes back for the couple to copy.
  */
-export async function cancelVendorHandler(vendorId: string, request: Request, deps: { prisma: PrismaClient; now?: () => Date }): Promise<Response> {
+export async function cancelVendorHandler(vendorId: string, request: Request, deps: { prisma: PrismaClient; resolveWeddingId: () => Promise<string | null>; now?: () => Date }): Promise<Response> {
   let raw: unknown;
   try {
     raw = await request.json();
@@ -24,10 +24,12 @@ export async function cancelVendorHandler(vendorId: string, request: Request, de
   const body = bodySchema.safeParse(raw);
   if (!body.success) return fail(400, "bad_request", HELP);
 
+  const weddingId = await deps.resolveWeddingId();
+  if (!weddingId) return fail(404, "not_found", "That vendor doesn't exist.");
   const now = deps.now?.() ?? new Date();
   const result = body.data.confirm
-    ? await confirmCancellation(deps.prisma, vendorId, body.data.cancelledBy, now)
-    : await previewCancellation(deps.prisma, vendorId, body.data.cancelledBy, now);
+    ? await confirmCancellation(deps.prisma, weddingId, vendorId, body.data.cancelledBy, now)
+    : await previewCancellation(deps.prisma, weddingId, vendorId, body.data.cancelledBy, now);
   if (!result.ok) return fail(result.status, result.code, result.message);
   return Response.json(result);
 }

@@ -66,7 +66,7 @@ export async function explainWhatIfHandler(request: Request, deps: ExplainHandle
 
   // Each summary spends free-tier quota and the endpoint is public. Over the limit, the
   // summary written by code is just as correct, so the couple still gets one.
-  const limit = deps.limiter.check();
+  const limit = deps.limiter.check(weddingId);
   const explanation = limit.allowed ? await explainWhatIf(preview, deps) : { text: templateExplanation(preview), source: "template" as const };
   return Response.json({ ok: true, newDate: preview.newDate, totalCents: preview.totalCents, ...explanation });
 }

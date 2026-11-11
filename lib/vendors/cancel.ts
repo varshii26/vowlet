@@ -90,12 +90,14 @@ export function draftRefundRequest(d: DraftInput): string {
 /** What cancelling this vendor today would mean. Changes nothing. */
 export async function previewCancellation(
   prisma: PrismaClient,
+  weddingId: string,
   vendorId: string,
   cancelledBy: CancelledBy,
   now: Date,
 ): Promise<({ ok: true } & CancelPreview) | CancelFailure> {
   const today = startOfUtcDay(now);
-  const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
+  // Only this wedding's vendors: another couple's id is indistinguishable from one that doesn't exist.
+  const vendor = await prisma.vendor.findFirst({ where: { id: vendorId, weddingId } });
   if (!vendor) return { ok: false, code: "not_found", message: "That vendor doesn't exist.", status: 404 };
   if (vendor.status === "cancelled") return { ok: false, code: "already_cancelled", message: `${vendor.name} is already cancelled.`, status: 409 };
 
@@ -139,11 +141,12 @@ export const CANCEL_REASON = "Cancelled from the vendor page.";
 /** The couple confirmed the cancellation in the CancelModal. */
 export async function confirmCancellation(
   prisma: PrismaClient,
+  weddingId: string,
   vendorId: string,
   cancelledBy: CancelledBy,
   now: Date,
 ): Promise<CancelConfirmed | CancelFailure> {
-  const preview = await previewCancellation(prisma, vendorId, cancelledBy, now);
+  const preview = await previewCancellation(prisma, weddingId, vendorId, cancelledBy, now);
   if (!preview.ok) return preview;
   const who = cancelledBy === "vendor" ? `${preview.vendorName} cancelled` : `Cancelled ${preview.vendorName}`;
 
@@ -167,7 +170,7 @@ export async function confirmCancellation(
     throw error;
   }
 
-  const resolved = await resolveProposal(prisma, proposalId, "approve", now);
+  const resolved = await resolveProposal(prisma, weddingId, proposalId, "approve", now);
   if (!resolved.ok) return { ok: false, code: "conflict", message: resolved.message, status: resolved.status };
   return {
     ok: true,

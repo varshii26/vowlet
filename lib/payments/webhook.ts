@@ -131,7 +131,7 @@ async function onCaptureCompleted(prisma: PrismaClient, eventId: string, resourc
   const ref = `PayPal event ${eventId}`;
 
   // The order must be the one we created for this payment.
-  if (orderId && payment.paypalOrderId && payment.paypalOrderId !== orderId) {
+  if (orderId && payment.paypalOrderId !== orderId) {
     await logOnce(prisma, weddingId, "payment_order_mismatch", `PayPal completed a capture for ${what} on an order we didn't create for it. Not marked paid. ${ref}`);
     return "order_mismatch";
   }

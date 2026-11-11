@@ -63,7 +63,8 @@ export async function agentHandler(request: Request, deps: AgentHandlerDeps): Pr
 
   // Only a valid question counts: a malformed request costs no quota, so it must not use up
   // the shared allowance and lock real users out.
-  const limit = deps.limiter.check();
+  // Counted per wedding (one per user), so one couple using up their questions never locks out another.
+  const limit = deps.limiter.check(weddingId);
   if (!limit.allowed) {
     const seconds = Math.ceil(limit.retryAfterMs / 1000);
     return fail(429, "too_many_requests", `The assistant is getting a lot of questions. Try again in ${seconds} seconds.`, { "Retry-After": String(seconds) });

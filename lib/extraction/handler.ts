@@ -10,6 +10,8 @@ export type ExtractHandlerDeps = {
   client: GeminiClient;
   models: string[];
   limiter: RateLimiter;
+  /** Who is asking (the user id), so the limit is per person rather than one bucket for everyone. */
+  limitKey?: string;
   /** False when GEMINI_API_KEY is not set. */
   configured: boolean;
 };
@@ -33,7 +35,7 @@ export async function extractHandler(request: Request, deps: ExtractHandlerDeps)
   }
 
   // Each extraction spends free-tier quota, and this endpoint is public.
-  const limit = deps.limiter.check();
+  const limit = deps.limiter.check(deps.limitKey);
   if (!limit.allowed) {
     const seconds = Math.ceil(limit.retryAfterMs / 1000);
     return fail(429, "too_many_requests", `Too many extractions right now. Try again in ${seconds} seconds.`, {

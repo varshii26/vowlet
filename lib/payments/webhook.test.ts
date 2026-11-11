@@ -208,6 +208,13 @@ describe("PAYMENT.CAPTURE.COMPLETED", () => {
       expect((await events("payment_order_mismatch"))[0].message).toContain("Not marked paid");
     });
 
+    it("an order for a payment that never had an order created", async () => {
+      await prisma.payment.update({ where: { id: (await payment()).id }, data: { paypalOrderId: null } });
+      const resource = { supplementary_data: { related_ids: { order_id: "ORDER-1" } } };
+      expect((await run(event({ resource }))).body.outcome).toBe("order_mismatch");
+      expect((await payment()).status).toBe("scheduled");
+    });
+
     it("a different amount", async () => {
       const { body } = await run(event({ resource: { amount: { currency_code: "USD", value: "2999.99" } } }));
       expect(body.outcome).toBe("amount_mismatch");

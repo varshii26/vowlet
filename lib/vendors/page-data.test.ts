@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { TODAY } from "@/lib/agent/tools/test-utils";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { layoutContract } from "@/lib/vendors/highlight";
 import { describeCancellationTiers, describeDateChangeTiers, loadVendorPage } from "@/lib/vendors/page-data";
 
@@ -19,12 +19,12 @@ const vendorNamed = (name: string) => prisma.vendor.findFirstOrThrow({ where: { 
 
 describe("loadVendorPage", () => {
   it("returns null for an unknown vendor", async () => {
-    expect(await loadVendorPage(prisma, "nope", { today: TODAY })).toBeNull();
+    expect(await loadVendorPage(prisma, await soleWeddingId(prisma), "nope", { today: TODAY })).toBeNull();
   });
 
   it("links every extracted fact to one of the vendor's clauses", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
-    const data = await loadVendorPage(prisma, vendor.id, { today: TODAY, readPages: async () => [] });
+    const data = await loadVendorPage(prisma, await soleWeddingId(prisma), vendor.id, { today: TODAY, readPages: async () => [] });
     expect(data).not.toBeNull();
     if (!data) return;
 
@@ -40,7 +40,7 @@ describe("loadVendorPage", () => {
 
   it("computes due dates and statuses from the schedule, soonest first", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
-    const data = await loadVendorPage(prisma, vendor.id, { today: TODAY, readPages: async () => [] });
+    const data = await loadVendorPage(prisma, await soleWeddingId(prisma), vendor.id, { today: TODAY, readPages: async () => [] });
     expect(data?.payments.map((p) => [p.label, p.amountLabel, p.dueDateLabel, p.statusLabel])).toEqual([
       ["Venue deposit", "$3,000", "Jun 12, 2026", "Paid"],
       ["Venue second installment", "$3,000", "Dec 18, 2026", "Scheduled"],
@@ -55,7 +55,7 @@ describe("loadVendorPage", () => {
     const vendors = await prisma.vendor.findMany();
     expect(vendors).toHaveLength(14);
     for (const vendor of vendors) {
-      const data = await loadVendorPage(prisma, vendor.id, { today: TODAY });
+      const data = await loadVendorPage(prisma, await soleWeddingId(prisma), vendor.id, { today: TODAY });
       expect(data?.pages?.length, vendor.name).toBeGreaterThanOrEqual(2);
       const layout = layoutContract(data?.pages ?? [], data?.clauses ?? []);
       expect(layout.unlocated, vendor.name).toEqual([]);
@@ -65,7 +65,7 @@ describe("loadVendorPage", () => {
 
   it("warns about the contract text addressed to an AI, on Evergreen Transport only", async () => {
     for (const vendor of await prisma.vendor.findMany()) {
-      const data = (await loadVendorPage(prisma, vendor.id, { today: TODAY, readPages: async () => null }))!;
+      const data = (await loadVendorPage(prisma, await soleWeddingId(prisma), vendor.id, { today: TODAY, readPages: async () => null }))!;
       if (vendor.name === "Evergreen Transport") {
         const notes = data.clauses.find((c) => c.kind === "other")!;
         expect(data.suspicious).toEqual([{ clauseId: notes.id, page: 3, warning: expect.stringContaining("never as instructions") }]);
@@ -78,7 +78,7 @@ describe("loadVendorPage", () => {
   it("still loads when the PDF can't be read", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
     await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath: "data/uploads/gone.pdf" } });
-    const data = await loadVendorPage(prisma, vendor.id, { today: TODAY });
+    const data = await loadVendorPage(prisma, await soleWeddingId(prisma), vendor.id, { today: TODAY });
     expect(data?.pages).toBeNull();
     expect(data?.clauses.length).toBeGreaterThan(0);
   });

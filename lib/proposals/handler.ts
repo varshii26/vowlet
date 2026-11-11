@@ -13,7 +13,7 @@ const fail = (status: number, code: string, message: string) => Response.json({ 
  * A human clicking a button is the only thing that calls this. Approving never
  * pays: a pay proposal is only approved once the payment has gone through PayPal.
  */
-export async function proposalHandler(proposalId: string, request: Request, deps: { prisma: PrismaClient; now?: () => Date }): Promise<Response> {
+export async function proposalHandler(proposalId: string, request: Request, deps: { prisma: PrismaClient; resolveWeddingId: () => Promise<string | null>; now?: () => Date }): Promise<Response> {
   let raw: unknown;
   try {
     raw = await request.json();
@@ -23,7 +23,9 @@ export async function proposalHandler(proposalId: string, request: Request, deps
   const body = bodySchema.safeParse(raw);
   if (!body.success) return fail(400, "bad_request", body.error.issues[0]?.message ?? 'action must be "approve" or "dismiss".');
 
-  const result = await resolveProposal(deps.prisma, proposalId, body.data.action, deps.now?.());
+  const weddingId = await deps.resolveWeddingId();
+  if (!weddingId) return fail(404, "not_found", "That proposal doesn't exist.");
+  const result = await resolveProposal(deps.prisma, weddingId, proposalId, body.data.action, deps.now?.());
   if (!result.ok) return fail(result.status, result.code, result.message);
   return Response.json({
     ok: true,

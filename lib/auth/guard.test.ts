@@ -20,7 +20,7 @@ describe("withSession", () => {
     const handler = vi.fn(async () => new Response("ran"));
     for (const s of [null, { user: {} }]) {
       session.current = s;
-      const res = await withSession(handler)();
+      const res = await withSession(handler)(new Request("http://localhost/api/x"));
       expect(res.status).toBe(401);
       expect((await res.json()).error.message).toBe("Your session ended. Sign in again.");
     }
@@ -29,8 +29,8 @@ describe("withSession", () => {
 
   it("runs the handler with its arguments for a signed-in user", async () => {
     session.current = { user: { id: "u1" } };
-    const handler = vi.fn(async (a: string, b: number) => new Response(`${a}${b}`));
-    const res = await withSession(handler)("x", 2);
+    const handler = vi.fn(async (_r: Request, b: number) => new Response(`x${b}`));
+    const res = await withSession(handler)(new Request("http://localhost/api/x"), 2);
     expect(await res.text()).toBe("x2");
   });
 });

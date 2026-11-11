@@ -56,11 +56,13 @@ type Effect = { message: string; draft?: string };
 
 export async function resolveProposal(
   prisma: PrismaClient,
+  weddingId: string,
   proposalId: string,
   action: ResolveAction,
   now: Date = new Date(),
 ): Promise<ResolveResult> {
-  const proposal = await prisma.proposal.findUnique({ where: { id: proposalId } });
+  // Only this wedding's proposals: another couple's id is indistinguishable from one that doesn't exist.
+  const proposal = await prisma.proposal.findFirst({ where: { id: proposalId, weddingId } });
   if (!proposal) return { ok: false, code: "not_found", message: "That proposal doesn't exist.", status: 404 };
 
   const target = action === "approve" ? "approved" : "dismissed";

@@ -45,17 +45,19 @@ const fail = (code: PayFailureCode, status: number, message: string): PayFailure
 const PAYABLE = ["scheduled", "due"] as const;
 const isPayable = (status: string) => (PAYABLE as readonly string[]).includes(status);
 
-async function loadPayment(prisma: PrismaClient, paymentId: string) {
-  return prisma.payment.findUnique({ where: { id: paymentId }, include: { vendor: true } });
+/** A payment, only if it is in this wedding. Someone else's id looks exactly like an id that doesn't exist (404). */
+async function loadPayment(prisma: PrismaClient, weddingId: string, paymentId: string) {
+  return prisma.payment.findFirst({ where: { id: paymentId, vendor: { weddingId } }, include: { vendor: true } });
 }
 
 /** Create a PayPal order for a payment and remember its id. */
 export async function createPaymentOrder(
   prisma: PrismaClient,
   paypal: PayPalPort,
+  weddingId: string,
   paymentId: string,
 ): Promise<OrderResult> {
-  const payment = await loadPayment(prisma, paymentId);
+  const payment = await loadPayment(prisma, weddingId, paymentId);
   if (!payment) return fail("not_found", 404, "That payment does not exist.");
   if (payment.vendor.status !== "active") {
     return fail("not_payable", 409, `${payment.vendor.name} is cancelled, so this payment can't be made.`);
@@ -82,11 +84,12 @@ export async function createPaymentOrder(
 export async function capturePaymentOrder(
   prisma: PrismaClient,
   paypal: PayPalPort,
+  weddingId: string,
   paymentId: string,
   orderId: string,
   now: Date = new Date(),
 ): Promise<CaptureResult> {
-  const payment = await loadPayment(prisma, paymentId);
+  const payment = await loadPayment(prisma, weddingId, paymentId);
   if (!payment) return fail("not_found", 404, "That payment does not exist.");
 
   if (payment.status === "paid") {
