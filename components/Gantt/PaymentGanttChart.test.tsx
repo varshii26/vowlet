@@ -177,6 +177,20 @@ describe("PaymentGanttChart", () => {
     expect(((await engine()).tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(100);
   });
 
+  it("labels the amount still to pay beside its diamond, and leaves paid ones unlabelled (Labels feature)", async () => {
+    await mount(input);
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    expect((gantt.features as unknown as { labels?: { disabled: boolean } }).labels?.disabled).toBe(false);
+    // The vendor row is collapsed: its right label holds the amounts of its rollups.
+    const amounts = [...host!.querySelectorAll(".vw-rollup-amount")].map((el) => el.textContent);
+    expect(amounts).toEqual(["$3,000"]); // the scheduled balance; the paid deposit has none
+    expect(host!.querySelector(".vw-rollup-amount")!.className).toContain("vw-amount-scheduled");
+  });
+
   it("picks up a changed payment status when the page re-renders with new data", async () => {
     await mount(input);
     expect((await engine()).cls("payment-p2")).toContain("payment-scheduled");

@@ -243,3 +243,30 @@
 .b-gantt .b-gantt-task-parent .b-task-percent-bar {
   background: color-mix(in srgb, var(--b-color-green) 60%, white);
 }
+
+/*
+ * Amount labels (Labels feature, see components/Gantt/labels.ts). Payment rows
+ * get one right of the diamond; a single-payment vendor (drawn as one diamond)
+ * too. A collapsed vendor bar's right label holds one amount beside each
+ * unpaid rollup diamond.
+ */
+.b-gantt .b-sch-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #6b5f57;
+}
+.vw-rollup-amount {
+  /* Against the vendor's task wrapper: level with the rollup diamonds. */
+  position: absolute;
+  bottom: -3px;
+  margin-inline-start: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.vw-amount-due_soon {
+  color: #a16207;
+}
+.vw-amount-overdue {
+  color: #b91c1c;
+}

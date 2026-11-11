@@ -3,6 +3,7 @@
 import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
 import { renderBaselineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import { formatCents } from "@/lib/money";
@@ -171,6 +172,40 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       summaryFeature: {
         renderer: ({ startDate }: { startDate: Date }) => renderCashCell(cashRef.current, monthKey(startDate)),
       },
+      // Amount labels (Labels feature), so the timeline reads as a cash plan
+      // without hovering; only money still to pay is labelled. A payment row,
+      // or a single-payment vendor (one diamond), gets its amount right of the
+      // diamond. A collapsed vendor bar's right label holds one amount beside
+      // each unpaid rollup diamond, placed by date (see labels.ts). Right labels take no row height, so diamonds keep
+      // their size, and they sit outside the bar, whose bracket shape clips.
+      labelsFeature: {
+        right: {
+          renderer: ({ taskRecord, domConfig }: { taskRecord: TaskModel; domConfig: LabelDomConfig }) => {
+            const single = onlyPayment(taskRecord);
+            const children = taskRecord.children instanceof Array ? (taskRecord.children as TaskModel[]) : [];
+            if (single || children.length === 0) return amountLabelFor(detailOf(single ?? taskRecord));
+            const gantt = ganttRef.current?.instance as unknown as Timeline | undefined;
+            if (!gantt || !taskRecord.startDate) return "";
+            const start = gantt.getCoordinateFromDate(new Date(taskRecord.startDate));
+            const labels = rollupLabels(
+              children.map((child) => ({
+                detail: detailOf(child),
+                x: child.startDate ? gantt.getCoordinateFromDate(new Date(child.startDate)) - start : 0,
+              })),
+            );
+            // Keep Bryntum's own label element and fill it with amounts. They
+            // are positioned against the row's task wrapper, which starts where
+            // the vendor bar starts, so each offset is measured from there.
+            domConfig.children = labels.map((label) => ({
+              tag: "span",
+              className: `vw-rollup-amount vw-amount-${label.status}`,
+              style: { insetInlineStart: `${label.x}px` },
+              text: label.text,
+            }));
+            return undefined;
+          },
+        },
+      },
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
       subGridConfigs: { locked: { width: 400 } },
@@ -210,8 +245,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
         // A rollup click hands us the payment itself. A vendor with a single
         // payment is drawn as one diamond (its own summary), so it stands for
         // that payment.
-        const only = taskRecord.children instanceof Array && taskRecord.children.length === 1 ? (taskRecord.children[0] as TaskModel) : undefined;
-        const detail = detailOf(only ?? taskRecord);
+        const detail = detailOf(onlyPayment(taskRecord) ?? taskRecord);
         if (detail?.kind !== "payment") return;
         // Without a select handler, a payment opens the clause it comes from.
         if (selectRef.current) selectRef.current(detail);
@@ -257,6 +291,11 @@ function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: Time
   }, [ganttRef, tasks]);
 }
 
+/** A vendor with a single payment is drawn as one diamond that stands for that payment. */
+function onlyPayment(task: TaskModel): TaskModel | undefined {
+  return task.children instanceof Array && task.children.length === 1 ? (task.children[0] as TaskModel) : undefined;
+}
+
 function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
   return tasks.map((task) => ({
     ...task,
@@ -267,6 +306,8 @@ function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
 
 /** Days kept visible after the wedding day when the chart opens. */
 const WEDDING_VIEW_MARGIN_DAYS = 21;
+
+type LabelDomConfig = { children?: object[] };
 
 type SummaryFeature = { refresh?: () => void; updateTimelineSummaries?: () => void };
 
