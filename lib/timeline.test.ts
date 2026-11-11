@@ -152,6 +152,19 @@ describe("reflow when the wedding moves", () => {
   });
 });
 
+describe("the wedding row's label", () => {
+  const data = buildTimeline(demoInput(), today);
+
+  it("says what and when, not the couple's names (those are in the page header and the tooltip)", () => {
+    expect(data.tasks[0].name).toBe("Wedding day · Apr 17");
+    expect(data.details[WEDDING_TASK_ID]).toMatchObject({ title: "Wedding day: Priya & Sam", dateLabel: "Apr 17, 2027" });
+  });
+
+  it("follows a what-if move of the wedding", () => {
+    expect(buildTimeline(demoInput(d("2027-06-12")), today).tasks[0].name).toBe("Wedding day · Jun 12");
+  });
+});
+
 describe("vendor progress", () => {
   it("fills each vendor bar by the share of its contract paid, by amount", () => {
     const data = buildTimeline(demoInput(), today);
