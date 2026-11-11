@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { ActivityFeed } from "@/components/Dashboard/ActivityFeed";
+import { PAYMENT_LISTS_ID } from "@/components/Dashboard/anchors";
 import { DashboardShell } from "@/components/Dashboard/DashboardShell";
 import { SummaryBar } from "@/components/Dashboard/SummaryBar";
 import { ResetDemoButton } from "@/components/Demo/ResetDemoButton";
@@ -89,6 +90,7 @@ export default async function Home() {
           {/* The hero: sized so the chart fills the rest of a 1440×900 screen. */}
           <WhatIfTimeline input={input} todayIso={toIsoDate(now)} className="h-[max(28rem,calc(100vh-19.5rem))]" />
           <Tabs
+            id={PAYMENT_LISTS_ID}
             label="More about your payments"
             tabs={[
               { id: "upcoming", label: "Upcoming", count: upcoming.length, content: <UpcomingPayments payments={upcoming} /> },

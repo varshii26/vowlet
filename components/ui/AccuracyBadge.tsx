@@ -36,7 +36,7 @@ export function AccuracyBadge({ results = parsed.success ? parsed.data : null }:
       title={title}
       className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-2.5 py-1 text-xs text-muted hover:border-accent hover:text-ink"
     >
-      <span aria-hidden className="text-emerald-600">
+      <span aria-hidden className="text-emerald-700">
         ✓
       </span>
       {label}

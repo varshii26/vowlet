@@ -285,6 +285,17 @@ describe("WhatIfTimeline", () => {
   });
 });
 
+describe("skip link", () => {
+  it("lets a keyboard user jump past the timeline, whose payments Tab can't reach one by one, to the payments list", () => {
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />, { wrapper: ToastProvider });
+    const link = screen.getByRole("link", { name: "Skip the timeline: go to the list of payments" });
+    expect(link.getAttribute("href")).toBe("#payment-lists");
+    // Hidden until focused, by our own class (Font Awesome's unlayered .sr-only would beat Tailwind's focus:not-sr-only).
+    expect(link.className).toContain("vw-skip-link");
+    expect(link.className).not.toContain("sr-only");
+  });
+});
+
 describe("Print schedule button", () => {
   const button = () => screen.getByRole("button", { name: /print schedule/i }) as HTMLButtonElement;
 

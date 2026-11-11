@@ -77,9 +77,32 @@ h3 {
       color 150ms,
       box-shadow 150ms;
   }
+  /*
+   * A skip link: hidden until it takes keyboard focus. Not Tailwind's
+   * sr-only/not-sr-only: the Font Awesome stylesheet (loaded for the timeline's
+   * icons) defines its own unlayered .sr-only, which beats Tailwind's layered
+   * focus:not-sr-only and would keep the link hidden while focused.
+   */
+  .vw-skip-link {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .vw-skip-link:focus {
+    position: static;
+    width: fit-content;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
   .btn:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    /* Disabled controls are exempt from contrast rules, but 0.55 made "Ask" hard to read at all. */
+    opacity: 0.7;
   }
   .btn-primary {
     background: var(--color-accent);
