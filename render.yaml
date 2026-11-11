@@ -28,3 +28,6 @@ services:
         sync: false
       - key: PAYPAL_WEBHOOK_ID
         sync: false
+      # Bryntum Gantt Enterprise license (trial) key. Baked into the page at build time, like the PayPal client id.
+      - key: NEXT_PUBLIC_BRYNTUM_LICENSE_KEY
+        sync: false

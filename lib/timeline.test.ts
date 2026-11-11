@@ -205,7 +205,7 @@ describe("milestone colours", () => {
 
   it("only uses colours that exist in the Gantt stylesheet", () => {
     const css = readFileSync(
-      path.join(process.cwd(), "node_modules/@bryntum/gantt-community/gantt.css"),
+      path.join(process.cwd(), "node_modules/@bryntum/gantt-enterprise/gantt.css"),
       "utf8",
     );
     const all = [...Object.values(STATUS_COLOR), "pink", "light-gray", "lighter-gray"];
