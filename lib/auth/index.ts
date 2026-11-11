@@ -7,6 +7,7 @@ import * as callbacks from "@/lib/auth/callbacks";
 import { clientIp } from "@/lib/auth/ip";
 import { demoSignIns, signInAttempts } from "@/lib/auth/limits";
 import { RATE_LIMITED_CODE } from "@/lib/auth/messages";
+import { applyPublicUrl } from "@/lib/auth/public-url";
 import { credentialsSchema, normalizeEmail, publicUser, verifyCredentials } from "@/lib/auth/users";
 import { prisma } from "@/lib/db";
 import { DEMO_USER } from "@/lib/seed/demo-user";
@@ -21,6 +22,9 @@ import { DEMO_USER } from "@/lib/seed/demo-user";
  * simply left out without them, so the app still runs with email + password.
  */
 
+// Before anything builds a callback URL: on Render this is what makes Google redirect to the public address, not localhost:10000.
+applyPublicUrl();
+
 export const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
 
 /** Thrown when someone has failed too often: the sign-in page shows "wait a minute" for this code. */
@@ -34,7 +38,7 @@ const SESSION_DAYS = 14;
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: vowletAdapter(prisma),
   session: { strategy: "jwt", maxAge: SESSION_DAYS * 24 * 60 * 60 },
-  // Behind Render's proxy the host header is the public one; AUTH_URL names it for callbacks.
+  // Behind Render the app sees an internal address, so callbacks use the public one (AUTH_URL, or RENDER_EXTERNAL_URL: lib/auth/public-url.ts).
   trustHost: true,
   providers: [
     ...(googleEnabled ? [Google({ clientId: process.env.AUTH_GOOGLE_ID, clientSecret: process.env.AUTH_GOOGLE_SECRET })] : []),

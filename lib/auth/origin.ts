@@ -9,6 +9,8 @@
  * is `cross-site`/`same-site`. Requests with neither header (curl, server-to-server, tests)
  * are allowed: they are not driven by a victim's browser, and they still need the session.
  */
+import { publicUrl } from "@/lib/auth/public-url";
+
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** The host this request was addressed to, as the browser sees it (behind a proxy, the forwarded one). */
@@ -29,7 +31,9 @@ export function isCrossSiteRequest(request: Request): boolean {
     } catch {
       return true;
     }
-    return host !== ownHost(request);
+    // Our own host as the proxy presents it, or the configured public address (Render's proxy may show an internal one).
+    const publicHost = publicUrl();
+    return host !== ownHost(request) && host !== (publicHost ? new URL(publicHost).host.toLowerCase() : null);
   }
 
   const site = request.headers.get("sec-fetch-site");
