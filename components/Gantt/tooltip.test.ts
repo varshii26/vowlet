@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { describeShift, escapeHtml, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { describeMove, describeShift, escapeHtml, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import type { TaskDetail } from "@/lib/timeline";
 
 type PaymentDetail = Extract<TaskDetail, { kind: "payment" }>;
@@ -123,5 +123,23 @@ describe("wedding drag tooltip", () => {
     [-3, "3 days earlier"],
   ])("describes a shift of %i days", (days, text) => {
     expect(describeShift(days)).toBe(text);
+  });
+});
+
+describe("what-if move line", () => {
+  it("reads 'Was Mar 18, now May 13 (+56 days)'", () => {
+    expect(describeMove({ dateLabel: "Mar 18", shiftDays: 56 }, "2027-05-13")).toBe("Was Mar 18, now May 13 (+56 days)");
+    expect(describeMove({ dateLabel: "May 13", shiftDays: -1 }, "2027-05-12")).toBe("Was May 13, now May 12 (−1 day)");
+  });
+
+  it("shows on a moved payment's tooltip, and only there", () => {
+    const moved = renderTaskTooltip({ ...payment, was: { dateLabel: "Mar 18", shiftDays: 56 } }, "2027-05-13");
+    expect(moved).toContain("Was Mar 18, now May 13 (+56 days)");
+    expect(renderTaskTooltip(payment, "2026-06-12")).not.toContain("Was ");
+  });
+
+  it("shows on the wedding day's tooltip while it is previewed", () => {
+    const html = renderTaskTooltip({ kind: "wedding", title: "Wedding day", dateLabel: "Jun 12, 2027", isoDate: "2027-06-12", was: { dateLabel: "Apr 17", shiftDays: 56 } });
+    expect(html).toContain("Was Apr 17, now Jun 12 (+56 days)");
   });
 });

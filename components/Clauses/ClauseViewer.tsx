@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { layoutContract } from "@/lib/vendors/highlight";
 import { clauseDomId } from "@/lib/vendors/links";
 import type { ClauseKind, ViewerClause } from "@/lib/vendors/page-data";
@@ -24,6 +24,11 @@ type Props = {
 
 const FLASH_MS = 1600;
 
+/** The banner sticks this far below the top of the scroll area (`top-2`). */
+const BANNER_TOP_PX = 8;
+/** Breathing room between the banner and the clause it scrolled to. */
+const BANNER_GAP_PX = 12;
+
 /**
  * The contract, page by page, with every extracted clause highlighted. The
  * selected clause is scrolled into view and flashes. Contract text is untrusted
@@ -36,10 +41,15 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
   // The selection that has finished flashing; until then the selected clause pulses.
   const [flashed, setFlashed] = useState<string | null>(null);
   const flashing = selectedClauseId !== null && flashed !== `${selectedClauseId}:${selectionKey}`;
+  const bannerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!selectedClauseId) return;
     const el = document.getElementById(clauseDomId(selectedClauseId));
+    // The sticky banner sits over the top of the scroll area. Reserve its height
+    // as the clause's scroll margin, so centring never tucks the clause's first
+    // line under it (a long clause lands just below the banner instead).
+    if (el) el.style.scrollMarginTop = `${(bannerRef.current?.offsetHeight ?? 0) + BANNER_TOP_PX + BANNER_GAP_PX}px`;
     el?.scrollIntoView?.({ behavior: "smooth", block: "center" });
     el?.focus({ preventScroll: true });
     const timer = setTimeout(() => setFlashed(`${selectedClauseId}:${selectionKey}`), FLASH_MS);
@@ -56,7 +66,7 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
   return (
     <div className="space-y-4">
       {selected && (
-        <div className="sticky top-2 z-10 rounded-lg border border-amber-300 bg-amber-50/95 p-3 text-sm shadow-sm backdrop-blur" aria-live="polite">
+        <div ref={bannerRef} className="sticky top-2 z-10 rounded-lg border border-amber-300 bg-amber-50/95 p-3 text-sm shadow-sm backdrop-blur" aria-live="polite">
           <p className="font-medium text-amber-900">
             {KIND_LABEL[selected.kind]} clause, page {layout.foundOn[selected.id] ?? selected.page}
           </p>

@@ -10,6 +10,7 @@ import {
   buildTimeline,
   paymentTaskId,
   vendorTaskId,
+  withBaseline,
   type TimelineInput,
   type TimelinePayment,
   type TimelineVendor,
@@ -146,6 +147,42 @@ describe("reflow when the wedding moves", () => {
     expect(b[paymentTaskId("p-grand-oak-estate-1")]).not.toBe(a[paymentTaskId("p-grand-oak-estate-1")]); // wedding -120
     expect(b[paymentTaskId("p-grand-oak-estate-0")]).toBe(a[paymentTaskId("p-grand-oak-estate-0")]); // signing
     expect(b[paymentTaskId("p-dj-marlow-sound-0")]).toBe(a[paymentTaskId("p-dj-marlow-sound-0")]); // fixed
+  });
+});
+
+describe("withBaseline (what-if ghosts)", () => {
+  const flat = (data: ReturnType<typeof buildTimeline>) => data.tasks.flatMap((t) => [t, ...(t.children ?? [])]);
+  const base = buildTimeline(demoInput(), today);
+  const preview = withBaseline(buildTimeline(demoInput(d("2027-06-12")), today), base);
+  const task = (id: string) => flat(preview).find((t) => t.id === id)!;
+
+  it("puts a ghost at the old date on every milestone the preview moved", () => {
+    const moved = paymentTaskId("p-grand-oak-estate-1");
+    const was = flat(base).find((t) => t.id === moved)!.startDate!;
+    expect(task(moved).baselines).toEqual([{ startDate: was, endDate: was, cls: "vw-ghost" }]);
+    expect(task(WEDDING_TASK_ID).baselines).toEqual([{ startDate: "2027-04-17", endDate: "2027-04-17", cls: "vw-ghost" }]);
+  });
+
+  it("leaves milestones that didn't move, and vendor rows, without a ghost", () => {
+    expect(task(paymentTaskId("p-grand-oak-estate-0")).baselines).toBeUndefined(); // signing
+    expect(task(paymentTaskId("p-dj-marlow-sound-0")).baselines).toBeUndefined(); // fixed
+    expect(task(vendorTaskId("v-grand-oak-estate")).baselines).toBeUndefined();
+  });
+
+  it("tells the tooltip where it was and by how much it moved", () => {
+    expect(preview.details[WEDDING_TASK_ID]).toMatchObject({ was: { dateLabel: "Apr 17", shiftDays: 56 } });
+    const detail = preview.details[paymentTaskId("p-grand-oak-estate-1")];
+    expect(detail.kind === "payment" && detail.was?.shiftDays).toBe(56);
+    expect(preview.details[paymentTaskId("p-grand-oak-estate-0")]).not.toHaveProperty("was");
+  });
+
+  it("keeps both the old and the new dates in the visible range", () => {
+    expect(preview.startDate <= base.startDate).toBe(true);
+    expect(preview.endDate >= buildTimeline(demoInput(d("2027-06-12")), today).endDate).toBe(true);
+  });
+
+  it("has no ghosts at all when nothing moved", () => {
+    expect(flat(withBaseline(base, base)).some((t) => t.baselines)).toBe(false);
   });
 });
 

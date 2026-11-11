@@ -25,7 +25,7 @@ payments, due dates and cancellation and date-change terms. Vowlet:
   next request. After that it is fast.
 - **To pay a vendor**, click **Pay with PayPal** on the next payment at the top, or click any payment on the timeline and
   pay from its details panel. Log in with this **PayPal sandbox** buyer
-  (test money only, no real account or card involved):
+  (test money only, no real account or card involved). The same login, with copy buttons, sits under every Pay button:
 
   | | |
   |---|---|
@@ -43,13 +43,16 @@ payments, due dates and cancellation and date-change terms. Vowlet:
 2. **Every number has a source.** Click a payment on the timeline. A details panel slides in with the amount, status and
    the clause behind it; follow the clause link and the vendor's contract opens with that clause highlighted, next to
    the payments and the cancellation and date-change terms read from it.
-3. **Reading a new contract.** Go to **Upload contracts** and upload a PDF from `seed/contracts/` (for example
-   `dapper-and-co-tailoring.pdf`). The extracted payments appear for review, and the deliberately vague clause
-   ("approximately one month before the Event Date") is flagged **Please confirm** instead of guessed.
+3. **Reading a new contract.** Go to **Upload contracts** and click **Try Dapper & Co Tailoring** (no PDF needed; it
+   runs the real extraction on a seeded contract). The extracted payments appear for review, and the deliberately vague
+   clause ("approximately one month before the Event Date") is flagged **Please confirm** instead of guessed.
+   **Try DJ Marlow Sound** finds cancellation terms hidden in an addendum page. Samples are review-only, since both are
+   already on the timeline; upload your own PDF to add a vendor.
 4. **Paying a vendor.** Click **Pay with PayPal** on the next payment at the top (or in a payment's details panel), log
    in with the sandbox buyer above and approve. The payment turns **Paid** on the timeline straight away.
 5. **What if we postpone? (the main moment).** Drag the **Wedding day** diamond two months later. Every payment due
-   relative to the wedding moves with it, and a panel lists each vendor's date-change fee with a clickable clause chip
+   relative to the wedding moves with it, leaving a faded ghost where it was (Bryntum Baselines; hover a moved payment
+   for "Was Mar 18, now May 13 (+56 days)"), and a panel lists each vendor's date-change fee with a clickable clause chip
    and a short written summary. Click **Cancel** to snap back; nothing is saved unless you click **Move the wedding to …**.
 6. **Ask the assistant.** In the **Ask Vowlet** panel on the right, click "What if we move the wedding to June 12?". Watch
    the live steps ("Calculating date-change fees for 14 vendors…"), then the answer with citations and a **Move the
@@ -311,6 +314,11 @@ Labels and Summary are available.
   now replace it). The chart opens scrolled to a month before today, with narrow months so today through the wedding fits.
 - **Only the wedding day drags.** Every other editing feature is switched off; dropping the wedding day starts the
   what-if preview (`components/WhatIf/WhatIfTimeline.tsx`), which recomputes every date in code.
+- **Before and after (Baselines).** While a preview shows, each milestone it moved keeps a faded ghost at its old date
+  (Bryntum's Enterprise Baselines feature), and its tooltip reads "Was Mar 18, now May 13 (+56 days)". The ghosts are
+  plain task data (`withBaseline` in `lib/timeline.ts`), so Cancel drops them and Confirm makes the new dates the
+  normal schedule. Every task states its `baselines`, empty when it has none: the React wrapper merges new task data
+  into the existing records, so a missing field would leave a cancelled preview's ghosts on screen.
 - Code: `lib/timeline.ts` (pure data), `components/Gantt/` (chart, tooltip, styles), `lib/timeline-data.ts` (query).
 
 ### Paying a vendor (PayPal sandbox)

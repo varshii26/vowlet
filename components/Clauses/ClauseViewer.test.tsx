@@ -82,6 +82,14 @@ describe("ClauseViewer", () => {
     expect(scrollIntoView.mock.contexts[0]).toBe(mark("c-can"));
     expect(screen.getByText("50% refund with 90 days' notice")).toBeTruthy();
   });
+
+  it("keeps the scrolled-to clause clear of the sticky banner", () => {
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(70);
+    render(<ClauseViewer pages={PAGES} clauses={CLAUSES} selectedClauseId="c-can" />);
+    height.mockRestore();
+    // banner height + its top offset + a small gap
+    expect(mark("c-can")?.style.scrollMarginTop).toBe("90px");
+  });
 });
 
 describe("VendorContractView", () => {

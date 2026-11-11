@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { ReviewForm } from "@/components/Upload/ReviewForm";
 import { requestConfirm, requestExtraction, type ExtractedTermsView } from "@/lib/upload/client";
+import { SAMPLE_CONTRACTS, sampleUrl, type SampleSlug } from "@/lib/upload/samples";
 import type { ReviewedContract } from "@/lib/upload/schema";
 
 type ItemState =
@@ -13,7 +14,13 @@ type ItemState =
   | { status: "review"; terms: ExtractedTermsView }
   | { status: "saved"; vendorId: string; message: string };
 
-type Item = { id: number; file: File; state: ItemState };
+type Item = {
+  id: number;
+  file: File;
+  state: ItemState;
+  /** A seeded sample: extracted for real, but review-only (it is already a demo vendor). */
+  sampleOf?: string;
+};
 
 const looksLikePdf = (file: File) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
@@ -52,6 +59,25 @@ export function UploadContracts() {
     for (const item of added) if (item.state.status === "queued") enqueue(item);
   }
 
+  /** Fetch a seeded contract and run it through the same queue as an upload. */
+  async function trySample(slug: SampleSlug) {
+    const sample = SAMPLE_CONTRACTS.find((s) => s.slug === slug)!;
+    const name = `${slug}.pdf`;
+    let file: File;
+    try {
+      const res = await fetch(sampleUrl(slug));
+      if (!res.ok) throw new Error(String(res.status));
+      file = new File([await res.blob()], name, { type: "application/pdf" });
+    } catch {
+      const failed: Item = { id: nextId.current++, file: new File([], name), sampleOf: sample.vendorName, state: { status: "error", message: "Couldn't load the sample contract. Please try again." } };
+      setItems((all) => [...all, failed]);
+      return;
+    }
+    const item: Item = { id: nextId.current++, file, sampleOf: sample.vendorName, state: { status: "queued" } };
+    setItems((all) => [...all, item]);
+    enqueue(item);
+  }
+
   async function confirm(item: Item, review: ReviewedContract): Promise<string | null> {
     const result = await requestConfirm(item.file, review);
     if (!result.ok) return result.message;
@@ -79,6 +105,28 @@ export function UploadContracts() {
         />
       </label>
 
+      <section aria-labelledby="samples-heading" className="space-y-2">
+        <h2 id="samples-heading" className="text-sm font-semibold text-ink">
+          No contract to hand? Try a sample
+        </h2>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {SAMPLE_CONTRACTS.map((sample) => (
+            <button
+              key={sample.slug}
+              type="button"
+              onClick={() => void trySample(sample.slug)}
+              className="rounded-lg border border-line bg-white p-3 text-left shadow-sm hover:border-accent/40 hover:bg-accent-soft"
+            >
+              <span className="block text-sm font-medium text-ink">Try {sample.vendorName}</span>
+              <span className="block text-xs text-muted">{sample.shows}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted">
+          Samples run the real extraction, review-only: they&apos;re already on Priya &amp; Sam&apos;s timeline, so they aren&apos;t added again.
+        </p>
+      </section>
+
       {savedCount > 0 && (
         <p role="status" className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
           {savedCount === 1 ? "1 vendor was" : `${savedCount} vendors were`} added.{" "}
@@ -91,7 +139,10 @@ export function UploadContracts() {
       {items.map((item) => (
         <article key={item.id} className="space-y-3 rounded-lg border border-line bg-white p-4 shadow-sm" aria-label={item.file.name}>
           <header className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">{item.file.name}</h3>
+            <h3 className="font-semibold">
+              {item.file.name}
+              {item.sampleOf && <span className="ml-2 rounded-full bg-canvas px-2 py-0.5 text-xs font-medium text-muted">Sample</span>}
+            </h3>
             <StatusBadge state={item.state} />
           </header>
 
@@ -104,7 +155,7 @@ export function UploadContracts() {
           {item.state.status === "error" && (
             <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">
               <span>{item.state.message}</span>
-              {looksLikePdf(item.file) && (
+              {looksLikePdf(item.file) && item.file.size > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -118,7 +169,18 @@ export function UploadContracts() {
               )}
             </div>
           )}
-          {item.state.status === "review" && <ReviewForm terms={item.state.terms} today={today} onConfirm={(review) => confirm(item, review)} />}
+          {item.state.status === "review" && (
+            <ReviewForm
+              terms={item.state.terms}
+              today={today}
+              onConfirm={(review) => confirm(item, review)}
+              reviewOnly={
+                item.sampleOf
+                  ? `Sample contract: review only. ${item.sampleOf} is already one of Priya & Sam's vendors, so it isn't added again. Upload your own PDF to add a vendor.`
+                  : undefined
+              }
+            />
+          )}
           {item.state.status === "saved" && (
             <p className="text-sm text-ink">
               {item.state.message}{" "}

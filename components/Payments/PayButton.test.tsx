@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PayButton, PayPalProvider } from "@/components/Payments/PayButton";
+import { SANDBOX_BUYER } from "@/lib/payments/sandbox";
 
 // The PayPal SDK loads a script from PayPal, so it is the one thing we fake. The
 // fake renders a button and hands us the callbacks the real one would call.
@@ -228,6 +229,39 @@ describe("PayButton", () => {
       });
       act(() => buttons().onError(new Error("createOrder failed")));
       expect(screen.getByRole("alert").textContent).toBe("This payment has already been settled.");
+    });
+  });
+
+  describe("sandbox buyer login", () => {
+    it("tells the couple which sandbox buyer to log in with, next to the button", () => {
+      renderPay(<PayButton paymentId="p1" />);
+      expect(screen.getByText(/log in to PayPal as the/)).toBeTruthy();
+      expect(screen.getByText(SANDBOX_BUYER.email)).toBeTruthy();
+      expect(screen.getByText(SANDBOX_BUYER.password)).toBeTruthy();
+    });
+
+    it("copies the email and the password", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal("navigator", { clipboard: { writeText } });
+      renderPay(<PayButton paymentId="p1" />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Copy email" })));
+      expect(writeText).toHaveBeenLastCalledWith(SANDBOX_BUYER.email);
+      expect(screen.getByRole("button", { name: "Email copied" })).toBeTruthy();
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Copy password" })));
+      expect(writeText).toHaveBeenLastCalledWith(SANDBOX_BUYER.password);
+    });
+
+    it("opens the login to select by hand when the clipboard refuses", async () => {
+      vi.stubGlobal("navigator", { clipboard: { writeText: vi.fn().mockRejectedValue(new Error("denied")) } });
+      renderPay(<PayButton paymentId="p1" />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: "Copy email" })));
+      expect(screen.getByText(SANDBOX_BUYER.email).closest("details")?.open).toBe(true);
+    });
+
+    it("is not shown when PayPal isn't set up", () => {
+      vi.stubEnv("NEXT_PUBLIC_PAYPAL_CLIENT_ID", "");
+      renderPay(<PayButton paymentId="p1" />);
+      expect(screen.queryByText(/sandbox buyer/)).toBeNull();
     });
   });
 });
