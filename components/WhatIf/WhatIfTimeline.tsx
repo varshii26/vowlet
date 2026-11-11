@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PAYMENT_LISTS_ID } from "@/components/Dashboard/anchors";
 import { useGanttFocus } from "@/components/Gantt/FocusContext";
 import { StatusLegend } from "@/components/Gantt/StatusLegend";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
@@ -194,6 +195,13 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           </button>
         </div>
       )}
+      {/* The chart's payments aren't reachable one by one with Tab (the grid is a single stop), but the Upcoming list below has every one. */}
+      <a
+        href={`#${PAYMENT_LISTS_ID}`}
+        className="vw-skip-link vw-no-print rounded-md bg-surface px-3 py-1 text-sm font-medium text-accent-strong shadow-card"
+      >
+        Skip the timeline: go to the list of payments
+      </a>
       <StatusLegend />
 
       <div className="relative min-h-0 flex-1">

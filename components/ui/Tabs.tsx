@@ -8,7 +8,7 @@ export type TabSpec = { id: string; label: string; count?: number; content: Reac
  * Accessible tabs: arrow keys, Home and End move between them (WAI-ARIA tabs
  * pattern). Panels stay mounted, so a list keeps its state when hidden.
  */
-export function Tabs({ tabs, label }: { tabs: TabSpec[]; label: string }) {
+export function Tabs({ tabs, label, id }: { tabs: TabSpec[]; label: string; id?: string }) {
   const [active, setActive] = useState(tabs[0]?.id);
   const base = useId();
   const buttons = useRef<Array<HTMLButtonElement | null>>([]);
@@ -28,7 +28,8 @@ export function Tabs({ tabs, label }: { tabs: TabSpec[]; label: string }) {
   }
 
   return (
-    <div className="space-y-4">
+    // `id` makes the tabs a target for a skip link; -1 lets the link move focus here (the next Tab lands on the first tab).
+    <div id={id} tabIndex={id ? -1 : undefined} className="space-y-4 outline-none">
       <div role="tablist" aria-label={label} className="flex gap-1 border-b border-line">
         {tabs.map((tab, i) => {
           const selected = tab.id === active;

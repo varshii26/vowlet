@@ -30,7 +30,7 @@ export function UpcomingPayments({ payments }: { payments: UpcomingPayment[] }) 
             </span>
             <StatusBadge status={payment.status} label={payment.statusLabel} />
             <span className="text-right font-serif text-lg tabular-nums text-ink">{payment.amountLabel}</span>
-            <span aria-hidden className="text-sm font-medium text-accent opacity-60 transition-opacity group-hover:opacity-100">
+            <span aria-hidden className="text-sm font-medium text-accent transition-colors group-hover:text-accent-strong">
               Details →
             </span>
           </button>

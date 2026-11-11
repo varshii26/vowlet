@@ -323,8 +323,12 @@
 .b-gantt .b-task-rollup.vw-focus {
   filter: drop-shadow(0 0 3px rgb(158 46 84 / 0.85));
 }
-/* Labels and deadline icons in a dimmed row step back with it. */
-.b-gantt .b-gantt-task-wrap:has(> .b-gantt-task.vw-dim) .b-sch-label,
+/*
+ * Deadline icons in a dimmed row step back with it. Amount labels are text, so
+ * they keep their normal muted colour (5.5:1) rather than fading to 25% opacity,
+ * which made them unreadable; the dimmed diamonds already show the row isn't
+ * what the answer is about.
+ */
 .b-gantt .b-indicator.vw-dim {
   opacity: 0.25;
 }
