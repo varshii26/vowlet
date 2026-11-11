@@ -4,6 +4,7 @@ import { PayPalButtons, PayPalScriptProvider, usePayPalScriptReducer } from "@pa
 import { useRouter } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { requestCapture, requestOrder, type CaptureOutcome } from "@/lib/payments/client";
+import { SANDBOX_BUYER } from "@/lib/payments/sandbox";
 
 /** A payment that went through (or is still processing). */
 export type PaySettled = Extract<CaptureOutcome, { ok: true }>;
@@ -109,6 +110,51 @@ function Buttons({ paymentId, onSettled }: Props) {
           {notice.text}
         </p>
       )}
+      <SandboxLogin />
+    </div>
+  );
+}
+
+/**
+ * The sandbox buyer to log in with in the PayPal popup. Without it nobody
+ * trying the demo can get past PayPal's login. Narrow enough for the Next
+ * payment card: two copy buttons, with the values a click away.
+ */
+export function SandboxLogin() {
+  const [copied, setCopied] = useState<"email" | "password" | "failed" | null>(null);
+
+  async function copy(which: "email" | "password") {
+    try {
+      await navigator.clipboard.writeText(SANDBOX_BUYER[which]);
+      setCopied(which);
+    } catch {
+      setCopied("failed"); // the values stay visible below to select by hand
+    }
+  }
+
+  const pill = "rounded-full border border-line bg-white px-2 py-0.5 font-medium text-ink hover:border-accent/40 hover:text-accent";
+  return (
+    <div className="space-y-1 text-[11px] leading-snug text-muted">
+      <p>
+        Demo: log in to PayPal as the <span className="font-medium text-ink">sandbox buyer</span> (test money only).
+      </p>
+      <p className="flex flex-wrap items-center gap-1">
+        <button type="button" className={pill} onClick={() => void copy("email")}>
+          {copied === "email" ? "Email copied" : "Copy email"}
+        </button>
+        <button type="button" className={pill} onClick={() => void copy("password")}>
+          {copied === "password" ? "Password copied" : "Copy password"}
+        </button>
+      </p>
+      <details open={copied === "failed" || undefined}>
+        <summary className="cursor-pointer select-none hover:text-ink">Show login</summary>
+        <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-1.5 font-mono">
+          <dt>Email</dt>
+          <dd className="break-all text-ink">{SANDBOX_BUYER.email}</dd>
+          <dt>Password</dt>
+          <dd className="break-all text-ink">{SANDBOX_BUYER.password}</dd>
+        </dl>
+      </details>
     </div>
   );
 }

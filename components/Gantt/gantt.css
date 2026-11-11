@@ -151,3 +151,35 @@
   font-size: 0.75rem;
   font-weight: 600;
 }
+
+/*
+ * What-if ghosts (Bryntum Baselines, see withBaseline in lib/timeline.ts):
+ * while a preview shows, each moved milestone keeps a faded diamond at its old
+ * date, in the theme's warm neutrals, so before and after read side by side.
+ */
+.vw-gantt .b-task-baseline.vw-ghost {
+  --b-baseline-background: #d9c6b8;
+  --b-baseline-border-color: transparent;
+  opacity: 0.75;
+  cursor: help;
+}
+.vw-gantt .b-task-baseline-milestone.vw-ghost::before {
+  width: 9px;
+  height: 9px;
+  background: #f7f1ea;
+  border: 1.5px dashed #a8435a;
+  opacity: 0.8;
+}
+.vw-gantt .b-task-baseline-milestone.vw-ghost {
+  background: transparent;
+}
+
+/* "Was Mar 18, now May 13 (+56 days)" in a moved milestone's tooltip. */
+.vw-tip-move {
+  margin-top: 0.125rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.375rem;
+  background: #f7e8eb;
+  color: #a8435a;
+  font-weight: 600;
+}

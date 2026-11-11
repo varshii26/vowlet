@@ -5,7 +5,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PaymentGanttChart, localIsoDay } from "@/components/Gantt/PaymentGanttChart";
-import { buildTimeline, type TimelineInput } from "@/lib/timeline";
+import { buildTimeline, withBaseline, type TimelineData, type TimelineInput } from "@/lib/timeline";
 
 // Bryntum measures layout and reads these browser APIs while its module loads,
 // so they must exist before any import. jsdom has none of them.
@@ -71,9 +71,10 @@ async function mount(data: TimelineInput, onWeddingDateChange?: (iso: string) =>
   });
 }
 
-async function rerender(data: TimelineInput) {
+async function rerender(data: TimelineInput | TimelineData) {
+  const timeline = "tasks" in data ? data : buildTimeline(data, today);
   await act(async () => {
-    root!.render(<PaymentGanttChart data={buildTimeline(data, today)} />);
+    root!.render(<PaymentGanttChart data={timeline} />);
   });
 }
 
@@ -244,6 +245,34 @@ describe("PaymentGanttChart", () => {
       expect(now.day("wedding")).toBe("2027-04-17");
       expect(now.day("payment-p2")).toBe("2027-03-18");
     });
+  });
+});
+
+describe("what-if ghosts (Baselines)", () => {
+  const moved = { ...input, wedding: { ...input.wedding, date: d("2027-06-12") } };
+  const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 200))));
+  // Bryntum pools task elements it no longer shows under `.b-released` (hidden), so skip those.
+  const ghosts = () => [...host!.querySelectorAll(".b-task-baseline.vw-ghost")].filter((el) => !el.closest(".b-released"));
+
+  it("draws no ghosts on the saved schedule", async () => {
+    await mount(input);
+    await engine();
+    await settle();
+    expect(ghosts()).toHaveLength(0);
+  });
+
+  it("draws a ghost at the old date of each moved milestone during a preview, and drops them on cancel", async () => {
+    await mount(input);
+    await rerender(withBaseline(buildTimeline(moved, today), buildTimeline(input, today)));
+    await engine();
+    await settle();
+    // The wedding day and the wedding-anchored balance moved; the signing deposit didn't.
+    expect(ghosts()).toHaveLength(2);
+
+    await rerender(input);
+    await engine();
+    await settle();
+    expect(ghosts()).toHaveLength(0);
   });
 });
 

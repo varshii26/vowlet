@@ -23,6 +23,8 @@ type Props = {
   today: string;
   /** Saves the reviewed terms. Resolves with an error message, or null on success. */
   onConfirm: (review: ReviewedContract) => Promise<string | null>;
+  /** Shown instead of the Confirm button when the terms can be checked but not saved (a sample contract). */
+  reviewOnly?: string;
 };
 
 const input = "w-full rounded border border-line bg-white px-2 py-1 text-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/40";
@@ -145,7 +147,7 @@ function RulesSection({ title, percentLabel, rules, onChange, onAcknowledge }: {
  * "Please confirm" badge, and Confirm stays disabled until each one is edited
  * or ticked "I've checked this" (the server checks this again).
  */
-export function ReviewForm({ terms, today, onConfirm }: Props) {
+export function ReviewForm({ terms, today, onConfirm, reviewOnly }: Props) {
   const [draft, setDraft] = useState<ContractDraft>(() => toDraft(terms, today));
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -240,21 +242,27 @@ export function ReviewForm({ terms, today, onConfirm }: Props) {
         </ul>
       )}
 
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        {pending.length > 0 && (
-          <p className="text-sm text-amber-800" data-testid="pending-confirmations">
-            Still to confirm: {pending.join(", ")}
-          </p>
-        )}
-        <button
-          type="button"
-          onClick={confirm}
-          disabled={pending.length > 0 || saving}
-          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "Confirm and add to timeline"}
-        </button>
-      </div>
+      {reviewOnly ? (
+        <p className="rounded border border-line bg-canvas p-2 text-sm text-muted" data-testid="review-only">
+          {reviewOnly}
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          {pending.length > 0 && (
+            <p className="text-sm text-amber-800" data-testid="pending-confirmations">
+              Still to confirm: {pending.join(", ")}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={confirm}
+            disabled={pending.length > 0 || saving}
+            className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Confirm and add to timeline"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

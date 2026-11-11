@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
 
@@ -32,8 +32,8 @@ const calls: Call[] = [];
 
 /** Each URL answers from its own list of responses, in order. A function response waits until the test resolves it. */
 function stubFetch(responses: Record<string, (() => Promise<Response>)[]>) {
-  vi.stubGlobal("fetch", async (url: string, init: RequestInit) => {
-    calls.push({ url, form: init.body as FormData });
+  vi.stubGlobal("fetch", async (url: string, init?: RequestInit) => {
+    calls.push({ url, form: init?.body as FormData });
     const next = responses[url]?.shift();
     return next ? next() : new Response(JSON.stringify({ ok: false, error: { message: "Not stubbed." } }), { status: 503 });
   });
@@ -197,5 +197,48 @@ describe("UploadContracts", () => {
     });
     expect(screen.getByRole("alert").textContent).toContain("Venue deposit: enter an amount like 1500 or 25%.");
     expect(calls).toHaveLength(1);
+  });
+
+  describe("Try a sample contract", () => {
+    const samplePdf = () => () => Promise.resolve(new Response(new Blob(["%PDF-1.4 sample"], { type: "application/pdf" })));
+
+    it("offers the ambiguous and the addendum contracts", () => {
+      render(<UploadContracts />);
+      expect(screen.getByRole("button", { name: /Try Dapper & Co Tailoring/ })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /Try DJ Marlow Sound/ })).toBeTruthy();
+    });
+
+    it("runs the real extraction on the seeded PDF, review-only, so the demo gets no duplicate vendor", async () => {
+      stubFetch({ "/api/contracts/samples/dapper-and-co-tailoring": [samplePdf()], "/api/contracts/extract": [json(extracted)] });
+      render(<UploadContracts />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: /Try Dapper & Co Tailoring/ })));
+      await waitFor(() => expect(screen.queryByTestId("review-only")).not.toBeNull());
+
+      expect(calls.map((c) => c.url)).toEqual(["/api/contracts/samples/dapper-and-co-tailoring", "/api/contracts/extract"]);
+      expect((calls[1].form.get("file") as File).name).toBe("dapper-and-co-tailoring.pdf");
+      // The review shows, with its Please confirm flags, but there is nothing to save.
+      expect(screen.getAllByText("Please confirm").length).toBeGreaterThan(0);
+      expect(screen.queryByRole("button", { name: /Confirm and add to timeline/ })).toBeNull();
+      expect(screen.getByTestId("review-only").textContent).toContain("already one of Priya & Sam's vendors");
+      expect(calls.some((c) => c.url === "/api/contracts/confirm")).toBe(false);
+    });
+
+    it("says so when the sample can't be loaded", async () => {
+      stubFetch({});
+      render(<UploadContracts />);
+      await act(async () => fireEvent.click(screen.getByRole("button", { name: /Try DJ Marlow Sound/ })));
+      await flush();
+      expect(screen.getByRole("alert").textContent).toContain("Couldn't load the sample contract");
+      expect(calls.some((c) => c.url === "/api/contracts/extract")).toBe(false);
+    });
+
+    it("still lets an uploaded PDF be saved", async () => {
+      stubFetch({ "/api/contracts/extract": [json(extracted)] });
+      render(<UploadContracts />);
+      await pick(pdf("grand-oak.pdf"));
+      await flush();
+      expect(confirmButton()).toBeTruthy();
+      expect(screen.queryByTestId("review-only")).toBeNull();
+    });
   });
 });

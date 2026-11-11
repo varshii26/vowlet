@@ -7,7 +7,7 @@ import { usePaymentDrawer } from "@/components/Payments/PaymentDrawer";
 import { useToast } from "@/components/ui/Toast";
 import { WhatIfPanel, type ExplanationState, type WhatIfState } from "@/components/WhatIf/WhatIfPanel";
 import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
-import { buildTimeline, type TimelineInput } from "@/lib/timeline";
+import { buildTimeline, withBaseline, type TimelineInput } from "@/lib/timeline";
 import { requestApply, requestExplanation, requestWhatIf } from "@/lib/whatif/client";
 
 const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -54,9 +54,12 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
   }
 
   const today = useMemo(() => utcDay(todayIso), [todayIso]);
+  // While a preview shows, the saved schedule rides along as Bryntum baselines:
+  // a faded ghost where each moved payment was. Cancel or confirm drops them.
+  const base = useMemo(() => buildTimeline(input, today), [input, today]);
   const timeline = useMemo(
-    () => buildTimeline(preview ? { ...input, wedding: { ...input.wedding, date: utcDay(preview) } } : input, today),
-    [input, preview, today],
+    () => (preview ? withBaseline(buildTimeline({ ...input, wedding: { ...input.wedding, date: utcDay(preview) } }, today), base) : base),
+    [input, preview, today, base],
   );
 
   const payments = input.vendors.flatMap((vendor) => vendor.payments);

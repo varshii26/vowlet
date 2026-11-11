@@ -67,7 +67,23 @@ export type TimelineTask = {
   eventColor: string;
   /** CSS classes: the status and row kind, for the grid and tests. */
   cls: string;
+  /**
+   * During a what-if preview: where the task was before the wedding moved
+   * (Bryntum's Baselines feature draws it as a faded ghost). Absent otherwise.
+   */
+  baselines?: TimelineBaseline[];
   children?: TimelineTask[];
+};
+
+/** A Bryntum baseline: a milestone at the task's date before the preview. */
+export type TimelineBaseline = { startDate: string; endDate: string; cls: string };
+
+/** Where a task was before a what-if preview moved it. */
+export type PreviousDate = {
+  /** "Mar 18" */
+  dateLabel: string;
+  /** Days moved, positive when later. */
+  shiftDays: number;
 };
 
 export type TimelineDependency = { id: string; fromTask: string; toTask: string };
@@ -80,6 +96,8 @@ export type TaskDetail =
       dateLabel: string;
       /** `YYYY-MM-DD`. */
       isoDate: string;
+      /** Set only while a what-if preview has moved it. */
+      was?: PreviousDate;
     }
   | {
       kind: "vendor";
@@ -103,6 +121,8 @@ export type TaskDetail =
       clausePage: number | null;
       /** The clause as quoted in the contract. */
       clauseText: string | null;
+      /** Set only while a what-if preview has moved it. */
+      was?: PreviousDate;
     };
 
 export type TimelineData = {
@@ -268,5 +288,53 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     details,
     startDate: toIsoDate(start),
     endDate: toIsoDate(end),
+  };
+}
+
+const shortDate = (iso: string) =>
+  new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+
+/** The CSS class on every what-if ghost; styled in components/Gantt/gantt.css. */
+export const BASELINE_CLS = "vw-ghost";
+
+/**
+ * A what-if preview with the schedule from before it as Bryntum baselines: every
+ * milestone the preview moved (the wedding day and each wedding-anchored payment)
+ * gets a ghost at its old date and a `was` note for its tooltip. Milestones that
+ * didn't move get no ghost. Cancelling (back to `base`) or confirming (the
+ * preview becomes the new base) simply stops calling this, so the ghosts go.
+ */
+export function withBaseline(preview: TimelineData, base: TimelineData): TimelineData {
+  const before = new Map<string, string>();
+  const collect = (tasks: TimelineTask[]) =>
+    tasks.forEach((task) => {
+      if (task.startDate && task.duration === 0) before.set(task.id, task.startDate);
+      if (task.children) collect(task.children);
+    });
+  collect(base.tasks);
+
+  const details = { ...preview.details };
+  const mark = (tasks: TimelineTask[]): TimelineTask[] =>
+    tasks.map((task) => {
+      const children = task.children ? mark(task.children) : undefined;
+      const was = before.get(task.id);
+      if (!was || !task.startDate || was === task.startDate) return children ? { ...task, children } : task;
+      const detail = details[task.id];
+      if (detail && (detail.kind === "payment" || detail.kind === "wedding")) {
+        details[task.id] = {
+          ...detail,
+          was: { dateLabel: shortDate(was), shiftDays: daysBetweenUtc(new Date(`${was}T00:00:00.000Z`), new Date(`${task.startDate}T00:00:00.000Z`)) },
+        };
+      }
+      return { ...task, ...(children ? { children } : {}), baselines: [{ startDate: was, endDate: was, cls: BASELINE_CLS }] };
+    });
+
+  return {
+    ...preview,
+    tasks: mark(preview.tasks),
+    details,
+    // Keep the ghosts in view too.
+    startDate: base.startDate < preview.startDate ? base.startDate : preview.startDate,
+    endDate: base.endDate > preview.endDate ? base.endDate : preview.endDate,
   };
 }

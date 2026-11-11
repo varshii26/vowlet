@@ -1,5 +1,7 @@
 import { daysBetweenUtc } from "@/lib/schedule";
-import type { TaskDetail } from "@/lib/timeline";
+import type { PreviousDate, TaskDetail } from "@/lib/timeline";
+
+const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 /** Escape text for use inside HTML. Names and clause text come from contracts. */
 export function escapeHtml(text: string): string {
@@ -11,16 +13,27 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, "&#39;");
 }
 
+/** "Was Mar 18, now May 13 (+56 days)": a what-if move, from the old date to the new one. */
+export function describeMove(was: PreviousDate, nowIso: string): string {
+  const n = Math.abs(was.shiftDays);
+  const sign = was.shiftDays > 0 ? "+" : "−";
+  const now = utcDay(nowIso).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+  return `Was ${was.dateLabel}, now ${now} (${sign}${n} day${n === 1 ? "" : "s"})`;
+}
+
+const moveLine = (was: PreviousDate | undefined, nowIso: string | undefined) =>
+  was && nowIso ? `<div class="vw-tip-move">${escapeHtml(describeMove(was, nowIso))}</div>` : "";
+
 /**
  * HTML for the hover tooltip of a Gantt task. Bryntum tooltips take an HTML
  * string, so every value is escaped here.
  */
-export function renderTaskTooltip(detail: TaskDetail | undefined): string {
+export function renderTaskTooltip(detail: TaskDetail | undefined, isoDate?: string): string {
   if (!detail) return "";
 
   switch (detail.kind) {
     case "wedding":
-      return `<div class="vw-tip"><div class="vw-tip-title">${escapeHtml(detail.title)}</div><div>${escapeHtml(detail.dateLabel)}</div></div>`;
+      return `<div class="vw-tip"><div class="vw-tip-title">${escapeHtml(detail.title)}</div><div>${escapeHtml(detail.dateLabel)}</div>${moveLine(detail.was, detail.isoDate)}</div>`;
 
     case "vendor":
       return [
@@ -43,6 +56,7 @@ export function renderTaskTooltip(detail: TaskDetail | undefined): string {
         `<div>${escapeHtml(detail.vendorName)}</div>`,
         `<div class="vw-tip-amount">${escapeHtml(detail.amountLabel)}</div>`,
         `<div>Due ${escapeHtml(detail.dateLabel)}</div>`,
+        moveLine(detail.was, isoDate),
         `<div><span class="vw-tip-status vw-status-${detail.status}">${escapeHtml(detail.statusLabel)}</span></div>`,
         clause,
         `</div>`,
@@ -51,7 +65,18 @@ export function renderTaskTooltip(detail: TaskDetail | undefined): string {
   }
 }
 
-const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+/** HTML for the tooltip on a what-if ghost: where the milestone sat before the preview. */
+export function renderBaselineTip(detail: TaskDetail | undefined): string {
+  if (!detail || detail.kind === "vendor" || !detail.was) return "";
+  return [
+    `<div class="vw-tip">`,
+    `<div class="vw-tip-title">${escapeHtml(detail.title)}</div>`,
+    `<div>Before this what-if: ${escapeHtml(detail.was.dateLabel)}</div>`,
+    `<div class="vw-tip-muted">Cancel puts it back here; confirm makes the new date stick.</div>`,
+    `</div>`,
+  ].join("");
+}
+
 const longDay = (iso: string) =>
   utcDay(iso).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 

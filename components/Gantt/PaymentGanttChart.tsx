@@ -3,8 +3,8 @@
 import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
-import { WEDDING_TASK_ID, type TaskDetail, type TimelineData } from "@/lib/timeline";
+import { renderBaselineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
 
 import "@bryntum/core-enterprise/fontawesome/css/fontawesome.css";
@@ -87,6 +87,11 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
 
   useTodayLine(ganttRef, todayIso);
 
+  // The wrapper syncs new tasks into the existing records, and a field left out
+  // keeps its old value. So every task states its baselines, empty when it has
+  // no ghost, or the ghosts of a cancelled what-if would stay on screen.
+  const tasks = useMemo(() => withExplicitBaselines(data.tasks), [data.tasks]);
+
   const config = useMemo((): BryntumGanttProps => {
     const detailOf = (record: TaskModel) => detailsRef.current[String(record.id)];
 
@@ -112,6 +117,12 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       projectLinesFeature: false,
       criticalPathsFeature: false,
       dependenciesFeature: { allowCreate: false },
+      // What-if before/after: a task whose data carries `baselines` (only while
+      // a preview is showing, see withBaseline in lib/timeline) gets a faded
+      // ghost at its old date under it. Tasks without baselines draw nothing.
+      baselinesFeature: {
+        template: ({ baseline }: { baseline: { task: TaskModel } }) => renderBaselineTip(detailOf(baseline.task)),
+      },
       taskDragFeature: {
         disabled: !canDragWedding,
         validatorFn: (_records: TaskModel[], startDate: Date) =>
@@ -153,7 +164,8 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
         },
       ],
       taskTooltipFeature: {
-        template: ({ taskRecord }: { taskRecord: TaskModel }) => renderTaskTooltip(detailOf(taskRecord)),
+        template: ({ taskRecord }: { taskRecord: TaskModel }) =>
+          renderTaskTooltip(detailOf(taskRecord), taskRecord.startDate ? localIsoDay(new Date(taskRecord.startDate)) : undefined),
       },
       onTaskClick: ({ taskRecord }: { taskRecord: TaskModel }) => {
         const detail = detailOf(taskRecord);
@@ -169,12 +181,20 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
     <BryntumGantt
       ref={ganttRef}
       {...config}
-      tasks={data.tasks}
+      tasks={tasks}
       dependencies={data.dependencies}
       startDate={data.startDate}
       endDate={data.endDate}
     />
   );
+}
+
+function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
+  return tasks.map((task) => ({
+    ...task,
+    baselines: task.baselines ?? [],
+    ...(task.children ? { children: withExplicitBaselines(task.children) } : {}),
+  }));
 }
 
 type Timeline = {
