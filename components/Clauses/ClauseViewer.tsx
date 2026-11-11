@@ -51,7 +51,7 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
   const markClass = (id: string) =>
     id === selectedClauseId
       ? `cursor-pointer rounded-sm bg-amber-300 text-neutral-950 outline-none ring-2 ring-amber-500 ${flashing ? "animate-pulse" : ""}`
-      : "cursor-pointer rounded-sm bg-amber-100 text-neutral-900 outline-none hover:bg-amber-200";
+      : "cursor-pointer rounded-sm bg-amber-100 text-ink outline-none hover:bg-amber-200";
 
   return (
     <div className="space-y-4">
@@ -60,7 +60,7 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
           <p className="font-medium text-amber-900">
             {KIND_LABEL[selected.kind]} clause, page {layout.foundOn[selected.id] ?? selected.page}
           </p>
-          <p className="text-neutral-700">{selected.summary}</p>
+          <p className="text-ink">{selected.summary}</p>
         </div>
       )}
 
@@ -71,11 +71,11 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
       )}
 
       {layout.pages.map((segments, index) => (
-        <section key={index} aria-label={`Page ${index + 1}`} className="rounded-lg border border-neutral-200 bg-white shadow-sm">
-          <header className="border-b border-neutral-100 px-5 py-2 text-xs font-medium uppercase tracking-wide text-neutral-500">
+        <section key={index} aria-label={`Page ${index + 1}`} className="rounded-lg border border-line bg-white shadow-sm">
+          <header className="border-b border-line px-5 py-2 text-xs font-medium uppercase tracking-wide text-muted">
             Page {index + 1} of {layout.pages.length}
           </header>
-          <p className="whitespace-pre-wrap px-5 py-4 font-serif text-[15px] leading-7 text-neutral-800">
+          <p className="whitespace-pre-wrap px-5 py-4 font-serif text-[15px] leading-7 text-ink">
             {segments.map((segment, i) =>
               segment.clauseId ? (
                 <mark
@@ -100,7 +100,7 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
 
       {layout.unlocated.length > 0 && (
         <section aria-label="Clauses not found in the contract text" className="space-y-2">
-          <h3 className="text-sm font-semibold text-neutral-700">
+          <h3 className="text-sm font-semibold text-ink">
             {pages === null ? "Extracted clauses" : "Clauses not found word for word in the contract text"}
           </h3>
           {layout.unlocated.map((clause) => (
@@ -112,8 +112,8 @@ export function ClauseViewer({ pages, clauses, selectedClauseId, selectionKey = 
               tabIndex={-1}
               className={`rounded border-l-4 p-3 text-sm outline-none ${clause.id === selectedClauseId ? `border-amber-500 bg-amber-100 ${flashing ? "animate-pulse" : ""}` : "border-amber-300 bg-white"}`}
             >
-              <p className="whitespace-pre-line text-neutral-800">&ldquo;{clause.text}&rdquo;</p>
-              <footer className="mt-1 text-xs text-neutral-500">
+              <p className="whitespace-pre-line text-ink">&ldquo;{clause.text}&rdquo;</p>
+              <footer className="mt-1 text-xs text-muted">
                 Page {clause.page}, as quoted{pages === null ? "" : "; please check it against the original PDF"}
               </footer>
             </blockquote>

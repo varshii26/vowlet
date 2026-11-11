@@ -44,7 +44,7 @@ export function PayPalProvider({ children }: { children: ReactNode }) {
  */
 export function PayButton(props: Props) {
   if (!process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID) {
-    return <p className="text-xs text-neutral-500">PayPal isn&apos;t set up yet (missing NEXT_PUBLIC_PAYPAL_CLIENT_ID).</p>;
+    return <p className="text-xs text-muted">PayPal isn&apos;t set up yet (missing NEXT_PUBLIC_PAYPAL_CLIENT_ID).</p>;
   }
   return <Buttons {...props} />;
 }
@@ -80,7 +80,11 @@ function Buttons({ paymentId, onSettled }: Props) {
 
   return (
     <div className="flex min-w-44 flex-col gap-1">
-      {isPending && <p className="text-xs text-neutral-500">Loading PayPal...</p>}
+      {isPending && (
+        <div role="status" className="skeleton h-8 w-full">
+          <span className="sr-only">Loading PayPal...</span>
+        </div>
+      )}
       {isRejected && (
         <p role="alert" className="text-xs text-red-700">
           PayPal couldn&apos;t load. Check your connection and reload the page.
@@ -100,7 +104,7 @@ function Buttons({ paymentId, onSettled }: Props) {
       {notice && (
         <p
           role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-xs text-red-700" : "text-xs text-neutral-600"}
+          className={notice.tone === "error" ? "text-xs text-red-700" : "text-xs text-muted"}
         >
           {notice.text}
         </p>

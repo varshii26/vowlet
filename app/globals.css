@@ -1,26 +1,154 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Vowlet theme. One warm accent (rosewood) on a cream canvas, a serif for
+ * headings, and shared radius/shadow tokens. Light only: the Bryntum Gantt uses
+ * its light theme, and a half-dark page would look broken.
+ *
+ * Use the tokens as Tailwind utilities: bg-canvas, bg-surface, text-ink,
+ * text-muted, border-line, bg-accent, text-accent, bg-accent-soft, rounded-card,
+ * shadow-card, font-serif.
+ */
+@theme {
+  --color-canvas: #faf6f1;
+  --color-surface: #ffffff;
+  --color-sunken: #f4ede5;
+  --color-ink: #2a221e;
+  /* 5.6:1 on the canvas, so it is fine for small text. */
+  --color-muted: #6b5d55;
+  --color-line: #e9dfd4;
+  --color-accent: #a8435a;
+  --color-accent-strong: #8a3549;
+  --color-accent-soft: #f7e8eb;
+  --color-gold: #c08a3e;
+
+  --radius-card: 14px;
+  --radius-control: 10px;
+  --shadow-card: 0 1px 2px rgb(42 34 30 / 0.04), 0 4px 16px rgb(42 34 30 / 0.05);
+  --shadow-float: 0 12px 40px rgb(42 34 30 / 0.18);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-fraunces), Georgia, serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--color-canvas);
+  color: var(--color-ink);
   font-family: var(--font-sans);
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* One visible focus ring everywhere, in the accent colour. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    border-radius: var(--radius-control);
+    padding: 0.375rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition:
+      background-color 150ms,
+      border-color 150ms,
+      color 150ms,
+      box-shadow 150ms;
+  }
+  .btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: #fff;
+  }
+  .btn-primary:not(:disabled):hover {
+    background: var(--color-accent-strong);
+  }
+  .btn-secondary {
+    border: 1px solid var(--color-line);
+    background: var(--color-surface);
+    color: var(--color-ink);
+  }
+  .btn-secondary:not(:disabled):hover {
+    border-color: #d8c9ba;
+    background: var(--color-sunken);
+  }
+  .card {
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-card);
+  }
+  .skeleton {
+    border-radius: 6px;
+    background: linear-gradient(90deg, var(--color-sunken) 25%, #fbf7f2 50%, var(--color-sunken) 75%);
+    background-size: 200% 100%;
+    animation: vw-shimmer 1.4s ease-in-out infinite;
+  }
+}
+
+@keyframes vw-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes vw-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes vw-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) rotate(var(--rot));
+  }
+}
+
+.animate-fade-up {
+  animation: vw-fade-up 220ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
 }

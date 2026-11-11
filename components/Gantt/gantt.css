@@ -5,6 +5,75 @@
  * mechanism does not reach.
  */
 
+/*
+ * Theme: match the app (cream header, warm lines, rosewood accent, app font).
+ * Variables are set on the Gantt element itself, so they win over the theme's
+ * :root values by inheritance.
+ */
+.vw-gantt .b-gantt {
+  --b-primary: #a8435a;
+  --b-grid-header-background: #f7f1ea;
+  --b-grid-header-color: #6b5d55;
+  --b-grid-header-border-color: #e9dfd4;
+  --b-grid-row-border-color: #f1e9e0;
+  --b-grid-cell-border-color: #f1e9e0;
+  --b-grid-cell-color: #2a221e;
+  --b-grid-cell-hover-background: #fbf6f0;
+  --b-grid-cell-selected-background: #f7e8eb;
+  --b-grid-cell-hover-selected-background: #f3dfe4;
+  --b-grid-cell-selected-color: #2a221e;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 13px;
+}
+
+/* Vendor rows read as group headings. */
+.vw-gantt .b-grid-row:has(.b-tree-parent-cell) .b-tree-cell-value {
+  font-weight: 600;
+}
+
+/* The wedding row stands out. */
+.vw-gantt .b-gantt-task.wedding {
+  filter: drop-shadow(0 0 4px rgb(168 67 90 / 0.45));
+}
+
+/* Payments look clickable. */
+.vw-gantt .b-gantt-task.payment {
+  cursor: pointer;
+}
+
+/* Today: a thin dashed line across the chart (positioned in PaymentGanttChart). */
+.vw-today-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.vw-today-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed #a8435a;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+}
+.vw-today-line::before {
+  content: "Today";
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: #a8435a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
 /* Status badge colours in the tooltip. Keep in step with STATUS_COLOR. */
 .vw-status-paid {
   --vw-status: #16a34a;
@@ -44,7 +113,7 @@
 
 /* Every payment links to one wedding day, so keep the dependency lines light. */
 .b-sch-dependency {
-  --b-dependency-color: #cbd5e1;
+  --b-dependency-color: #e3d6c9;
 }
 
 /* Tooltip content (see components/Gantt/tooltip.ts). */
@@ -64,13 +133,13 @@
   font-weight: 600;
 }
 .vw-tip-muted {
-  color: #6b7280;
+  color: #6b5d55;
   font-size: 0.75rem;
 }
 .vw-tip-clause {
   margin-top: 0.25rem;
   padding-left: 0.5rem;
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid #a8435a;
   font-style: italic;
 }
 .vw-tip-status {

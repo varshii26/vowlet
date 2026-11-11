@@ -22,18 +22,19 @@ export default async function VendorPage({ params, searchParams }: PageProps<"/v
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 p-8">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
       <nav>
-        <Link href="/" className="text-sm font-medium text-neutral-600 hover:text-neutral-900">
+        <Link href="/" className="rounded text-sm font-medium text-accent hover:text-accent-strong">
           &larr; Back to the dashboard
         </Link>
       </nav>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold">{vendor.name}</h1>
+            <h1 className="text-3xl text-ink">{vendor.name}</h1>
             {vendor.status === "cancelled" && <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">Cancelled</span>}
           </div>
-          <p className="text-neutral-600">
+          <p className="text-muted">
             <span className="capitalize">{vendor.category}</span> · contract total {vendor.totalLabel} · wedding {data.weddingDateLabel}
           </p>
         </div>

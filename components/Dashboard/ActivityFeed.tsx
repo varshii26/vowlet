@@ -15,21 +15,21 @@ const DOT: Record<ActivityTone, string> = {
 export function ActivityFeed({ items }: { items: ActivityItem[] }) {
   return (
     <section aria-labelledby="activity-heading" className="space-y-3">
-      <h2 id="activity-heading" className="text-lg font-semibold">
+      <h2 id="activity-heading" className="sr-only">
         Recent activity
       </h2>
       {items.length === 0 ? (
-        <p className="text-sm text-neutral-500">Nothing has happened yet.</p>
+        <p className="text-sm text-muted">Nothing has happened yet.</p>
       ) : (
-        <ol className="divide-y divide-neutral-100 rounded-lg border border-neutral-200">
+        <ol className="card divide-y divide-line overflow-hidden">
           {items.map((item) => (
-            <li key={item.id} className="flex items-start gap-3 px-4 py-2.5 text-sm" data-tone={item.tone}>
+            <li key={item.id} className="flex items-start gap-3 px-5 py-3 text-sm" data-tone={item.tone}>
               <span aria-hidden className={`mt-1.5 size-2 shrink-0 rounded-full ${DOT[item.tone]}`} />
-              <span className={`min-w-0 flex-1 ${item.tone === "warning" ? "text-amber-800" : "text-neutral-800"}`}>
+              <span className={`min-w-0 flex-1 ${item.tone === "warning" ? "text-amber-800" : "text-ink"}`}>
                 {item.tone === "warning" ? <span className="sr-only">Needs checking: </span> : null}
                 {item.message}
               </span>
-              <LocalTime iso={item.at} className="shrink-0 text-xs text-neutral-500 tabular-nums" />
+              <LocalTime iso={item.at} className="shrink-0 text-xs text-muted tabular-nums" />
             </li>
           ))}
         </ol>

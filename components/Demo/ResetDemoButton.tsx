@@ -47,15 +47,15 @@ export function ResetDemoButton() {
   }
 
   return (
-    <div className="flex flex-col items-end gap-1 text-sm">
+    <div className="relative flex flex-col items-end gap-1 text-sm">
       {confirming ? (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <span className="text-neutral-700">Reset Priya &amp; Sam&apos;s demo to its starting state? Payments and changes made here are undone.</span>
+          <span className="max-w-xs text-right text-muted">Reset Priya &amp; Sam&apos;s demo to its starting state? Payments and changes made here are undone.</span>
           <button
             type="button"
             onClick={reset}
             disabled={busy}
-            className="rounded-md bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-700 disabled:opacity-60"
+            className="btn bg-red-600 text-white hover:bg-red-700"
           >
             {busy ? "Resetting..." : "Yes, reset"}
           </button>
@@ -63,7 +63,7 @@ export function ResetDemoButton() {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={busy}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium hover:bg-neutral-50 disabled:opacity-60"
+            className="btn btn-secondary"
           >
             Cancel
           </button>
@@ -75,13 +75,13 @@ export function ResetDemoButton() {
             setNotice(null);
             setConfirming(true);
           }}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 font-medium hover:bg-neutral-50"
+          className="btn btn-secondary"
         >
           Reset demo
         </button>
       )}
       {notice && (
-        <p role={notice.tone === "error" ? "alert" : "status"} className={notice.tone === "error" ? "text-red-700" : "text-neutral-600"}>
+        <p role={notice.tone === "error" ? "alert" : "status"} className={"absolute right-0 top-full mt-1 w-max max-w-xs text-right " + (notice.tone === "error" ? "text-red-700" : "text-muted")}>
           {notice.text}
         </p>
       )}

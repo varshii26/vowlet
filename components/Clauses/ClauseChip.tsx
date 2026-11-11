@@ -23,13 +23,13 @@ export function ClauseChip({ label, clause, href }: Props) {
 
   if (!clause && href) {
     return (
-      <a href={href} className="whitespace-nowrap rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 underline decoration-dotted underline-offset-2 hover:bg-neutral-200">
+      <a href={href} className="whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-strong underline decoration-dotted underline-offset-2 hover:bg-accent/15">
         {label}
       </a>
     );
   }
   if (!clause) {
-    return <span className="whitespace-nowrap rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700">{label}</span>;
+    return <span className="whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-strong">{label}</span>;
   }
 
   return (
@@ -39,17 +39,17 @@ export function ClauseChip({ label, clause, href }: Props) {
         aria-expanded={open}
         aria-controls={id}
         onClick={() => setOpen((v) => !v)}
-        className="whitespace-nowrap rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-700 underline decoration-dotted underline-offset-2 hover:bg-neutral-200"
+        className="whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-strong underline decoration-dotted underline-offset-2 hover:bg-accent/15"
       >
         {label}
       </button>
       {open && (
-        <blockquote id={id} className="mt-1 rounded border-l-4 border-pink-300 bg-white p-2 text-xs leading-relaxed text-neutral-800 shadow-sm">
+        <blockquote id={id} className="mt-1 rounded border-l-4 border-accent/40 bg-white p-2 text-xs leading-relaxed text-ink shadow-sm">
           <p className="whitespace-pre-line">&ldquo;{clause.text}&rdquo;</p>
-          <footer className="mt-1 flex flex-wrap items-center justify-between gap-2 text-neutral-500">
+          <footer className="mt-1 flex flex-wrap items-center justify-between gap-2 text-muted">
             <span>{label}</span>
             {href && (
-              <a href={href} className="font-medium text-pink-700 underline underline-offset-2 hover:text-pink-900">
+              <a href={href} className="font-medium text-accent underline underline-offset-2 hover:text-accent-strong">
                 Open in contract
               </a>
             )}

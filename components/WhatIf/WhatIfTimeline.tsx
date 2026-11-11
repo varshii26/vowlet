@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
+import { usePaymentDrawer } from "@/components/Payments/PaymentDrawer";
+import { useToast } from "@/components/ui/Toast";
 import { WhatIfPanel, type ExplanationState, type WhatIfState } from "@/components/WhatIf/WhatIfPanel";
 import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
 import { buildTimeline, type TimelineInput } from "@/lib/timeline";
@@ -14,6 +16,8 @@ type Props = {
   input: TimelineInput;
   /** `YYYY-MM-DD`, from the server, so the browser and server agree on "today". */
   todayIso: string;
+  /** Size of the chart box (the dashboard makes it fill the hero area). */
+  className?: string;
 };
 
 /**
@@ -25,8 +29,10 @@ type Props = {
  * LLM. In parallel the server works out each vendor's fee with `dateChangeCost()`.
  * Nothing is saved until the couple confirms; Cancel snaps everything back.
  */
-export function WhatIfTimeline({ input, todayIso }: Props) {
+export function WhatIfTimeline({ input, todayIso, className }: Props) {
   const router = useRouter();
+  const drawer = usePaymentDrawer();
+  const { toast } = useToast();
   const baseIso = toIsoDate(input.wedding.date);
 
   const [preview, setPreview] = useState<string | null>(null);
@@ -34,7 +40,6 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
   const [explanation, setExplanation] = useState<ExplanationState>({ status: "none" });
   const [applying, setApplying] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   // Answers to earlier drops are ignored once the wedding has been dropped again.
   const latestRequest = useRef(0);
 
@@ -72,7 +77,6 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
     setWhatIf({ status: "loading" });
     setExplanation({ status: "none" });
     setApplyError(null);
-    setNotice(null);
 
     const result = await requestWhatIf(isoDate);
     if (request !== latestRequest.current) return;
@@ -96,45 +100,51 @@ export function WhatIfTimeline({ input, todayIso }: Props) {
       setApplyError(result.message);
       return;
     }
-    setNotice(result.message);
+    toast(result.message);
     // The page re-renders from the database with the new date; the preview
     // stays on screen until it arrives, so nothing flickers back.
     router.refresh();
   }
 
   return (
-    <section aria-label="Payment timeline" className="space-y-3">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <h2 className="text-xl font-semibold">Payment timeline</h2>
-        <p className="text-sm text-neutral-600">Drag the pink Wedding day milestone to see what moving the date would cost.</p>
+    <section aria-label="Payment timeline" className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xl text-ink">Payment timeline</h2>
+        <p className="text-sm text-muted">
+          Click a payment for its clause and Pay button. Drag the <span className="font-medium text-accent">Wedding day</span> to see what moving
+          the date would cost.
+        </p>
       </div>
 
-      {notice && (
-        <div role="status" className="flex items-start justify-between gap-4 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
-          <span>{notice}</span>
-          <button type="button" onClick={() => setNotice(null)} className="font-medium underline">
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {preview && (
-        <WhatIfPanel
-          currentDate={baseIso}
-          newDate={preview}
-          shiftDays={daysBetweenUtc(input.wedding.date, utcDay(preview))}
-          movedCount={movedCount}
-          fixedCount={payments.length - movedCount}
-          state={whatIf}
-          explanation={explanation}
-          applying={applying}
-          applyError={applyError}
-          onConfirm={() => void confirm()}
-          onCancel={cancel}
+      <div className="relative min-h-0 flex-1">
+        <PaymentGantt
+          className={className ?? "h-[680px]"}
+          data={timeline}
+          onPaymentSelect={drawer ? (payment) => drawer.openPayment(payment) : undefined}
+          onWeddingDateChange={(iso) => void weddingDropped(iso)}
+          minWeddingDate={todayIso}
+          todayIso={todayIso}
         />
-      )}
 
-      <PaymentGantt data={timeline} onWeddingDateChange={(iso) => void weddingDropped(iso)} minWeddingDate={todayIso} />
+        {preview && (
+          // Floats over the chart, so the reflowed timeline stays in view beside it.
+          <div className="animate-fade-up absolute bottom-4 right-4 z-10 max-h-[58%] w-[27rem] max-w-[calc(100%-2rem)] overflow-y-auto rounded-card shadow-float">
+            <WhatIfPanel
+              currentDate={baseIso}
+              newDate={preview}
+              shiftDays={daysBetweenUtc(input.wedding.date, utcDay(preview))}
+              movedCount={movedCount}
+              fixedCount={payments.length - movedCount}
+              state={whatIf}
+              explanation={explanation}
+              applying={applying}
+              applyError={applyError}
+              onConfirm={() => void confirm()}
+              onCancel={cancel}
+            />
+          </div>
+        )}
+      </div>
     </section>
   );
 }

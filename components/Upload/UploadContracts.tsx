@@ -63,9 +63,9 @@ export function UploadContracts() {
 
   return (
     <div className="space-y-6">
-      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-pink-200 bg-pink-50/40 p-8 text-center hover:border-pink-300 hover:bg-pink-50">
+      <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed border-accent/40 bg-accent-soft p-8 text-center hover:border-accent/40 hover:bg-accent-soft">
         <span className="text-base font-medium">Choose vendor contracts (PDF)</span>
-        <span className="text-sm text-neutral-600">You can pick several. Each one is read by AI, then shown here for you to check before anything is saved.</span>
+        <span className="text-sm text-muted">You can pick several. Each one is read by AI, then shown here for you to check before anything is saved.</span>
         <input
           type="file"
           accept="application/pdf,.pdf"
@@ -89,15 +89,15 @@ export function UploadContracts() {
       )}
 
       {items.map((item) => (
-        <article key={item.id} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm" aria-label={item.file.name}>
+        <article key={item.id} className="space-y-3 rounded-lg border border-line bg-white p-4 shadow-sm" aria-label={item.file.name}>
           <header className="flex flex-wrap items-center justify-between gap-2">
             <h3 className="font-semibold">{item.file.name}</h3>
             <StatusBadge state={item.state} />
           </header>
 
-          {item.state.status === "queued" && <p className="text-sm text-neutral-600">Waiting for the previous contract to finish...</p>}
+          {item.state.status === "queued" && <p className="text-sm text-muted">Waiting for the previous contract to finish...</p>}
           {item.state.status === "extracting" && (
-            <p className="text-sm text-neutral-600" aria-live="polite">
+            <p className="text-sm text-muted" aria-live="polite">
               Reading the contract and checking every quote against the PDF. This takes about half a minute...
             </p>
           )}
@@ -120,13 +120,13 @@ export function UploadContracts() {
           )}
           {item.state.status === "review" && <ReviewForm terms={item.state.terms} today={today} onConfirm={(review) => confirm(item, review)} />}
           {item.state.status === "saved" && (
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink">
               {item.state.message}{" "}
-              <Link href="/" className="font-medium text-pink-700 underline">
+              <Link href="/" className="font-medium text-accent underline">
                 Open the dashboard
               </Link>{" "}
               ·{" "}
-              <Link href={`/vendors/${item.state.vendorId}`} className="font-medium text-pink-700 underline">
+              <Link href={`/vendors/${item.state.vendorId}`} className="font-medium text-accent underline">
                 View contract
               </Link>
             </p>
@@ -139,7 +139,7 @@ export function UploadContracts() {
 
 function StatusBadge({ state }: { state: ItemState }) {
   const [text, tone] = {
-    queued: ["Waiting", "bg-neutral-100 text-neutral-700"],
+    queued: ["Waiting", "bg-canvas text-ink"],
     extracting: ["Reading...", "bg-sky-100 text-sky-800"],
     error: ["Couldn't read", "bg-red-100 text-red-800"],
     review: ["Review", "bg-amber-100 text-amber-900"],

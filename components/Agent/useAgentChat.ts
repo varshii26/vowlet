@@ -16,6 +16,8 @@ export type ChatMessage = {
   truncated: boolean;
   /** Proposals the answer left waiting for approval. */
   proposalCount: number;
+  /** Their ids, so the panel can show each card under the answer that made it. */
+  proposalIds: string[];
   /** What the assistant did to get this answer, in order. */
   steps: string[];
   /** Clause citations the tools returned, shown as chips where the answer quotes them. */
@@ -31,6 +33,7 @@ const message = (id: number, role: ChatMessage["role"], text: string, over: Part
   tone: "answer",
   truncated: false,
   proposalCount: 0,
+  proposalIds: [],
   steps: [],
   sources: [],
   ...over,
@@ -93,7 +96,7 @@ export function useAgentChat({ onProposals }: { onProposals?: () => void } = {})
             case "answer":
               setMessages((prev) => [
                 ...prev,
-                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, steps: [...done], sources: event.sources ?? [] }),
+                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, proposalIds: event.proposals.map((p) => p.id), steps: [...done], sources: event.sources ?? [] }),
               ]);
               if (event.proposals.length > 0) onProposals?.();
               break;

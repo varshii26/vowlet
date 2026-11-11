@@ -34,7 +34,7 @@ export async function loadTimelineInput(prisma: PrismaClient): Promise<TimelineI
         fixedDate: payment.fixedDate,
         status: payment.status,
         clause: payment.clause
-          ? { id: payment.clause.id, summary: payment.clause.summary, page: payment.clause.page }
+          ? { id: payment.clause.id, summary: payment.clause.summary, page: payment.clause.page, text: payment.clause.text }
           : null,
       })),
     })),

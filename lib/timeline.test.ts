@@ -246,6 +246,7 @@ describe("task details", () => {
       clauseId: "c9",
       clauseSummary: "$1,000 deposit, due upon signing",
       clausePage: 2,
+      clauseText: null,
     });
   });
 
