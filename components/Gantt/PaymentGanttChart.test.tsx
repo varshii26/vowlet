@@ -107,6 +107,9 @@ function wrapClass(selector: string): string {
   return bar?.parentElement?.className ?? "";
 }
 
+/** Classes on the rollup diamond matching `selector`, drawn in the collapsed vendor row. */
+const rollupClass = (selector: string) => host!.querySelector(`.b-task-rollup${selector}`)?.className ?? "";
+
 const barCount = (selector: string) => host!.querySelectorAll(`.b-gantt-task${selector}`).length;
 
 describe("PaymentGanttChart", () => {
@@ -152,10 +155,13 @@ describe("PaymentGanttChart", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
     });
 
-    expect(wrapClass(".payment-paid")).toContain("b-color-green");
-    expect(wrapClass(".payment-scheduled")).toContain("b-color-blue");
+    // Vendor rows start collapsed: each payment shows as a rollup diamond in
+    // its vendor's row, carrying its own status colour.
+    expect(rollupClass(".payment-paid")).toContain("b-color-green");
+    expect(rollupClass(".payment-scheduled")).toContain("b-color-blue");
+    expect(rollupClass(".payment-scheduled")).toContain("b-milestone");
     expect(wrapClass(".wedding")).toContain("b-color-pink");
-    expect(wrapClass(".payment-scheduled")).toContain("b-milestone-wrap");
+    expect(barCount(".payment")).toBe(0); // the payment rows themselves are folded away
   });
 
   it("picks up a changed payment status when the page re-renders with new data", async () => {
@@ -183,10 +189,10 @@ describe("PaymentGanttChart", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
     });
-    expect(barCount(".payment-paid")).toBe(2);
-    expect(barCount(".payment-scheduled")).toBe(0);
-    expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-green")).toHaveLength(2);
-    expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-blue")).toHaveLength(0);
+    const rollups = (selector: string) => host!.querySelectorAll(`.b-task-rollup${selector}`).length;
+    expect(rollups(".payment-paid.b-color-green")).toBe(2);
+    expect(rollups(".payment-scheduled")).toBe(0);
+    expect(rollups(".b-color-blue")).toBe(0);
   });
 
   describe("dragging the wedding day", () => {

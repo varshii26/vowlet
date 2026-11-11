@@ -81,7 +81,8 @@ describe("buildTimeline on the demo data", () => {
     for (const row of vendorRows) {
       const spec = VENDORS.find((v) => `vendor-v-${v.slug}` === row.id)!;
       expect(row.children).toHaveLength(spec.payments.length);
-      expect(row.expanded).toBe(true);
+      expect(row.expanded).toBe(false);
+      for (const child of row.children!) expect(child.rollup).toBe(true);
     }
     const input = demoInput();
     for (const v of input.vendors) {
@@ -115,7 +116,7 @@ describe("buildTimeline on the demo data", () => {
   it("covers every milestone with padding either side", () => {
     const all = [data.tasks[0], ...payments].map((t) => t.startDate!).sort();
     expect(data.startDate).toBe("2026-05-22"); // earliest 2026-06-12 minus 21 days
-    expect(data.endDate).toBe("2027-05-08"); // wedding 2027-04-17 plus 21 days
+    expect(data.endDate).toBe("2027-06-01"); // wedding 2027-04-17 plus 45 days of room to drag it
     expect(data.startDate < all[0]).toBe(true);
     expect(data.endDate > all[all.length - 1]).toBe(true);
   });
@@ -181,6 +182,12 @@ describe("withBaseline (what-if ghosts)", () => {
     expect(preview.endDate >= buildTimeline(demoInput(d("2027-06-12")), today).endDate).toBe(true);
   });
 
+  it("opens the vendor rows whose payments moved, so their ghosts are visible", () => {
+    expect(task(vendorTaskId("v-grand-oak-estate")).expanded).toBe(true);
+    expect(task(vendorTaskId("v-paper-crane-invitations")).expanded).toBe(false); // signing date only, nothing moved
+    expect(flat(withBaseline(base, base)).some((t) => t.expanded)).toBe(false);
+  });
+
   it("has no ghosts at all when nothing moved", () => {
     expect(flat(withBaseline(base, base)).some((t) => t.baselines)).toBe(false);
   });
@@ -232,12 +239,18 @@ describe("milestone colours", () => {
   });
 
   it("colours the wedding day and vendor rows apart from the payments", () => {
-    const data = buildTimeline(single(payment()), today);
+    const data = buildTimeline({ wedding: { coupleNames: "A & B", date: wedding }, vendors: [vendor([payment(), payment({ id: "p2", offsetDays: -10 })])] }, today);
     expect(data.tasks[0].eventColor).toBe("pink");
     expect(data.tasks[1].eventColor).toBe("light-gray");
     const cancelled = buildTimeline(single(payment({ status: "void" }), { status: "cancelled" }), today);
     expect(cancelled.tasks[1].eventColor).toBe("lighter-gray");
     expect(Object.values(STATUS_COLOR)).not.toContain(data.tasks[0].eventColor);
+  });
+
+  it("colours a single-payment vendor by its payment, whose diamond it covers", () => {
+    const data = buildTimeline(single(payment({ status: "paid" })), today);
+    expect(data.tasks[1].eventColor).toBe(STATUS_COLOR.paid);
+    expect(data.tasks[1].children![0].eventColor).toBe(STATUS_COLOR.paid);
   });
 
   it("only uses colours that exist in the Gantt stylesheet", () => {
@@ -339,7 +352,7 @@ describe("edge cases", () => {
     expect(data.tasks.map((t) => t.id)).toEqual([WEDDING_TASK_ID]);
     expect(data.dependencies).toEqual([]);
     expect(data.startDate).toBe("2027-03-27");
-    expect(data.endDate).toBe("2027-05-08");
+    expect(data.endDate).toBe("2027-06-01");
   });
 
   it("keeps a vendor with no payments as an empty row", () => {

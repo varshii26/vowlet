@@ -97,7 +97,12 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
     }
   }, [data.dependencies]);
 
-  useTodayLine(ganttRef, todayIso);
+  // Read once, when the chart opens, to choose where it scrolls to.
+  const [openingWeddingIso] = useState(() => {
+    const wedding = data.details[WEDDING_TASK_ID];
+    return wedding?.kind === "wedding" ? wedding.isoDate : undefined;
+  });
+  useTodayLine(ganttRef, todayIso, openingWeddingIso);
 
   // The wrapper syncs new tasks into the existing records, and a field left out
   // keeps its old value. So every task states its baselines, empty when it has
@@ -128,7 +133,19 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       taskSegmentResizeFeature: false,
       projectLinesFeature: false,
       criticalPathsFeature: false,
-      dependenciesFeature: { allowCreate: false },
+      // Every payment links to the wedding day, so the lines would bunch into
+      // one stripe there. They stay hidden (gantt.css) and show only for the
+      // milestone under the mouse.
+      dependenciesFeature: { allowCreate: false, highlightDependenciesOnEventHover: true },
+      // Vendor rows start collapsed so all of them fit; each payment still shows
+      // as a diamond in its vendor's row, in its status colour. Clicking one
+      // fires taskClick with the payment itself (handled below).
+      rollupsFeature: {
+        template: ({ children }: { children: TaskModel[] }) =>
+          children
+            .map((child) => renderTaskTooltip(detailOf(child), child.startDate ? localIsoDay(new Date(child.startDate)) : undefined))
+            .join(""),
+      },
       // What-if before/after: a task whose data carries `baselines` (only while
       // a preview is showing, see withBaseline in lib/timeline) gets a faded
       // ghost at its old date under it. Tasks without baselines draw nothing.
@@ -188,7 +205,11 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           renderTaskTooltip(detailOf(taskRecord), taskRecord.startDate ? localIsoDay(new Date(taskRecord.startDate)) : undefined),
       },
       onTaskClick: ({ taskRecord }: { taskRecord: TaskModel }) => {
-        const detail = detailOf(taskRecord);
+        // A rollup click hands us the payment itself. A vendor with a single
+        // payment is drawn as one diamond (its own summary), so it stands for
+        // that payment.
+        const only = taskRecord.children instanceof Array && taskRecord.children.length === 1 ? (taskRecord.children[0] as TaskModel) : undefined;
+        const detail = detailOf(only ?? taskRecord);
         if (detail?.kind !== "payment") return;
         // Without a select handler, a payment opens the clause it comes from.
         if (selectRef.current) selectRef.current(detail);
@@ -217,12 +238,15 @@ function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
   }));
 }
 
+/** Days kept visible after the wedding day when the chart opens. */
+const WEDDING_VIEW_MARGIN_DAYS = 21;
+
 type SummaryFeature = { refresh?: () => void; updateTimelineSummaries?: () => void };
 
 type Timeline = {
   foregroundCanvas?: HTMLElement;
   getCoordinateFromDate: (date: Date) => number;
-  timeAxisSubGrid?: { scrollable?: { scrollTo: (x: number) => unknown } };
+  timeAxisSubGrid?: { element?: HTMLElement; scrollable?: { scrollTo: (x: number) => unknown } };
   ion: (listeners: Record<string, () => void>) => () => void;
 };
 
@@ -232,7 +256,7 @@ type Timeline = {
  * axis sub-grid (it scrolls with the timeline). Never put it inside Bryntum's
  * foreground canvas: Bryntum recycles that canvas's children as task elements.
  */
-function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined) {
+function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined, weddingIso: string | undefined) {
   useEffect(() => {
     const gantt = ganttRef.current?.instance as unknown as Timeline | undefined;
     if (!gantt || !todayIso) return;
@@ -257,14 +281,22 @@ function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string
     };
 
     place();
-    // Open on the part that matters: from a month before today onwards. Set the
-    // timeline's own scroll; scrollToDate would also scroll the page to the chart.
+    // Open on the part that matters: from a month before today onwards, but
+    // never so far right that the wedding day (plus room to drag it) is cut
+    // off. Set the timeline's own scroll; scrollToDate would also scroll the
+    // page to the chart.
     const scroller = gantt.timeAxisSubGrid?.scrollable;
-    void scroller?.scrollTo(Math.max(0, gantt.getCoordinateFromDate(new Date(y, m - 2, d))));
+    let x = gantt.getCoordinateFromDate(new Date(y, m - 2, d));
+    const viewport = gantt.timeAxisSubGrid?.element?.clientWidth ?? 0;
+    if (weddingIso && viewport > 0) {
+      const [wy, wm, wd] = weddingIso.split("-").map(Number);
+      x = Math.min(x, gantt.getCoordinateFromDate(new Date(wy, wm - 1, wd + WEDDING_VIEW_MARGIN_DAYS)) - viewport);
+    }
+    void scroller?.scrollTo(Math.max(0, x));
     const detach = gantt.ion({ timeAxisChange: place, timelineViewportResize: place, renderRows: place, horizontalScroll: place });
     return () => {
       detach();
       canvas.remove();
     };
-  }, [ganttRef, todayIso]);
+  }, [ganttRef, todayIso, weddingIso]);
 }
