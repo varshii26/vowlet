@@ -1,17 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGanttFocus } from "@/components/Gantt/FocusContext";
 import { StatusLegend } from "@/components/Gantt/StatusLegend";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { usePaymentDrawer } from "@/components/Payments/PaymentDrawer";
 import { useToast } from "@/components/ui/Toast";
 import { WhatIfPanel, type ExplanationState, type WhatIfState } from "@/components/WhatIf/WhatIfPanel";
 import { daysBetweenUtc, toIsoDate } from "@/lib/schedule";
+import { describeFocus } from "@/lib/agent/focus";
 import { buildTimeline, withBaseline, type TimelineInput } from "@/lib/timeline";
+import { applyFocus } from "@/lib/timeline-focus";
 import { requestApply, requestExplanation, requestWhatIf } from "@/lib/whatif/client";
 
 const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+const NO_PROPOSALS: ReadonlySet<string> = new Set();
 
 type Props = {
   input: TimelineInput;
@@ -83,13 +87,38 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
     [input, preview, today, base],
   );
 
+  // What the latest agent answer is about: highlighted, shaded and opened on
+  // the timeline (lib/timeline-focus.ts). Without an answer, the plain schedule.
+  const ganttFocus = useGanttFocus();
+  const focus = ganttFocus?.focus ?? null;
+  const pendingProposalIds = ganttFocus?.pendingProposalIds ?? NO_PROPOSALS;
+  const shown = useMemo(() => applyFocus(timeline, focus, pendingProposalIds), [timeline, focus, pendingProposalIds]);
+
+  // An answer about a new date previews it exactly like dragging the wedding day there.
+  const dropRef = useRef<(isoDate: string) => void>(() => {});
+  useEffect(() => {
+    dropRef.current = (isoDate) => void weddingDropped(isoDate);
+  });
+  const registerPreview = ganttFocus?.registerPreview;
+  useEffect(() => {
+    if (!registerPreview) return;
+    registerPreview((isoDate) => dropRef.current(isoDate));
+    return () => registerPreview(null);
+  }, [registerPreview]);
+
   const payments = input.vendors.flatMap((vendor) => vendor.payments);
   const movedCount = payments.filter((p) => p.anchor === "wedding_date").length;
+
+  /** An agent answer's what-if is over once its preview is cancelled or confirmed: drop its banner too. */
+  function endAgentPreview() {
+    if (ganttFocus?.focus?.previewDate) ganttFocus.setFocus(null);
+  }
 
   function cancel() {
     latestRequest.current += 1;
     setPreview(null);
     setApplyError(null);
+    endAgentPreview();
   }
 
   async function weddingDropped(isoDate: string) {
@@ -125,6 +154,7 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
       return;
     }
     toast(result.message);
+    endAgentPreview();
     // The page re-renders from the database with the new date; the preview
     // stays on screen until it arrives, so nothing flickers back.
     router.refresh();
@@ -139,6 +169,19 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           the date would cost.
         </p>
       </div>
+      {focus && ganttFocus && (
+        <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-1.5 text-sm">
+          <span className="text-muted">From your question:</span>
+          <span className="font-medium text-ink">{describeFocus(focus)}</span>
+          <button
+            type="button"
+            className="vw-no-print ml-auto text-xs font-medium text-accent-strong underline underline-offset-2 hover:text-ink"
+            onClick={() => ganttFocus.setFocus(null)}
+          >
+            Clear highlight
+          </button>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <StatusLegend />
         <button
@@ -155,7 +198,9 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
       <div className="relative min-h-0 flex-1">
         <PaymentGantt
           className={className ?? "h-[680px]"}
-          data={timeline}
+          data={shown}
+          timeRanges={shown.timeRanges}
+          focusTaskId={shown.focusTaskId}
           onPaymentSelect={drawer ? (payment) => drawer.openPayment(payment) : undefined}
           onWeddingDateChange={(iso) => void weddingDropped(iso)}
           minWeddingDate={todayIso}

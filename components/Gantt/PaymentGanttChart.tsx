@@ -12,6 +12,10 @@ import { formatCents } from "@/lib/money";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
 
+// TimeRanges is a Scheduler feature: it registers with Gantt only once its module is loaded.
+import "@bryntum/scheduler-enterprise/lib/Scheduler/feature/TimeRanges.js";
+import { DIM_CLS, type TimelineRange } from "@/lib/timeline-focus";
+
 import "@bryntum/core-enterprise/fontawesome/css/fontawesome.css";
 import "@bryntum/core-enterprise/fontawesome/css/solid.css";
 import "@bryntum/gantt-enterprise/gantt.css";
@@ -44,6 +48,10 @@ type Props = {
   onPrintReady?: (print: (() => Promise<void>) | null) => void;
   /** The couple's names, for the printed page header. */
   coupleNames?: string;
+  /** Spans to shade (Enterprise TimeRanges), e.g. "Due in the next 30 days" from an agent answer. */
+  timeRanges?: TimelineRange[];
+  /** A row to scroll into view when it changes, e.g. the vendor an agent answer is about. */
+  focusTaskId?: string | null;
 };
 
 /** `YYYY-MM-DD` of the calendar day Bryntum shows. Its dates are local midnights, built from our `YYYY-MM-DD` strings. */
@@ -57,7 +65,17 @@ export const localIsoDay = (date: Date) =>
  * the new day. The parent recomputes every date from it and hands back new data.
  * Browser only; load it through PaymentGantt, which skips server rendering.
  */
-export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, minWeddingDate, todayIso, onPrintReady, coupleNames }: Props) {
+export function PaymentGanttChart({
+  data,
+  onPaymentSelect,
+  onWeddingDateChange,
+  minWeddingDate,
+  todayIso,
+  onPrintReady,
+  coupleNames,
+  timeRanges = NO_RANGES,
+  focusTaskId = null,
+}: Props) {
   // The chart is configured once, so it reads the latest data and callback
   // through refs instead of being rebuilt on every update.
   const ganttRef = useRef<BryntumGantt>(null);
@@ -113,6 +131,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
   useVendorProgress(ganttRef, data.tasks);
   useDeadlineClicks(ganttRef);
   usePrint(ganttRef, onPrintReady);
+  useScrollToFocus(ganttRef, focusTaskId);
   const printHeaderRef = useRef({ coupleNames: coupleNames ?? "", todayIso: todayIso ?? "" });
   useEffect(() => {
     printHeaderRef.current = { coupleNames: coupleNames ?? "", todayIso: todayIso ?? "" };
@@ -229,11 +248,15 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           lateDates: false,
           constraintDate: false,
           deadlineDate: false,
-          dateChange: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "date_change"),
-          cancellation: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "cancellation"),
+          dateChange: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "date_change", isDimmed(taskRecord)),
+          cancellation: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "cancellation", isDimmed(taskRecord)),
         },
         tooltipTemplate: ({ indicator }: { indicator: DeadlineIndicator }) => indicator.tipHtml ?? "",
       },
+      // Shaded spans from an agent answer ("what do we owe in the next 30
+      // days?"). The today line stays our own (see useTodayLine).
+      // The banner above the chart names the span, so no header label.
+      timeRangesFeature: { showCurrentTimeLine: false, showHeaderElements: false },
       // Print the schedule through the browser's print dialog (Enterprise
       // Print feature; see print.ts and usePrint below).
       printFeature: {
@@ -298,6 +321,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       {...config}
       tasks={tasks}
       dependencies={data.dependencies}
+      timeRanges={timeRanges}
       startDate={data.startDate}
       endDate={data.endDate}
     />
@@ -363,7 +387,10 @@ const DEADLINE_ICON: Record<DeadlineKind, string> = {
 };
 
 /** The indicator for a vendor's next deadline of one kind, or null when it has none. */
-function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind): DeadlineIndicator | null {
+/** A row the agent's focus steps back (lib/timeline-focus.ts). */
+const isDimmed = (task: TaskModel) => String(task.cls ?? "").split(/\s+/).includes(DIM_CLS);
+
+function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind, dimmed = false): DeadlineIndicator | null {
   if (detail?.kind !== "vendor") return null;
   const deadline: Deadline | undefined = detail.deadlines?.find((d) => d.kind === kind);
   if (!deadline) return null;
@@ -372,10 +399,38 @@ function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind): 
     startDate: new Date(y, m - 1, d), // Bryntum dates are local midnights
     name: deadline.title,
     iconCls: DEADLINE_ICON[kind],
-    cls: `vw-deadline vw-deadline-${kind}`,
+    cls: `vw-deadline vw-deadline-${kind}${dimmed ? ` ${DIM_CLS}` : ""}`,
     tipHtml: renderDeadlineTip(deadline, detail.title),
     href: deadline.clauseId ? clauseHref(detail.vendorId, deadline.clauseId) : null,
   };
+}
+
+const NO_RANGES: TimelineRange[] = [];
+
+/**
+ * Selects and scrolls the row an agent answer is about into view, once per new focus. The
+ * timeline's own scrollers only, so the page doesn't jump to the chart.
+ */
+function useScrollToFocus(ganttRef: RefObject<BryntumGantt | null>, taskId: string | null) {
+  useEffect(() => {
+    const gantt = ganttRef.current?.instance as unknown as
+      | {
+          taskStore: { getById(id: string): unknown };
+          scrollRowIntoView(record: unknown, options: object): Promise<unknown>;
+          selectRow(options: { record: unknown; scrollIntoView: boolean }): void;
+        }
+      | undefined;
+    if (!gantt || !taskId) return;
+    // Wait a frame: a vendor the answer opens is expanded by this same render.
+    const frame = requestAnimationFrame(() => {
+      const record = gantt.taskStore.getById(taskId);
+      if (!record) return;
+      // Selecting the row is what highlights it in the grid (the theme's rose selection).
+      gantt.selectRow({ record, scrollIntoView: false });
+      void gantt.scrollRowIntoView(record, { block: "center", animate: 300 }).catch(() => {});
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ganttRef, taskId]);
 }
 
 type PrintableGantt = {

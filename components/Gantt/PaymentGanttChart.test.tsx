@@ -6,6 +6,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PaymentGanttChart, localIsoDay } from "@/components/Gantt/PaymentGanttChart";
 import { buildTimeline, withBaseline, type TimelineData, type TimelineInput } from "@/lib/timeline";
+import { applyFocus } from "@/lib/timeline-focus";
 
 // Bryntum measures layout and reads these browser APIs while its module loads,
 // so they must exist before any import. jsdom has none of them.
@@ -375,6 +376,50 @@ describe("printing the schedule (Print feature)", () => {
     expect(feature.print).toHaveBeenCalledWith(expect.objectContaining({ rowsRange: "all", scheduleRange: "completeview" }));
     expect(expandedWhilePrinting).toEqual([true]);
     expect(vendor().isExpanded(gantt.taskStore)).toBe(false);
+  });
+});
+
+describe("the agent's focus (TimeRanges, selection, dimming)", () => {
+  it("shades the asked-about span, selects the focused row, and dims other rows' deadline icons", async () => {
+    const twoVendors: TimelineInput = {
+      ...input,
+      vendors: [
+        { ...input.vendors[0], terms: { dateChange: [{ minNoticeDays: 60, feePercent: 0, flatFee: 0 }], cancellation: [], dateChangeClause: null, cancellationClause: null } },
+        {
+          id: "v2",
+          name: "DJ Marlow Sound",
+          status: "active",
+          signingDate: d("2026-09-01"),
+          payments: [{ id: "p3", label: "DJ booking fee", amountCents: 50_000, anchor: "fixed", offsetDays: 0, fixedDate: d("2026-12-01"), status: "scheduled", clause: null }],
+        },
+      ],
+    };
+    const focused = applyFocus(
+      buildTimeline(twoVendors, today),
+      { vendors: [], paymentIds: ["p3"], range: { from: "2026-11-07", to: "2026-12-07", label: "Due in the next 30 days" }, previewDate: null, refund: null },
+      new Set(),
+    );
+    host = document.createElement("div");
+    host.style.height = "600px";
+    host.style.width = "1200px";
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(<PaymentGanttChart data={focused} timeRanges={focused.timeRanges} focusTaskId={focused.focusTaskId} />);
+    });
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    });
+
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    expect((gantt.features as unknown as { timeRanges?: { disabled: boolean } }).timeRanges?.disabled).toBe(false);
+    // jsdom has no layout to paint it in; check what Bryntum loaded (it draws in the browser).
+    const ranges = (gantt.project as unknown as { timeRangeStore: { records: { name: string; cls: unknown }[] } }).timeRangeStore.records;
+    expect(ranges.map((r) => [r.name, String(r.cls).trim()])).toEqual([["Due in the next 30 days", "vw-focus-range"]]);
+    expect((gantt as unknown as { selectedRecords: { id: string }[] }).selectedRecords.map((r) => r.id)).toEqual(["vendor-v2"]);
+    // Grand Oak isn't in the answer: its deadline icon steps back with its row.
+    expect(host!.querySelector(".b-indicator.vw-deadline")!.className).toContain("vw-dim");
   });
 });
 

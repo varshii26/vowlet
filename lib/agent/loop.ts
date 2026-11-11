@@ -1,5 +1,6 @@
 import { FunctionCallingConfigMode, type Content, type Part } from "@google/genai";
 import type { PrismaClient } from "@/generated/prisma/client";
+import { focusFromRun, type AgentFocus, type FocusCall } from "@/lib/agent/focus";
 import { agentSystemPrompt } from "@/lib/agent/prompt";
 import { collectSources, type CitationSource } from "@/lib/agent/sources";
 import { describeStep, type AgentStep } from "@/lib/agent/steps";
@@ -47,6 +48,8 @@ export type AgentEvent =
       usage: LlmUsage;
       /** The clause citations tools returned during the run: the only ones the answer may turn into chips. */
       sources: CitationSource[];
+      /** What the answer is about on the timeline, derived from the tool calls in code (lib/agent/focus.ts). */
+      focus: AgentFocus | null;
     }
   | { type: "error"; message: string };
 
@@ -108,6 +111,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
 
   const proposalSummaries = new Map<string, string>();
   const sources = new Map<string, CitationSource>();
+  const calls: FocusCall[] = [];
   let model: string | null = null;
   let usage = ZERO_USAGE;
   let iterations = 0;
@@ -128,7 +132,8 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
 
     const notes = note ? [NOTES[note], ...(proposals.length > 0 ? [NOTES.proposals] : [])] : [];
     const full = [text.trim(), ...notes.map((n) => `(${n})`)].filter(Boolean).join("\n\n");
-    return { type: "answer", text: full, proposals, model, iterations, truncated: note !== null, usage, sources: [...sources.values()] };
+    const focus = focusFromRun(calls, proposals, run.today);
+    return { type: "answer", text: full, proposals, model, iterations, truncated: note !== null, usage, sources: [...sources.values()], focus };
   }
 
   for (let i = 1; i <= maxIterations; i++) {
@@ -182,6 +187,7 @@ export async function* runAgent(run: AgentRun): AsyncGenerator<AgentEvent> {
       const outcome = await executeTool(call.name, call.args, { prisma: run.prisma, today: run.today, paypal: run.paypal });
       yield { type: "step", ...describeStep(call.name, call.args, outcome) };
       if (outcome.ok) collectSources(outcome.output, sources);
+      calls.push({ tool: call.name, args: call.args, ok: outcome.ok, output: outcome.ok ? outcome.output : null });
 
       if (outcome.ok && call.name === "propose_action") {
         const out = outcome.output as { proposalId?: unknown; summary?: unknown };

@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { GanttFocusProvider } from "@/components/Gantt/FocusContext";
 import { PaymentDrawerProvider } from "@/components/Payments/PaymentDrawer";
 import type { TaskDetail } from "@/lib/timeline";
 
@@ -11,15 +12,19 @@ type Props = {
   main: ReactNode;
   /** The "Ask Vowlet" panel. */
   aside: ReactNode;
+  /** Ids of proposals waiting for the couple, for the timeline's refund preview. */
+  pendingProposalIds?: string[];
 };
 
 /**
  * The dashboard frame (desktop): the main column scrolls, the agent panel stays
  * full height on the right, so asking, approving and the Gantt reflowing are all
- * in one view. Provides the payment drawer to everything inside.
+ * in one view. Provides the payment drawer, and the agent's focus on the
+ * timeline (what the latest answer is about), to everything inside.
  */
-export function DashboardShell({ details, main, aside }: Props) {
+export function DashboardShell({ details, main, aside, pendingProposalIds = [] }: Props) {
   return (
+    <GanttFocusProvider pendingProposalIds={pendingProposalIds}>
     <PaymentDrawerProvider details={details}>
       <div className="flex h-screen min-h-0 w-full">
         <main className="min-w-0 flex-1 overflow-y-auto">{main}</main>
@@ -28,5 +33,6 @@ export function DashboardShell({ details, main, aside }: Props) {
         </aside>
       </div>
     </PaymentDrawerProvider>
+    </GanttFocusProvider>
   );
 }

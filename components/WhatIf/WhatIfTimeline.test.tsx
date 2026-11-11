@@ -2,7 +2,9 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "@/components/ui/Toast";
+import { GanttFocusProvider, useGanttFocus } from "@/components/Gantt/FocusContext";
 import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
+import type { AgentFocus } from "@/lib/agent/focus";
 import type { TimelineData, TimelineInput } from "@/lib/timeline";
 
 const refresh = vi.hoisted(() => vi.fn());
@@ -310,5 +312,51 @@ describe("Print schedule button", () => {
     await act(async () => fireEvent.click(button()));
     expect(screen.getByText(/couldn't open the print dialog/i)).toBeTruthy();
     expect(button().disabled).toBe(false);
+  });
+});
+
+describe("the agent's focus on the timeline", () => {
+  const none = { vendors: [], paymentIds: [], range: null, previewDate: null, refund: null };
+  let setFocus: ((focus: AgentFocus | null) => void) | null = null;
+  function Grab() {
+    setFocus = useGanttFocus()!.setFocus;
+    return null;
+  }
+  const renderWithFocus = () =>
+    render(
+      <GanttFocusProvider pendingProposalIds={[]}>
+        <Grab />
+        <WhatIfTimeline input={input} todayIso="2026-11-07" />
+      </GanttFocusProvider>,
+      { wrapper: ToastProvider },
+    );
+
+  it("says what the answer is about, highlights it, and clears on request", async () => {
+    renderWithFocus();
+    expect(screen.queryByText("From your question:")).toBeNull();
+
+    act(() => setFocus!({ ...none, paymentIds: ["p2"], range: { from: "2026-11-07", to: "2026-12-07", label: "Due in the next 30 days" } }));
+    expect(screen.getByText("Due in the next 30 days")).toBeTruthy();
+    const data = chart.data as { tasks: { children?: { id: string; cls: string }[] }[] };
+    const balance = data.tasks.flatMap((t) => t.children ?? []).find((t) => t.id === "payment-p2")!;
+    expect(balance.cls).toContain("vw-focus");
+
+    await click("Clear highlight");
+    expect(screen.queryByText("From your question:")).toBeNull();
+  });
+
+  it("previews an answer's new date exactly like dragging the wedding day there, and Cancel ends it", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    renderWithFocus();
+    await act(async () => setFocus!({ ...none, previewDate: "2027-06-12" }));
+
+    expect(chartDays()).toContain("wedding=2027-06-12");
+    expect(chartDays()).toContain("payment-p2=2027-05-13");
+    expect(calls.map((c) => c.url)).toContain("/api/whatif");
+    expect(screen.getByText("What if the wedding moves to Jun 12, 2027")).toBeTruthy();
+
+    await click("Cancel");
+    expect(chartDays()).toContain("wedding=2027-04-17");
+    expect(screen.queryByText("From your question:")).toBeNull();
   });
 });
