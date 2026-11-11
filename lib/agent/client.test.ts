@@ -8,7 +8,7 @@ const usage = { inputTokens: 1, outputTokens: 1, thinkingTokens: 0, cachedTokens
 const events: StreamEvent[] = [
   { type: "thinking", label: "Understanding your question…" },
   { type: "step", tool: "get_wedding", ok: true, label: "Checking the wedding date and budget…" },
-  { type: "answer", text: "Done.", proposals: [], model: "m1", iterations: 2, truncated: false, usage, sources: [] },
+  { type: "answer", text: "Done.", proposals: [], model: "m1", iterations: 2, truncated: false, usage, sources: [], focus: null },
   { type: "done" },
 ];
 

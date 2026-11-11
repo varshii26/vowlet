@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { streamAgent } from "@/lib/agent/client";
+import type { AgentFocus } from "@/lib/agent/focus";
 import type { ChatTurn } from "@/lib/agent/loop";
 import type { CitationSource } from "@/lib/agent/sources";
 import { MAX_HISTORY_TURNS, MAX_QUESTION_CHARS, MAX_TURN_CHARS } from "@/lib/agent/limits";
@@ -22,6 +23,8 @@ export type ChatMessage = {
   steps: string[];
   /** Clause citations the tools returned, shown as chips where the answer quotes them. */
   sources: CitationSource[];
+  /** What the answer is about on the timeline (derived on the server from the tools it ran). */
+  focus: AgentFocus | null;
 };
 
 export type LiveStep = { label: string; ok: boolean };
@@ -36,15 +39,17 @@ const message = (id: number, role: ChatMessage["role"], text: string, over: Part
   proposalIds: [],
   steps: [],
   sources: [],
+  focus: null,
   ...over,
 });
 
 /**
  * The chat's state and the streaming behind it: the conversation, the live list
  * of what the assistant is doing, and Stop. `onProposals` is called when an
- * answer leaves proposals waiting, so the page can refresh them.
+ * answer leaves proposals waiting, so the page can refresh them. `onFocus` gets
+ * each answer's focus for the timeline, and null as a new question starts.
  */
-export function useAgentChat({ onProposals }: { onProposals?: () => void } = {}) {
+export function useAgentChat({ onProposals, onFocus }: { onProposals?: () => void; onFocus?: (focus: AgentFocus | null) => void } = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [steps, setSteps] = useState<LiveStep[]>([]);
   const [activity, setActivity] = useState<string | null>(null);
@@ -77,6 +82,7 @@ export function useAgentChat({ onProposals }: { onProposals?: () => void } = {})
       setSteps([]);
       setActivity(null);
       setRunning(true);
+      onFocus?.(null); // the last answer's highlight goes as the next question starts
 
       const done: string[] = [];
       const outcome = await streamAgent({
@@ -96,8 +102,9 @@ export function useAgentChat({ onProposals }: { onProposals?: () => void } = {})
             case "answer":
               setMessages((prev) => [
                 ...prev,
-                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, proposalIds: event.proposals.map((p) => p.id), steps: [...done], sources: event.sources ?? [] }),
+                message(nextId.current++, "assistant", event.text, { truncated: event.truncated, proposalCount: event.proposals.length, proposalIds: event.proposals.map((p) => p.id), steps: [...done], sources: event.sources ?? [], focus: event.focus ?? null }),
               ]);
+              onFocus?.(event.focus ?? null);
               if (event.proposals.length > 0) onProposals?.();
               break;
             case "error":
@@ -118,7 +125,7 @@ export function useAgentChat({ onProposals }: { onProposals?: () => void } = {})
       setSteps([]);
       setRunning(false);
     },
-    [messages, running, onProposals],
+    [messages, running, onProposals, onFocus],
   );
 
   const stop = useCallback(() => abort.current?.abort(), []);

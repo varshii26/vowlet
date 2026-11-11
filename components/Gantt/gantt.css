@@ -294,3 +294,36 @@
 .b-gantt .b-indicator.vw-deadline-cancellation i {
   color: #b45309;
 }
+
+/*
+ * The agent's focus (lib/timeline-focus.ts): what the latest answer is about
+ * stands out, everything else steps back. Classes reach the payment rollups
+ * too, since Bryntum copies a payment's cls onto its rollup diamond.
+ */
+.b-gantt .b-gantt-task.vw-dim,
+.b-gantt .b-task-rollup.vw-dim {
+  opacity: 0.25;
+}
+.b-gantt .b-gantt-task.payment.vw-focus,
+.b-gantt .b-task-rollup.vw-focus {
+  filter: drop-shadow(0 0 3px rgb(158 46 84 / 0.85));
+}
+/* Labels and deadline icons in a dimmed row step back with it. */
+.b-gantt .b-gantt-task-wrap:has(> .b-gantt-task.vw-dim) .b-sch-label,
+.b-gantt .b-indicator.vw-dim {
+  opacity: 0.25;
+}
+/* A refund request waiting for approval: shown as it would be, dashed. */
+.b-gantt .b-gantt-task.vw-preview,
+.b-gantt .b-task-rollup.vw-preview {
+  outline: 1.5px dashed rgb(69 39 160 / 0.8);
+  outline-offset: 2px;
+}
+/* The span the answer asked about (TimeRanges): shaded body, labelled in the header. */
+.b-gantt .b-sch-time-range.vw-focus-range {
+  background: rgb(158 46 84 / 0.07);
+  border-inline: 1px dashed rgb(158 46 84 / 0.45);
+  color: #9e2e54;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}

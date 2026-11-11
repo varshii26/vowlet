@@ -69,6 +69,7 @@ export default async function Home() {
   return (
     <DashboardShell
       details={details}
+      pendingProposalIds={proposals.map((p) => p.id)}
       aside={<AgentPanel proposals={proposals} />}
       main={
         <div className="mx-auto w-full max-w-[1400px] space-y-6 px-8 py-6">

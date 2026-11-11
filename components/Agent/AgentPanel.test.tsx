@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
+import { GanttFocusProvider, useGanttFocus } from "@/components/Gantt/FocusContext";
 import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
 import type { ProposalView } from "@/lib/proposals/view";
 
@@ -18,6 +19,7 @@ const answer = (text: string, over: Partial<Extract<StreamEvent, { type: "answer
   iterations: 1,
   truncated: false,
   usage,
+  focus: null,
   ...over,
 });
 const proposal = (id: string) => ({ id, kind: "reschedule", status: "pending", summary: "Move the wedding", clauseId: null, payload: {} });
@@ -368,5 +370,55 @@ describe("keyboard and follow-ups", () => {
     fireEvent.click(screen.getByRole("button", { name: "Clear conversation" }));
     expect(screen.queryByText("You owe $500.")).toBeNull();
     expect(screen.getByLabelText("Suggested questions")).toBeTruthy();
+  });
+});
+
+describe("the answer on the timeline", () => {
+  const focus = {
+    vendors: [
+      { id: "v-florist", name: "Bloom & Thistle Florals" },
+      { id: "v-dj", name: "DJ Marlow Sound" },
+    ],
+    paymentIds: [],
+    range: null,
+    previewDate: null,
+    refund: { vendorId: "v-florist", proposalId: "prop-1" },
+  };
+
+  /** Shows what the shared focus is, as the timeline would read it. */
+  function FocusProbe() {
+    const ctx = useGanttFocus();
+    return <output aria-label="timeline focus">{ctx?.focus ? ctx.focus.vendors.map((v) => v.name).join(" + ") || "focused" : "none"}</output>;
+  }
+  const shown = () => screen.getByRole("status", { name: "timeline focus" }).textContent;
+
+  it("puts each answer's focus on the timeline, clears it for the next question, and can show it again", async () => {
+    stubFetch(complete(answer("The florist owes you $800.", { focus })), complete(answer("Hello.")));
+    render(
+      <GanttFocusProvider pendingProposalIds={[]}>
+        <AgentPanel />
+        <FocusProbe />
+      </GanttFocusProvider>,
+    );
+    await ask("The florist cancelled, what now?");
+    expect(shown()).toBe("Bloom & Thistle Florals + DJ Marlow Sound");
+
+    // One vendor from the answer: just that row (and its refund preview).
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "DJ Marlow Sound" })));
+    expect(shown()).toBe("DJ Marlow Sound");
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "Show on timeline" })));
+    expect(shown()).toBe("Bloom & Thistle Florals + DJ Marlow Sound");
+
+    // A new question clears the highlight; an answer about nothing on the timeline leaves it clear.
+    await ask("Hi");
+    expect(shown()).toBe("none");
+    expect(screen.getAllByRole("button", { name: "Show on timeline" })).toHaveLength(1);
+  });
+
+  it("has no timeline buttons outside the dashboard", async () => {
+    stubFetch(complete(answer("The florist owes you $800.", { focus })));
+    render(<AgentPanel />);
+    await ask("The florist cancelled, what now?");
+    expect(screen.queryByRole("button", { name: "Show on timeline" })).toBeNull();
   });
 });

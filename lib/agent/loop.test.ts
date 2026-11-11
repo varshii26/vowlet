@@ -163,6 +163,29 @@ describe("the tool loop", () => {
 describe("proposals", () => {
   const reschedule = call("propose_action", { kind: "reschedule", newDate: "2027-06-17", reason: "The couple asked." });
 
+  it("says what the answer is about on the timeline, from the tools it ran (never from the model's text)", async () => {
+    const florist = await prisma.vendor.findFirstOrThrow({ where: { name: "Bloom & Thistle Florals" } });
+    const { client } = fakeGemini(
+      call("compute_refund_owed", { vendorId: "Bloom & Thistle Florals", cancelledBy: "vendor" }),
+      modelAnswer("Highlight the venue instead. You get money back."),
+    );
+    expect(answerOf(await collect(client)).focus).toEqual({
+      vendors: [{ id: florist.id, name: "Bloom & Thistle Florals" }],
+      paymentIds: [],
+      range: null,
+      previewDate: null,
+      refund: null,
+    });
+
+    const { client: soon } = fakeGemini(call("get_payment_schedule", { unpaidDueWithinDays: 30 }), modelAnswer("Here is what is due."));
+    const focus = answerOf(await collect(soon)).focus!;
+    expect(focus.range).toEqual({ from: "2026-11-07", to: "2026-12-07", label: "Due in the next 30 days" });
+    expect(focus.paymentIds.length).toBeGreaterThan(0);
+
+    const { client: plain } = fakeGemini(modelAnswer("Hello."));
+    expect(answerOf(await collect(plain)).focus).toBeNull();
+  });
+
   it("returns the proposals recorded during the run, with their details", async () => {
     const { client } = fakeGemini(reschedule, modelAnswer("I've prepared a proposal."));
     const events = await collect(client);

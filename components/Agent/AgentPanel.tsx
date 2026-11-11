@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AnswerText } from "@/components/Agent/AnswerText";
 import { useAgentChat } from "@/components/Agent/useAgentChat";
+import { useGanttFocus } from "@/components/Gantt/FocusContext";
 import { PendingProposals } from "@/components/Proposals/PendingProposals";
+import type { AgentFocus } from "@/lib/agent/focus";
 import { MAX_QUESTION_CHARS } from "@/lib/agent/limits";
 import type { ProposalView } from "@/lib/proposals/view";
 
@@ -24,7 +26,11 @@ type Props = {
  */
 export function AgentPanel({ proposals = [] }: Props) {
   const router = useRouter();
-  const { messages, steps, activity, running, send, stop, clear } = useAgentChat({ onProposals: () => router.refresh() });
+  const ganttFocus = useGanttFocus();
+  const { messages, steps, activity, running, send, stop, clear } = useAgentChat({
+    onProposals: () => router.refresh(),
+    onFocus: ganttFocus?.setFocus,
+  });
   const [draft, setDraft] = useState("");
   const log = useRef<HTMLDivElement>(null);
 
@@ -113,6 +119,7 @@ export function AgentPanel({ proposals = [] }: Props) {
                       {m.proposalCount === 1 ? "1 proposal is" : `${m.proposalCount} proposals are`} waiting for your approval below.
                     </p>
                   )}
+                  {m.focus && ganttFocus && <TimelineLinks focus={m.focus} show={ganttFocus.setFocus} />}
                   {m.steps.length > 0 && (
                     <details className="text-xs text-muted">
                       <summary className="cursor-pointer rounded">
@@ -195,4 +202,39 @@ function InlineProposals({ ids, pending }: { ids: string[]; pending: Map<string,
   if (ids.length === 0) return null;
   const waiting = ids.flatMap((id) => pending.get(id) ?? []);
   return <PendingProposals proposals={waiting} heading={null} />;
+}
+
+/**
+ * Under an answer: put what it is about back on the timeline, or just one of
+ * the vendors it mentions. The names come from the tools' output, not the
+ * model's text (lib/agent/focus.ts).
+ */
+function TimelineLinks({ focus, show }: { focus: AgentFocus; show: (focus: AgentFocus) => void }) {
+  const link = "rounded-full border border-line px-2 py-0.5 text-xs font-medium text-ink hover:border-accent hover:text-accent-strong";
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" aria-label="On the timeline">
+      <button type="button" className={link} onClick={() => show(focus)}>
+        Show on timeline
+      </button>
+      {focus.vendors.length > 1 &&
+        focus.vendors.map((vendor) => (
+          <button
+            key={vendor.id}
+            type="button"
+            className={link}
+            onClick={() =>
+              show({
+                vendors: [vendor],
+                paymentIds: [],
+                range: null,
+                previewDate: null,
+                refund: focus.refund?.vendorId === vendor.id ? focus.refund : null,
+              })
+            }
+          >
+            {vendor.name}
+          </button>
+        ))}
+    </div>
+  );
 }
