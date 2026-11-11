@@ -37,24 +37,24 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
   const pays = proposal.kind === "pay" && proposal.paymentId !== null;
 
   return (
-    <article aria-labelledby={headingId} className="space-y-3 rounded-lg border border-neutral-200 bg-white p-4">
+    <article aria-labelledby={headingId} className="animate-fade-up space-y-3 rounded-card border border-accent/25 border-l-4 border-l-accent bg-surface p-4 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h3 id={headingId} className="font-semibold">
+          <h3 id={headingId} className="text-base text-ink">
             {proposal.title}
           </h3>
-          <p className="text-sm text-neutral-700">{proposal.summary}</p>
+          <p className="text-sm text-muted">{proposal.summary}</p>
         </div>
         {proposal.amount && (
           <p className="text-right">
-            <span className="block text-xl font-semibold">{proposal.amount.label}</span>
-            <span className="block text-xs text-neutral-500">{proposal.amount.caption}</span>
+            <span className="block font-serif text-xl font-semibold tabular-nums text-ink">{proposal.amount.label}</span>
+            <span className="block text-xs text-muted">{proposal.amount.caption}</span>
           </p>
         )}
       </div>
 
       {proposal.details.length > 0 && (
-        <ul className="list-disc space-y-0.5 pl-5 text-sm text-neutral-600">
+        <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted">
           {proposal.details.map((line) => (
             <li key={line}>{line}</li>
           ))}
@@ -64,21 +64,21 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
       {proposal.draft && (
         <details className="text-sm">
           <summary className="cursor-pointer font-medium">Drafted message to the vendor</summary>
-          <p className="mt-1 whitespace-pre-wrap rounded bg-neutral-50 p-2 text-neutral-700">{proposal.draft}</p>
+          <p className="mt-1 whitespace-pre-wrap rounded-lg bg-canvas p-2 text-ink">{proposal.draft}</p>
         </details>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-neutral-500">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         {proposal.citation &&
           (proposal.clauseHref ? (
             <a
               href={proposal.clauseHref}
-              className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700 underline decoration-dotted underline-offset-2 hover:bg-neutral-200"
+              className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-strong underline decoration-dotted underline-offset-2 hover:bg-accent/15"
             >
               {proposal.citation}
             </a>
           ) : (
-            <span className="rounded-full bg-neutral-100 px-2 py-0.5 font-medium text-neutral-700">{proposal.citation}</span>
+            <span className="rounded-full bg-accent-soft px-2 py-0.5 font-medium text-accent-strong">{proposal.citation}</span>
           ))}
         {proposal.reason && <span>Why: {proposal.reason}</span>}
       </div>
@@ -90,13 +90,13 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
             type="button"
             onClick={() => void resolve("approve")}
             disabled={busy !== null}
-            className="rounded-lg bg-neutral-900 px-4 py-1.5 text-sm font-medium text-white disabled:bg-neutral-300"
+            className="btn btn-primary"
           >
             {busy === "approve" ? "Working…" : APPROVE_LABEL[proposal.kind]}
           </button>
         )}
         {pays && error && (
-          <button type="button" onClick={() => void resolve("approve")} disabled={busy !== null} className="text-sm underline">
+          <button type="button" onClick={() => void resolve("approve")} disabled={busy !== null} className="rounded text-sm underline">
             Check again
           </button>
         )}
@@ -104,7 +104,7 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
           type="button"
           onClick={() => void resolve("dismiss")}
           disabled={busy !== null}
-          className="rounded-lg border border-neutral-300 px-4 py-1.5 text-sm font-medium hover:bg-neutral-50 disabled:text-neutral-400"
+          className="btn btn-secondary"
         >
           {busy === "dismiss" ? "Working…" : "Dismiss"}
         </button>

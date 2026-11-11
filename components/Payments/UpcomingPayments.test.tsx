@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { PaymentDrawerProvider } from "@/components/Payments/PaymentDrawer";
 import { UpcomingPayments } from "@/components/Payments/UpcomingPayments";
+import { ToastProvider } from "@/components/ui/Toast";
+import { paymentTaskId, vendorTaskId, type TaskDetail } from "@/lib/timeline";
 import type { UpcomingPayment } from "@/lib/payments/upcoming";
 
 // PayButton has its own tests; here it is a stub that reports a settled payment when clicked.
@@ -43,54 +46,106 @@ const payment = (over: Partial<UpcomingPayment> = {}): UpcomingPayment => ({
   ...over,
 });
 
-describe("UpcomingPayments", () => {
-  it("lists each payment with its vendor, due date, status, amount and a Pay button", () => {
-    render(<UpcomingPayments payments={[payment(), payment({ paymentId: "p2", label: "Catering final", vendorName: "Saffron & Sage Catering", amountLabel: "$1,500", status: "overdue", statusLabel: "Overdue" })]} />);
+/** Timeline details the drawer reads, for payment p1 and its vendor. */
+const details = (over: Partial<Extract<TaskDetail, { kind: "payment" }>> = {}, cancelled = false): Record<string, TaskDetail> => ({
+  [vendorTaskId("v1")]: { kind: "vendor", title: "Grand Oak Estate", amountLabel: "$9,000", summary: "", cancelled },
+  [paymentTaskId("p1")]: {
+    kind: "payment",
+    title: "Venue second installment",
+    vendorId: "v1",
+    vendorName: "Grand Oak Estate",
+    paymentId: "p1",
+    amountLabel: "$3,000",
+    dateLabel: "Dec 18, 2026",
+    status: "scheduled",
+    statusLabel: "Scheduled",
+    clauseId: "c1",
+    clauseSummary: "Second installment",
+    clausePage: 2,
+    clauseText: "The second installment of $3,000 is due 120 days before the event.",
+    ...over,
+  },
+});
 
-    const rows = screen.getAllByRole("listitem");
+function renderList(payments: UpcomingPayment[], d = details()) {
+  return render(
+    <ToastProvider>
+      <PaymentDrawerProvider details={d}>
+        <UpcomingPayments payments={payments} />
+      </PaymentDrawerProvider>
+    </ToastProvider>,
+  );
+}
+
+const openRow = (name: RegExp) => act(() => fireEvent.click(screen.getByRole("button", { name })));
+const dialog = () => screen.getByRole("dialog", { name: "Venue second installment" });
+
+describe("UpcomingPayments", () => {
+  it("lists each payment with its vendor, due date, status and amount, without a Pay button per row", () => {
+    renderList([payment(), payment({ paymentId: "p2", label: "Catering deposit", status: "due_soon", statusLabel: "Due soon" })]);
+    const rows = within(screen.getByRole("list", { name: "Upcoming payments" })).getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]).getByText("Venue second installment")).toBeTruthy();
-    expect(within(rows[0]).getByText(/Grand Oak Estate · due Dec 18, 2026/)).toBeTruthy();
-    expect(within(rows[0]).getByText("Scheduled")).toBeTruthy();
-    expect(within(rows[0]).getByText("$3,000")).toBeTruthy();
-    expect(within(rows[0]).getByRole("button", { name: "Pay p1" })).toBeTruthy();
-    expect(within(rows[1]).getByText("Overdue")).toBeTruthy();
-    expect(within(rows[1]).getByRole("button", { name: "Pay p2" })).toBeTruthy();
+    expect(rows[0].textContent).toContain("Venue second installment");
+    expect(rows[0].textContent).toContain("Grand Oak Estate · due Dec 18, 2026");
+    expect(rows[0].textContent).toContain("Scheduled");
+    expect(rows[0].textContent).toContain("$3,000");
+    expect(rows[1].textContent).toContain("Due soon");
+    expect(screen.queryByRole("button", { name: /^Pay / })).toBeNull();
   });
 
   it("says so when nothing is left to pay", () => {
-    render(<UpcomingPayments payments={[]} />);
-    expect(screen.queryAllByRole("listitem")).toHaveLength(0);
+    renderList([]);
     expect(screen.getByText("No payments left to make.")).toBeTruthy();
   });
+});
 
-  it("confirms a payment, and keeps the confirmation until dismissed", () => {
-    render(<UpcomingPayments payments={[payment()]} />);
-    expect(screen.queryByRole("status")).toBeNull();
+describe("the payment drawer", () => {
+  it("opens from a row with the amount, due date, status, the clause quote and its page, and the Pay button", () => {
+    renderList([payment()]);
+    openRow(/Venue second installment/);
+    const d = within(dialog());
+    expect(d.getByText("$3,000")).toBeTruthy();
+    expect(d.getByText("Dec 18, 2026")).toBeTruthy();
+    expect(d.getByText("Scheduled")).toBeTruthy();
+    expect(d.getByText(/The second installment of \$3,000 is due 120 days before the event\./)).toBeTruthy();
+    expect(d.getByText("Grand Oak Estate contract, page 2")).toBeTruthy();
+    expect(d.getByRole("link", { name: "Open in contract" }).getAttribute("href")).toContain("/vendors/v1");
+    expect(d.getByRole("button", { name: "Pay p1" })).toBeTruthy();
+  });
 
-    act(() => screen.getByRole("button", { name: "Pay p1" }).click());
+  it("moves focus into the drawer, and Escape closes it", () => {
+    renderList([payment()]);
+    openRow(/Venue second installment/);
+    expect(document.activeElement?.getAttribute("aria-label")).toBe("Close payment details");
+    act(() => fireEvent.keyDown(window, { key: "Escape" }));
+    expect(screen.queryByRole("dialog")).toBeNull(); // hidden from assistive tech once closed
+  });
+
+  it("celebrates a completed payment with a toast", () => {
+    renderList([payment()]);
+    openRow(/Venue second installment/);
+    act(() => fireEvent.click(within(dialog()).getByRole("button", { name: "Pay p1" })));
     expect(screen.getByRole("status").textContent).toContain("Paid $3,000 to Grand Oak Estate (Venue second installment).");
-
-    act(() => screen.getByRole("button", { name: "Dismiss" }).click());
-    expect(screen.queryByRole("status")).toBeNull();
-  });
-
-  it("keeps the confirmation visible after the paid payment drops off the list", () => {
-    const { rerender } = render(<UpcomingPayments payments={[payment()]} />);
-    act(() => screen.getByRole("button", { name: "Pay p1" }).click());
-
-    rerender(<UpcomingPayments payments={[]} />); // the server refresh removes the paid row
-    expect(screen.getByRole("status").textContent).toContain("Paid $3,000");
-    expect(screen.getByText("No payments left to make.")).toBeTruthy();
   });
 
   it("reports a pending payment as pending, not as paid", () => {
     stub.state = "pending";
-    render(<UpcomingPayments payments={[payment()]} />);
-    act(() => screen.getByRole("button", { name: "Pay p1" }).click());
+    renderList([payment()]);
+    openRow(/Venue second installment/);
+    act(() => fireEvent.click(within(dialog()).getByRole("button", { name: "Pay p1" })));
+    expect(screen.getByRole("status").textContent).toContain("still processing");
+    expect(screen.getByRole("status").textContent).not.toContain("Paid $3,000");
+  });
 
-    const text = screen.getByRole("status").textContent ?? "";
-    expect(text).toContain("PayPal is still processing this payment.");
-    expect(text).not.toContain("Paid $3,000");
+  it("offers no Pay button for a paid payment or a cancelled vendor", () => {
+    renderList([payment()], details({ status: "paid", statusLabel: "Paid" }));
+    openRow(/Venue second installment/);
+    expect(within(dialog()).queryByRole("button", { name: "Pay p1" })).toBeNull();
+    expect(within(dialog()).getByText("Nothing to pay: this payment is paid.")).toBeTruthy();
+    cleanup();
+
+    renderList([payment()], details({}, true));
+    openRow(/Venue second installment/);
+    expect(within(dialog()).getByText(/This vendor is cancelled/)).toBeTruthy();
   });
 });

@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
 import { encodeSse, type StreamEvent } from "@/lib/agent/sse";
+import type { ProposalView } from "@/lib/proposals/view";
 
 const refresh = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
@@ -76,7 +77,7 @@ afterEach(() => {
 describe("the panel", () => {
   it("offers the demo questions, and Ask is disabled until something is typed", () => {
     render(<AgentPanel />);
-    expect(screen.getByRole("heading", { name: "Ask about your payments" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ask Vowlet" })).toBeTruthy();
     expect(within(screen.getByLabelText("Suggested questions")).getAllByRole("button").map((b) => b.textContent)).toEqual([
       "What do we owe in the next 30 days?",
       "What if we move the wedding to June 12?",
@@ -184,6 +185,36 @@ describe("asking and answering", () => {
       await ask("move it");
       expect(await screen.findByText("1 proposal is waiting for your approval below.")).toBeTruthy();
       expect(refresh).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows each proposal's card under the answer that made it, and older ones at the top", async () => {
+      const view = (id: string, title: string): ProposalView => ({
+        id,
+        kind: "message",
+        title,
+        summary: "",
+        amount: null,
+        details: [],
+        draft: null,
+        reason: "",
+        citation: null,
+        clauseHref: null,
+        paymentId: null,
+        approvable: true,
+        createdAt: "2026-11-11T00:00:00.000Z",
+      });
+      stubFetch(complete(answer("I've prepared a proposal.", { proposals: [proposal("p1")] })));
+      const { rerender } = render(<AgentPanel proposals={[view("old", "From before")]} />);
+      expect(screen.getByRole("heading", { name: "Waiting for your approval" })).toBeTruthy();
+      await ask("move it");
+      await screen.findByText("I've prepared a proposal.");
+
+      // The page refreshes and hands the new proposal down.
+      rerender(<AgentPanel proposals={[view("old", "From before"), view("p1", "Just proposed")]} />);
+      const log = screen.getByRole("log");
+      expect(within(log).getByRole("heading", { name: "Just proposed" })).toBeTruthy();
+      expect(within(log).queryByRole("heading", { name: "From before" })).toBeNull();
+      expect(screen.getByRole("heading", { name: "From before" })).toBeTruthy();
     });
 
     it("pluralises, and does not refresh when there are none", async () => {

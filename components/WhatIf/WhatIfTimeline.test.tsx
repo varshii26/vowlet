@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "@/components/ui/Toast";
 import { WhatIfTimeline } from "@/components/WhatIf/WhatIfTimeline";
 import type { TimelineData, TimelineInput } from "@/lib/timeline";
 
@@ -199,7 +200,8 @@ describe("WhatIfTimeline", () => {
       "/api/whatif": { body: previewBody },
       "/api/whatif/apply": { body: { ok: true, message: "Approved. The wedding is now on 2027-06-12." } },
     });
-    const { rerender } = render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    // The success message is a toast.
+    const { rerender } = render(<WhatIfTimeline input={input} todayIso="2026-11-07" />, { wrapper: ToastProvider });
     await drop("2027-06-12");
     await click(/Move the wedding to Jun 12, 2027/);
 

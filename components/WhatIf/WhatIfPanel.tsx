@@ -43,7 +43,7 @@ function Citation({ row }: { row: WhatIfRowView }) {
 function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
   return (
     <table className="w-full text-left text-sm">
-      <thead className="text-xs uppercase tracking-wide text-neutral-500">
+      <thead className="text-xs uppercase tracking-wide text-muted">
         <tr>
           <th className="py-1 pr-3 font-medium">Vendor</th>
           <th className="py-1 pr-3 text-right font-medium">Fee</th>
@@ -52,10 +52,10 @@ function FeeTable({ rows }: { rows: WhatIfRowView[] }) {
       </thead>
       <tbody>
         {rows.map((row) => (
-          <tr key={row.vendorId} className="border-t border-neutral-100 align-top">
+          <tr key={row.vendorId} className="border-t border-line align-top">
             <td className="py-1.5 pr-3 font-medium">{row.vendorName}</td>
             <td className="py-1.5 pr-3 text-right tabular-nums">{formatCents(row.costCents)}</td>
-            <td className="space-x-2 py-1.5 text-neutral-600">
+            <td className="space-x-2 py-1.5 text-muted">
               <span>{row.basis}</span>
               <Citation row={row} />
             </td>
@@ -78,31 +78,38 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
   const check = ready?.rows.filter((r) => r.kind === "check") ?? [];
 
   return (
-    <section aria-labelledby="whatif-heading" className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/60 p-4">
+    <section aria-labelledby="whatif-heading" className="space-y-4 rounded-card border border-accent/30 bg-surface p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
-          <h2 id="whatif-heading" className="text-lg font-semibold">
+          <h2 id="whatif-heading" className="text-lg text-ink">
             What if the wedding moves to {longDay(newDate)}?
           </h2>
-          <p className="text-sm text-neutral-700">
+          <p className="text-sm text-ink">
             {describeShift(shiftDays)} than {longDay(currentDate)}. {plural(movedCount, "payment")} tied to the wedding date moved with it on the timeline
             {fixedCount > 0 ? `; ${plural(fixedCount, "payment")} on fixed or signing dates stay put` : ""}.
           </p>
         </div>
         <p className="text-right" aria-live="polite">
-          <span className="block text-2xl font-semibold tabular-nums">{ready ? formatCents(ready.totalCents) : "..."}</span>
-          <span className="block text-xs text-neutral-500">in date-change fees</span>
+          <span className="block font-serif text-2xl font-semibold tabular-nums text-accent-strong">{ready ? formatCents(ready.totalCents) : "..."}</span>
+          <span className="block text-xs text-muted">in date-change fees</span>
         </p>
       </div>
 
       {ready && (
-        <p className="text-sm text-neutral-700" data-testid="whatif-notice">
+        <p className="text-sm text-ink" data-testid="whatif-notice">
           Telling vendors today gives them {plural(ready.noticeDays, "day")}&apos; notice before {longDay(currentDate)}. Each contract sets its fee by
           that notice, so the fee is the same whichever new date you pick.
         </p>
       )}
 
-      {state.status === "loading" && <p className="text-sm text-neutral-600">Working out each vendor&apos;s fee from their contract...</p>}
+      {state.status === "loading" && (
+        <div role="status" className="space-y-2">
+          <span className="sr-only">Working out each vendor&apos;s fee from their contract...</span>
+          <div className="skeleton h-3 w-3/4" />
+          <div className="skeleton h-3 w-2/3" />
+          <div className="skeleton h-3 w-1/2" />
+        </div>
+      )}
       {state.status === "error" && (
         <p role="alert" className="rounded border border-red-200 bg-red-50 p-2 text-sm text-red-800">
           {state.message}
@@ -110,12 +117,12 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
       )}
 
       {ready && explanation.status === "loading" && (
-        <p className="text-sm italic text-neutral-500" aria-live="polite">
+        <p className="text-sm italic text-muted" aria-live="polite">
           Writing a short summary...
         </p>
       )}
       {ready && explanation.status === "ready" && (
-        <p className="text-sm text-neutral-800" aria-live="polite" data-testid="whatif-explanation">
+        <p className="text-sm text-ink" aria-live="polite" data-testid="whatif-explanation">
           {explanation.text}
         </p>
       )}
@@ -125,7 +132,7 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
           {fees.length > 0 ? (
             <FeeTable rows={fees} />
           ) : (
-            <p className="text-sm text-neutral-700">No vendor charges for this move.</p>
+            <p className="text-sm text-ink">No vendor charges for this move.</p>
           )}
 
           {check.length > 0 && (
@@ -141,12 +148,12 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
 
           {free.length > 0 && (
             <details className="text-sm">
-              <summary className="cursor-pointer text-neutral-700">{plural(free.length, "vendor")} won&apos;t charge for this move</summary>
+              <summary className="cursor-pointer text-ink">{plural(free.length, "vendor")} won&apos;t charge for this move</summary>
               <ul className="mt-1 space-y-1 pl-5">
                 {free.map((row) => (
                   <li key={row.vendorId} className="space-x-2">
                     <span className="font-medium">{row.vendorName}</span>
-                    <span className="text-neutral-600">{row.basis}</span>
+                    <span className="text-muted">{row.basis}</span>
                     <Citation row={row} />
                   </li>
                 ))}
@@ -162,12 +169,13 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Stays in view while the card scrolls. */}
+      <div className="sticky bottom-0 -mx-5 -mb-5 flex flex-wrap items-center gap-3 border-t border-line bg-surface px-5 py-3">
         <button
           type="button"
           onClick={onConfirm}
           disabled={!ready || applying}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn btn-primary"
         >
           {applying ? "Moving the wedding..." : `Move the wedding to ${longDay(newDate)}`}
         </button>
@@ -175,11 +183,11 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
           type="button"
           onClick={onCancel}
           disabled={applying}
-          className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="btn btn-secondary"
         >
           Cancel
         </button>
-        <span className="text-xs text-neutral-500">Nothing is saved until you confirm.</span>
+        <span className="text-xs text-muted">Nothing is saved until you confirm.</span>
       </div>
     </section>
   );

@@ -107,8 +107,8 @@ export function CancelModal({ vendorId, vendorName }: Props) {
             ) : (
               <>
                 <fieldset className="space-y-1">
-                  <legend className="text-sm font-medium text-neutral-700">Who is cancelling?</legend>
-                  <div role="radiogroup" className="inline-flex rounded-lg bg-neutral-100 p-1">
+                  <legend className="text-sm font-medium text-ink">Who is cancelling?</legend>
+                  <div role="radiogroup" className="inline-flex rounded-lg bg-canvas p-1">
                     {(
                       [
                         ["vendor", "The vendor cancelled"],
@@ -122,7 +122,7 @@ export function CancelModal({ vendorId, vendorName }: Props) {
                         aria-checked={cancelledBy === value}
                         disabled={state.step === "preview" && state.busy}
                         onClick={() => cancelledBy !== value && load(value)}
-                        className={`rounded-md px-3 py-1 text-sm font-medium ${cancelledBy === value ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"}`}
+                        className={`rounded-md px-3 py-1 text-sm font-medium ${cancelledBy === value ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"}`}
                       >
                         {label}
                       </button>
@@ -130,7 +130,7 @@ export function CancelModal({ vendorId, vendorName }: Props) {
                   </div>
                 </fieldset>
 
-                {state.step === "loading" && <p className="text-sm text-neutral-600">Working out what is owed back&hellip;</p>}
+                {state.step === "loading" && <p className="text-sm text-muted">Working out what is owed back&hellip;</p>}
                 {state.step === "error" && (
                   <p role="alert" className="text-sm text-red-700">
                     {state.message}
@@ -149,7 +149,7 @@ export function CancelModal({ vendorId, vendorName }: Props) {
                     type="button"
                     onClick={close}
                     disabled={state.step === "preview" && state.busy}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50 disabled:opacity-60"
+                    className="rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:bg-canvas disabled:opacity-60"
                   >
                     Keep vendor
                   </button>
@@ -179,16 +179,16 @@ function Preview({ vendorId, preview, copied, onCopy }: { vendorId: string; prev
         <Figure label="Owed back to you" cents={preview.owedCents} strong />
         <Figure label="Vendor keeps" cents={preview.retainedCents} />
       </dl>
-      <p className="text-sm text-neutral-700">
+      <p className="text-sm text-ink">
         {preview.reason}{" "}
         {preview.citation && <ClauseChip label={preview.citation} clause={preview.clause} href={clauseHref(vendorId, preview.clauseId)} />}
       </p>
       {preview.draft ? (
         <DraftBox draft={preview.draft} copied={copied} onCopy={onCopy} heading="Drafted refund request (not sent)" />
       ) : (
-        <p className="rounded-lg bg-neutral-50 p-3 text-sm text-neutral-700">Nothing is owed back, so there is no refund to request.</p>
+        <p className="rounded-lg bg-canvas p-3 text-sm text-ink">Nothing is owed back, so there is no refund to request.</p>
       )}
-      <p className="text-xs text-neutral-500">Confirming marks the vendor cancelled{preview.draft ? " and its paid payments refund requested" : ""}. Nothing is sent and no money moves.</p>
+      <p className="text-xs text-muted">Confirming marks the vendor cancelled{preview.draft ? " and its paid payments refund requested" : ""}. Nothing is sent and no money moves.</p>
     </div>
   );
 }
@@ -196,12 +196,12 @@ function Preview({ vendorId, preview, copied, onCopy }: { vendorId: string; prev
 function Done({ result, copied, onCopy, onClose }: { result: CancelConfirmView; copied: boolean; onCopy: (text: string) => void; onClose: () => void }) {
   return (
     <div className="space-y-3">
-      <p role="status" className="text-sm text-neutral-800">
+      <p role="status" className="text-sm text-ink">
         {result.message}
       </p>
       {result.draft && <DraftBox draft={result.draft} copied={copied} onCopy={onCopy} heading="Refund request to send" />}
       <div className="flex justify-end">
-        <button type="button" onClick={onClose} className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm font-medium hover:bg-neutral-50">
+        <button type="button" onClick={onClose} className="rounded-md border border-line px-3 py-1.5 text-sm font-medium hover:bg-canvas">
           Close
         </button>
       </div>
@@ -211,9 +211,9 @@ function Done({ result, copied, onCopy, onClose }: { result: CancelConfirmView; 
 
 function Figure({ label, cents, strong }: { label: string; cents: number; strong?: boolean }) {
   return (
-    <div className={`rounded-lg p-2 ${strong ? "bg-pink-50" : "bg-neutral-50"}`}>
-      <dt className="text-xs text-neutral-600">{label}</dt>
-      <dd className={`text-lg ${strong ? "font-semibold text-pink-800" : "font-medium"}`}>{formatCents(cents)}</dd>
+    <div className={`rounded-lg p-2 ${strong ? "bg-accent-soft" : "bg-canvas"}`}>
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className={`text-lg ${strong ? "font-semibold text-accent-strong" : "font-medium"}`}>{formatCents(cents)}</dd>
     </div>
   );
 }
@@ -222,12 +222,12 @@ function DraftBox({ draft, copied, onCopy, heading }: { draft: string; copied: b
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-neutral-700">{heading}</h3>
-        <button type="button" onClick={() => onCopy(draft)} className="text-sm font-medium text-pink-700 underline underline-offset-2 hover:text-pink-900">
+        <h3 className="text-sm font-medium text-ink">{heading}</h3>
+        <button type="button" onClick={() => onCopy(draft)} className="text-sm font-medium text-accent underline underline-offset-2 hover:text-accent-strong">
           {copied ? "Copied" : "Copy message"}
         </button>
       </div>
-      <p className="whitespace-pre-wrap rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-800">{draft}</p>
+      <p className="whitespace-pre-wrap rounded-lg border border-line bg-canvas p-3 text-sm text-ink">{draft}</p>
     </div>
   );
 }

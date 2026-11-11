@@ -1,99 +1,84 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
+import { NextPayment } from "@/components/Dashboard/NextPayment";
 import { budgetBar, type BudgetSummary } from "@/lib/budget";
 import { formatCents } from "@/lib/money";
 import type { UpcomingPayment } from "@/lib/payments/upcoming";
 
 export type SummaryBarProps = {
+  coupleNames: string;
   weddingDateLabel: string;
   daysToGo: number;
   summary: BudgetSummary;
   next: UpcomingPayment | null;
-  vendors: Array<{ id: string; name: string; cancelled: boolean }>;
+  /** Page actions shown top right (upload, reset demo). */
+  actions?: ReactNode;
 };
 
 const pct = (n: number) => `${n.toFixed(2)}%`;
 
-function Stat({ label, value, note, tone = "text-neutral-900" }: { label: string; value: string; note?: string; tone?: string }) {
+function Legend({ swatch, label, value }: { swatch: string; label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <dt className="text-xs font-medium uppercase tracking-wide text-neutral-500">{label}</dt>
-      <dd className={`mt-1 text-2xl font-semibold tabular-nums ${tone}`}>{value}</dd>
-      {note ? <dd className="mt-0.5 text-xs text-neutral-500">{note}</dd> : null}
+    <div className="flex items-baseline gap-1.5">
+      <span aria-hidden className={`size-2.5 shrink-0 translate-y-[-1px] self-center rounded-full ${swatch}`} />
+      <dt className="text-muted">{label}</dt>
+      <dd className="font-semibold tabular-nums text-ink">{value}</dd>
     </div>
   );
 }
 
 /**
- * The top of the dashboard: the wedding date, where the budget stands, and the
- * next payment. A server component, so it re-renders from the database whenever
- * the page refreshes (after a payment, a reschedule or an approval).
+ * The header strip: who and when, the countdown, where the budget stands, and
+ * the one payment due next. A server component (the Pay button inside is a
+ * client island), so it re-renders from the database whenever the page refreshes.
  */
-export function SummaryBar({ weddingDateLabel, daysToGo, summary, next, vendors }: SummaryBarProps) {
+export function SummaryBar({ coupleNames, weddingDateLabel, daysToGo, summary, next, actions }: SummaryBarProps) {
   const bar = budgetBar(summary);
   const over = summary.remainingCents < 0;
-  const days = daysToGo === 0 ? "It's the wedding day" : daysToGo > 0 ? `${daysToGo} day${daysToGo === 1 ? "" : "s"} to go` : `${-daysToGo} days ago`;
+  const days =
+    daysToGo === 0 ? "It's the wedding day" : daysToGo > 0 ? `${daysToGo} day${daysToGo === 1 ? "" : "s"} to go` : `${-daysToGo} days ago`;
   const barLabel = over
     ? `Over budget: ${formatCents(summary.paidCents)} paid and ${formatCents(summary.scheduledCents)} still to pay, against a ${formatCents(summary.budgetCents)} budget.`
     : `${formatCents(summary.paidCents)} paid, ${formatCents(summary.scheduledCents)} still to pay and ${formatCents(summary.remainingCents)} left of a ${formatCents(summary.budgetCents)} budget.`;
 
   return (
-    <section aria-label="Summary" className="space-y-5 rounded-lg border border-neutral-200 p-5">
-      <dl className="grid grid-cols-2 gap-5 md:grid-cols-4">
-        <Stat label="Wedding" value={weddingDateLabel} note={days} />
-        <Stat label="Paid" value={formatCents(summary.paidCents)} tone="text-emerald-700" />
-        <Stat label="Still to pay" value={formatCents(summary.scheduledCents)} note={`${summary.unpaidCount} payment${summary.unpaidCount === 1 ? "" : "s"}`} />
-        <Stat
-          label={over ? "Over budget by" : "Left in budget"}
-          value={formatCents(Math.abs(summary.remainingCents))}
-          note={`of ${formatCents(summary.budgetCents)}`}
-          tone={over ? "text-rose-700" : "text-neutral-900"}
-        />
-      </dl>
-
-      <div>
-        <div role="img" aria-label={barLabel} className="flex h-3 w-full overflow-hidden rounded-full bg-neutral-200">
-          <div className="h-full bg-emerald-500" style={{ width: pct(bar.paid) }} />
-          <div className={`h-full ${over ? "bg-rose-400" : "bg-indigo-400"}`} style={{ width: pct(bar.scheduled) }} />
+    <header aria-label="Summary" className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
+          <h1 className="mt-1 text-3xl text-ink">{coupleNames}</h1>
+          <p className="mt-1 text-sm text-muted">
+            <span className="font-medium text-ink">{weddingDateLabel}</span>
+            <span aria-hidden> · </span>
+            <span className="inline-block rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-strong">{days}</span>
+          </p>
         </div>
-        <ul aria-hidden className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
-          <li className="flex items-center gap-1.5">
-            <span className="size-2.5 rounded-full bg-emerald-500" /> Paid
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className={`size-2.5 rounded-full ${over ? "bg-rose-400" : "bg-indigo-400"}`} /> Still to pay
-          </li>
-          {!over ? (
-            <li className="flex items-center gap-1.5">
-              <span className="size-2.5 rounded-full bg-neutral-200" /> Left
-            </li>
-          ) : null}
-        </ul>
+        {actions}
       </div>
 
-      <p className="text-sm text-neutral-700">
-        {next ? (
-          <>
-            <span className="font-medium">Next payment:</span> {next.amountLabel} to {next.vendorName} ({next.label}), due {next.dueDateLabel}.
-          </>
-        ) : (
-          "Nothing left to pay."
-        )}
-      </p>
-
-      {vendors.length > 0 ? (
-        <nav aria-label="Vendor contracts" className="flex flex-wrap items-center gap-2 border-t border-neutral-100 pt-4 text-sm">
-          <span className="text-neutral-500">Contracts:</span>
-          {vendors.map((v) => (
-            <Link
-              key={v.id}
-              href={`/vendors/${v.id}`}
-              className={`rounded-full border px-2.5 py-0.5 hover:bg-neutral-50 ${v.cancelled ? "border-neutral-200 text-neutral-400 line-through" : "border-neutral-300 text-neutral-700"}`}
-            >
-              {v.name}
-            </Link>
-          ))}
-        </nav>
-      ) : null}
-    </section>
+      <div className="card grid items-center gap-x-8 gap-y-4 px-5 py-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="min-w-0 space-y-2.5">
+          <div role="img" aria-label={barLabel} className="flex h-2.5 w-full overflow-hidden rounded-full bg-sunken">
+            <div className="h-full bg-emerald-500 transition-[width] duration-700" style={{ width: pct(bar.paid) }} />
+            <div className={`h-full transition-[width] duration-700 ${over ? "bg-red-400" : "bg-accent/70"}`} style={{ width: pct(bar.scheduled) }} />
+          </div>
+          <dl className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+            <Legend swatch="bg-emerald-500" label="Paid" value={formatCents(summary.paidCents)} />
+            <Legend
+              swatch={over ? "bg-red-400" : "bg-accent/70"}
+              label="Still to pay"
+              value={`${formatCents(summary.scheduledCents)} (${summary.unpaidCount} payment${summary.unpaidCount === 1 ? "" : "s"})`}
+            />
+            {over ? (
+              <Legend swatch="bg-red-600" label="Over budget by" value={formatCents(-summary.remainingCents)} />
+            ) : (
+              <Legend swatch="bg-sunken border border-line" label="Left" value={`${formatCents(summary.remainingCents)} of ${formatCents(summary.budgetCents)}`} />
+            )}
+          </dl>
+        </div>
+        <div className="border-line lg:border-l lg:pl-8">
+          <NextPayment next={next} />
+        </div>
+      </div>
+    </header>
   );
 }

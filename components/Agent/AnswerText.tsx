@@ -50,9 +50,9 @@ export function AnswerText({ text, sources = [] }: { text: string; sources?: Cit
               <table className="w-full border-collapse text-left text-sm">{children}</table>
             </div>
           ),
-          th: ({ children }) => <th className="border-b border-neutral-300 px-2 py-1 font-semibold">{chips(children)}</th>,
-          td: ({ children }) => <td className="border-b border-neutral-200 px-2 py-1">{chips(children)}</td>,
-          code: ({ children }) => <code className="rounded bg-neutral-100 px-1">{children}</code>,
+          th: ({ children }) => <th className="border-b border-line px-2 py-1 font-semibold">{chips(children)}</th>,
+          td: ({ children }) => <td className="border-b border-line px-2 py-1">{chips(children)}</td>,
+          code: ({ children }) => <code className="rounded bg-canvas px-1">{children}</code>,
         }}
       >
         {text}

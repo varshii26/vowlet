@@ -35,7 +35,7 @@ export function renderTaskTooltip(detail: TaskDetail | undefined): string {
       const clause = detail.clauseSummary
         ? `<div class="vw-tip-clause">${escapeHtml(detail.clauseSummary)}</div>` +
           (detail.clausePage ? `<div class="vw-tip-muted">Contract, page ${detail.clausePage}</div>` : "") +
-          (detail.clauseId ? `<div class="vw-tip-muted">Click to open the clause in the contract</div>` : "")
+          (detail.clauseId ? `<div class="vw-tip-muted">Click to see the clause and pay</div>` : "")
         : `<div class="vw-tip-muted">No contract clause linked</div>`;
       return [
         `<div class="vw-tip">`,

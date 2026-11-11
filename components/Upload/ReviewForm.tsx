@@ -25,14 +25,14 @@ type Props = {
   onConfirm: (review: ReviewedContract) => Promise<string | null>;
 };
 
-const input = "w-full rounded border border-neutral-300 bg-white px-2 py-1 text-sm focus:border-pink-400 focus:outline-none focus:ring-1 focus:ring-pink-300";
+const input = "w-full rounded border border-line bg-white px-2 py-1 text-sm focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/40";
 
 function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   return (
     <label className="block space-y-1 text-sm">
-      <span className="font-medium text-neutral-700">{label}</span>
+      <span className="font-medium text-ink">{label}</span>
       {children}
-      {hint && <span className="block text-xs text-neutral-500">{hint}</span>}
+      {hint && <span className="block text-xs text-muted">{hint}</span>}
     </label>
   );
 }
@@ -47,8 +47,8 @@ function Evidence({ e, name, onAcknowledge }: { e: EvidenceDraft; name: string; 
   return (
     <div className="space-y-2">
       {e.clauseQuote && (
-        <blockquote className="rounded border-l-4 border-pink-200 bg-neutral-50 px-2 py-1 text-xs leading-relaxed text-neutral-700">
-          &ldquo;{e.clauseQuote}&rdquo; <span className="whitespace-nowrap text-neutral-500">(page {e.page})</span>
+        <blockquote className="rounded border-l-4 border-accent/40 bg-canvas px-2 py-1 text-xs leading-relaxed text-ink">
+          &ldquo;{e.clauseQuote}&rdquo; <span className="whitespace-nowrap text-muted">(page {e.page})</span>
         </blockquote>
       )}
       {e.flagged && (
@@ -56,8 +56,8 @@ function Evidence({ e, name, onAcknowledge }: { e: EvidenceDraft; name: string; 
           <span className={`rounded-full px-2 py-0.5 font-semibold ${e.acknowledged ? "bg-emerald-100 text-emerald-800" : "bg-amber-200 text-amber-900"}`}>
             {e.acknowledged ? "Confirmed" : "Please confirm"}
           </span>
-          <span className="text-neutral-700">{flagReason(e)} Check it against the contract, or edit it.</span>
-          <label className="ml-auto flex items-center gap-1 font-medium text-neutral-800">
+          <span className="text-ink">{flagReason(e)} Check it against the contract, or edit it.</span>
+          <label className="ml-auto flex items-center gap-1 font-medium text-ink">
             <input type="checkbox" checked={e.acknowledged} onChange={(ev) => onAcknowledge(ev.target.checked)} aria-label={`I've checked ${name}`} />
             I&apos;ve checked this
           </label>
@@ -70,7 +70,7 @@ function Evidence({ e, name, onAcknowledge }: { e: EvidenceDraft; name: string; 
 function PaymentRow({ p, index, onChange, onAcknowledge }: { p: PaymentDraft; index: number; onChange: (patch: Partial<PaymentDraft>) => void; onAcknowledge: (v: boolean) => void }) {
   const name = p.label.trim() || `payment ${index + 1}`;
   return (
-    <li className={`space-y-2 rounded-md border p-3 ${p.flagged && !p.acknowledged ? "border-amber-300" : "border-neutral-200"}`}>
+    <li className={`space-y-2 rounded-md border p-3 ${p.flagged && !p.acknowledged ? "border-amber-300" : "border-line"}`}>
       <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1.4fr_1fr]">
         <Field label="Payment">
           <input className={input} value={p.label} onChange={(e) => onChange({ label: e.target.value })} aria-label={`Payment ${index + 1} label`} />
@@ -103,14 +103,14 @@ function PaymentRow({ p, index, onChange, onAcknowledge }: { p: PaymentDraft; in
 function RulesSection({ title, percentLabel, rules, onChange, onAcknowledge }: { title: string; percentLabel: string; rules: RulesDraft; onChange: (tiers: TierDraft[]) => void; onAcknowledge: (v: boolean) => void }) {
   const setTier = (i: number, patch: Partial<TierDraft>) => onChange(rules.tiers.map((t, j) => (j === i ? { ...t, ...patch } : t)));
   return (
-    <section className={`space-y-2 rounded-md border p-3 ${rules.found && rules.flagged && !rules.acknowledged ? "border-amber-300" : "border-neutral-200"}`}>
+    <section className={`space-y-2 rounded-md border p-3 ${rules.found && rules.flagged && !rules.acknowledged ? "border-amber-300" : "border-line"}`}>
       <h4 className="text-sm font-semibold">{title}</h4>
       {!rules.found ? (
-        <p className="text-sm text-neutral-600">Not in this contract.</p>
+        <p className="text-sm text-muted">Not in this contract.</p>
       ) : (
         <>
           <table className="w-full text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-neutral-500">
+            <thead className="text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="pr-2 font-medium">Notice (days, at least)</th>
                 <th className="pr-2 font-medium">{percentLabel}</th>
@@ -203,7 +203,7 @@ export function ReviewForm({ terms, today, onConfirm }: Props) {
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h4 className="text-sm font-semibold">Payments</h4>
           {sum !== null && totalCents !== null && (
-            <p className={`text-xs ${sum === totalCents ? "text-neutral-500" : "text-amber-800"}`} data-testid="payments-sum">
+            <p className={`text-xs ${sum === totalCents ? "text-muted" : "text-amber-800"}`} data-testid="payments-sum">
               Payments add up to {formatCents(sum)} of the {formatCents(totalCents)} total{sum === totalCents ? "." : ". Check the amounts."}
             </p>
           )}
@@ -250,7 +250,7 @@ export function ReviewForm({ terms, today, onConfirm }: Props) {
           type="button"
           onClick={confirm}
           disabled={pending.length > 0 || saving}
-          className="rounded-md bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Saving..." : "Confirm and add to timeline"}
         </button>

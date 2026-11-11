@@ -37,7 +37,7 @@ export function VendorContractView({ data, initialClauseId }: Props) {
       role="tab"
       aria-selected={view === value}
       onClick={() => setView(value)}
-      className={`rounded-md px-3 py-1 text-sm font-medium ${view === value ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-600 hover:text-neutral-900"}`}
+      className={`rounded-md px-3 py-1 text-sm font-medium ${view === value ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink"}`}
     >
       {label}
     </button>
@@ -52,17 +52,17 @@ export function VendorContractView({ data, initialClauseId }: Props) {
 
       <div className="min-w-0 space-y-3 lg:order-1">
         {initialClauseId !== null && !known && (
-          <p role="status" className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+          <p role="status" className="rounded-lg border border-line bg-canvas p-3 text-sm text-ink">
             That clause isn&rsquo;t in this contract any more. Showing the whole contract.
           </p>
         )}
 
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div role="tablist" aria-label="Contract view" className="inline-flex rounded-lg bg-neutral-100 p-1">
+          <div role="tablist" aria-label="Contract view" className="inline-flex rounded-lg bg-canvas p-1">
             {tab("text", "Highlighted clauses")}
             {tab("pdf", "Original PDF")}
           </div>
-          <a href={data.vendor.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-neutral-700 underline underline-offset-2">
+          <a href={data.vendor.pdfUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-ink underline underline-offset-2">
             Open original PDF
           </a>
         </div>
@@ -73,7 +73,7 @@ export function VendorContractView({ data, initialClauseId }: Props) {
           <iframe
             title={`${data.vendor.name} contract (PDF)`}
             src={`${data.vendor.pdfUrl}#page=${selectedPage}`}
-            className="h-[80vh] w-full rounded-lg border border-neutral-200 bg-white"
+            className="h-[80vh] w-full rounded-lg border border-line bg-white"
           />
         )}
       </div>

@@ -17,6 +17,7 @@ const payment: PaymentDetail = {
   clauseId: "c1",
   clauseSummary: "$3,000 venue deposit, due upon signing this agreement",
   clausePage: 1,
+  clauseText: null,
 };
 
 describe("escapeHtml", () => {
@@ -52,8 +53,8 @@ describe("renderTaskTooltip", () => {
   });
 
   it("invites a click through to the clause when one is linked", () => {
-    expect(renderTaskTooltip(payment)).toContain("Click to open the clause in the contract");
-    expect(renderTaskTooltip({ ...payment, clauseId: null, clauseSummary: null, clausePage: null })).not.toContain("Click to open");
+    expect(renderTaskTooltip(payment)).toContain("Click to see the clause and pay");
+    expect(renderTaskTooltip({ ...payment, clauseId: null, clauseSummary: null, clausePage: null })).not.toContain("Click to see");
   });
 
   it("says so when no clause is linked", () => {

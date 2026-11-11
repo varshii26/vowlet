@@ -28,7 +28,8 @@ export type TimelinePayment = {
   offsetDays: number;
   fixedDate: Date | null;
   status: PaymentStatus;
-  clause: { id: string; summary: string; page: number } | null;
+  /** `text` is the clause as quoted in the contract, shown in the payment drawer. */
+  clause: { id: string; summary: string; page: number; text?: string } | null;
 };
 
 export type TimelineVendor = {
@@ -100,6 +101,8 @@ export type TaskDetail =
       clauseId: string | null;
       clauseSummary: string | null;
       clausePage: number | null;
+      /** The clause as quoted in the contract. */
+      clauseText: string | null;
     };
 
 export type TimelineData = {
@@ -200,6 +203,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
         clauseId: payment.clause?.id ?? null,
         clauseSummary: payment.clause?.summary ?? null,
         clausePage: payment.clause?.page ?? null,
+        clauseText: payment.clause?.text ?? null,
       };
       // Payment before the wedding feeds into it; one after follows it. The
       // dependency lines are visual, so direction only needs to read sensibly.
