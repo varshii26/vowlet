@@ -1,26 +1,38 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { DEADLINE_ICON, DEADLINE_LEGEND } from "@/components/Gantt/deadline-icons";
 import { LEGEND_STATUSES, StatusLegend } from "@/components/Gantt/StatusLegend";
-import { STATUS_LABEL } from "@/lib/timeline";
+import { STATUS_HEX, STATUS_LABEL } from "@/lib/timeline";
 
 afterEach(cleanup);
 
+const legend = () => screen.getByRole("list", { name: "Timeline colours" });
+
 describe("StatusLegend", () => {
-  it("names every status a judge can see on the timeline, plus the wedding day", () => {
+  it("names the four everyday statuses, the wedding line and the Today line, and nothing else by default", () => {
     render(<StatusLegend />);
-    const legend = screen.getByRole("list", { name: "Timeline colours" });
-    for (const status of LEGEND_STATUSES) expect(within(legend).getByText(STATUS_LABEL[status])).toBeTruthy();
-    expect(within(legend).getByText("Wedding day")).toBeTruthy();
-    expect(within(legend).getByText("Share paid")).toBeTruthy();
+    for (const status of LEGEND_STATUSES) expect(within(legend()).getByText(STATUS_LABEL[status])).toBeTruthy();
+    expect(LEGEND_STATUSES).toEqual(["scheduled", "due_soon", "overdue", "paid"]);
+    expect(within(legend()).getByText("Wedding day")).toBeTruthy();
+    expect(within(legend()).getByText("Today").closest("li")!.getAttribute("title")).toMatch(/dashed line/);
+    expect(within(legend()).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(legend()).queryByText(STATUS_LABEL.refund_requested)).toBeNull();
+    expect(within(legend()).queryByText(DEADLINE_LEGEND.date_change.label)).toBeNull();
   });
 
-  it("explains the contract-deadline icons with the same glyphs and colours the chart draws", () => {
-    render(<StatusLegend />);
-    const legend = screen.getByRole("list", { name: "Timeline colours" });
+  it("adds a rarer status only while some payment on the chart has it", () => {
+    render(<StatusLegend present={["scheduled", "refund_requested"]} />);
+    expect(within(legend()).getByText(STATUS_LABEL.refund_requested)).toBeTruthy();
+    expect(within(legend()).queryByText(STATUS_LABEL.refunded)).toBeNull();
+  });
+
+  it("explains the contract-deadline icons, with the chart's glyphs and colours, while they show", () => {
+    render(<StatusLegend showDeadlines />);
     for (const kind of ["date_change", "cancellation"] as const) {
-      const item = within(legend).getByText(DEADLINE_LEGEND[kind].label).closest("li")!;
+      const item = within(legend()).getByText(DEADLINE_LEGEND[kind].label).closest("li")!;
       // The very classes the chart's indicators use, and the shared colour token.
       expect(item.querySelector("i")!.className).toContain(DEADLINE_ICON[kind]);
       expect(item.querySelector<HTMLElement>("i")!.style.color).toBe(kind === "date_change" ? "var(--vw-deadline-date-change)" : "var(--vw-deadline-cancellation)");
@@ -32,17 +44,18 @@ describe("StatusLegend", () => {
     expect(DEADLINE_LEGEND.cancellation.label).toBe("Cancel by");
   });
 
-  it("shows what the dashed Today line is", () => {
-    render(<StatusLegend />);
-    const item = within(screen.getByRole("list", { name: "Timeline colours" })).getByText("Today").closest("li")!;
-    expect(item.getAttribute("title")).toMatch(/dashed line/);
-  });
-
-  it("paints each swatch from Bryntum's own colour variable, so it matches the milestones", () => {
+  it("paints each swatch in the status colour the chart's diamonds use", () => {
     const { container } = render(<StatusLegend />);
     const backgrounds = [...container.querySelectorAll<HTMLElement>("li > span[aria-hidden]")].map((el) => el.style.background);
-    expect(backgrounds).toContain("color-mix(in srgb, var(--b-color-green) 60%, white)");
-    expect(backgrounds).toContain("color-mix(in srgb, var(--b-color-amber) 60%, white)");
-    expect(backgrounds).toContain("color-mix(in srgb, var(--b-color-pink) 60%, white)");
+    const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+    for (const status of LEGEND_STATUSES) expect(backgrounds).toContain(rgb(STATUS_HEX[status]));
+  });
+
+  it("matches the colours gantt.css gives the chart's diamonds and the tooltip badge", () => {
+    const css = readFileSync(join(process.cwd(), "components/Gantt/gantt.css"), "utf8");
+    for (const [status, hex] of Object.entries(STATUS_HEX)) {
+      const block = new RegExp(String.raw`\.payment-${status},\s*\.solo-${status}\s*\{\s*--vw-status:\s*([^;]+);`).exec(css);
+      expect(block?.[1], status).toBe(hex);
+    }
   });
 });

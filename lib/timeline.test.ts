@@ -166,14 +166,24 @@ describe("the wedding row's label", () => {
 });
 
 describe("vendor progress", () => {
-  it("fills each vendor bar by the share of its contract paid, by amount", () => {
+  it("says how much of each vendor's contract is paid, by amount, not as a bar on the time axis", () => {
     const data = buildTimeline(demoInput(), today);
     const grandOak = data.tasks.find((t) => t.id === vendorTaskId("v-grand-oak-estate"))!;
     // $3,000 deposit of $9,000 paid
-    expect(grandOak.percentDone).toBe(33);
-    expect(data.details[grandOak.id]).toMatchObject({ percentPaid: 33, progressLabel: "33% paid" });
+    expect(data.details[grandOak.id]).toMatchObject({ percentPaid: 33, progressLabel: "$3,000 of $9,000 paid" });
+    expect(grandOak).not.toHaveProperty("percentDone");
     const quartet = data.tasks.find((t) => t.id === vendorTaskId("v-velvet-strings-quartet"))!;
-    expect(quartet.percentDone).toBe(0);
+    expect(data.details[quartet.id]).toMatchObject({ progressLabel: "$0 of $1,400 paid" });
+  });
+
+  it("says when a vendor is paid in full", () => {
+    const data = buildTimeline(single(payment({ status: "paid" })), today);
+    expect((data.details[data.tasks[1].id] as { progressLabel: string }).progressLabel).toMatch(/· paid in full$/);
+  });
+
+  it("gives a single-payment vendor its payment's status class, since it is drawn as that payment's diamond", () => {
+    const data = buildTimeline(single(payment({ status: "paid" })), today);
+    expect(data.tasks[1].cls).toBe("vendor solo solo-paid");
   });
 
   it("only reads 100% when fully paid, and says when a vendor is cancelled", () => {
@@ -407,7 +417,7 @@ describe("task details", () => {
       summary: "2 payments, $500 of $1,500 paid.",
       cancelled: false,
       percentPaid: 33,
-      progressLabel: "33% paid",
+      progressLabel: "$500 of $1,500 paid",
     });
   });
 

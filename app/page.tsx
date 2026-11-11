@@ -114,7 +114,7 @@ export default async function Home() {
               <WhatIfTimeline
                 input={input}
                 todayIso={toIsoDate(now)}
-                className="h-[max(28rem,calc(100vh-19.5rem))]"
+                className="h-[max(28rem,calc(100vh-23rem))]"
               />
               <Tabs
                 id={PAYMENT_LISTS_ID}

@@ -442,9 +442,17 @@ Labels and Summary are available.
   checks the wrapper gets the right `b-color-*` class, and that every colour name exists in Bryntum's stylesheet.
 - The page reads the database on every request (`force-dynamic`) and Bryntum only renders in the browser (loaded with
   `next/dynamic`, SSR off), so a paid payment shows up on the next render and a build never freezes the data.
-- **Today line and opening position.** A dashed "Today" line is drawn in our own layer beside Bryntum's canvases
-  (`useTodayLine` in `PaymentGanttChart.tsx`; it predates the Enterprise switch, and Bryntum's TimeRanges feature could
-  now replace it). The chart opens scrolled to a month before today, with narrow months so today through the wedding fits.
+- **Reading the timeline.** Each row shows the vendor's name with what's paid under it ("$3,000 of $9,000 paid"), so
+  the timeline gets the width. A vendor's payments sit on a thin grey track, as diamonds in full status colour with
+  their amount beside them; paid ones carry a ✓. The legend lists only the four everyday statuses (scheduled, due soon,
+  overdue, paid), plus refund requested or refunded while some payment has one.
+- **Today and wedding lines, and the opening view.** A dashed "Today" line and a solid pink "Wedding · Apr 17" line run
+  through every row, drawn in our own layer beside Bryntum's canvases (`useMarkerLines` in `PaymentGanttChart.tsx`);
+  the wedding line follows a what-if preview. The chart opens on whole months fitted to its width, from a month before
+  today to just after the wedding. Ctrl+scroll and double-click zoom are off, so it never drifts to quarters.
+- **Contract deadlines on demand (Indicators).** Each vendor's last day to change the date or cancel at the current
+  terms is drawn in its row, but only when the "Contract deadlines" switch is on, and always while a what-if preview
+  shows, which is when they matter.
 - **Only the wedding day drags.** Every other editing feature is switched off; dropping the wedding day starts the
   what-if preview (`components/WhatIf/WhatIfTimeline.tsx`), which recomputes every date in code.
 - **Before and after (Baselines).** While a preview shows, each milestone it moved keeps a faded ghost at its old date
