@@ -32,9 +32,9 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   // Signed out goes to /login, and a new account with no wedding goes to onboarding.
   const { weddingId, isDemo } = await requireWeddingOrOnboarding("/");
-  // Judges share one database: a demo left changed and idle goes back to the
-  // seed before this visit reads it (lib/demo/auto-reset.ts).
-  await resetIfIdle();
+  // Judges share one demo wedding: when the demo account visits and it was left changed and idle,
+  // it goes back to the seed before the page reads it (lib/demo/auto-reset.ts). Real couples' data is never touched.
+  if (isDemo) await resetIfIdle();
   const input = await loadTimelineInput(prisma, weddingId);
 
   if (!input) {

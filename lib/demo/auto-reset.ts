@@ -30,7 +30,12 @@ export function idleMinutes(env: string | undefined): number {
 /** True when the demo has changes and the latest is at least `minutes` old. */
 export async function isStale(prisma: PrismaClient, now: Date, minutes: number): Promise<boolean> {
   if (minutes <= 0) return false;
-  const last = await prisma.eventLog.findFirst({ orderBy: { createdAt: "desc" }, select: { type: true, createdAt: true } });
+  // Only the demo wedding's own activity counts: real couples using the app never delay or trigger a reset.
+  const last = await prisma.eventLog.findFirst({
+    where: { wedding: { user: { isDemo: true } } },
+    orderBy: { createdAt: "desc" },
+    select: { type: true, createdAt: true },
+  });
   if (!last || last.type === "demo_seeded") return false; // untouched since the last seed
   return now.getTime() - last.createdAt.getTime() >= minutes * 60_000;
 }

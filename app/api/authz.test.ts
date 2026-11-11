@@ -17,7 +17,7 @@ vi.mock("@/lib/db", async (importOriginal) => ({
     return state.prisma;
   },
 }));
-vi.mock("@/lib/auth", () => ({ auth: async () => (state.userId ? { user: { id: state.userId } } : null) }));
+vi.mock("@/lib/auth", () => ({ auth: async () => (state.userId ? { user: { id: state.userId, isDemo: state.userId === "demo-user" } } : null) }));
 
 // The first call into each route imports it (and its SDKs), which is slow when the whole suite runs at once.
 vi.setConfig({ testTimeout: 60_000 });
@@ -192,6 +192,27 @@ describe("your own ids work", () => {
   it("the demo account reaches its own data", async () => {
     state.userId = demoUser;
     expect((await (await routes["POST /api/vendors/[id]/cancel"](demoVendorId))()).status).toBe(200);
+  });
+});
+
+describe("demo reset: the demo account only", () => {
+  it("answers 403 to a real couple, and nothing changes for anyone", async () => {
+    asAna();
+    await prisma.proposal.update({ where: { id: demoProposalId }, data: { status: "dismissed" } }); // a change a reset would undo
+    const res = await (await routes["POST /api/demo/reset"]())();
+    expect(res.status).toBe(403);
+    expect((await res.json()).error.code).toBe("demo_only");
+    expect((await prisma.proposal.findUniqueOrThrow({ where: { id: demoProposalId } })).status).toBe("dismissed");
+    expect((await prisma.proposal.findUniqueOrThrow({ where: { id: ana.proposalId } })).status).toBe("pending");
+  });
+
+  it("lets the demo account reset the demo, and leaves a real couple's data alone", async () => {
+    state.userId = demoUser;
+    const res = await (await routes["POST /api/demo/reset"]())();
+    expect(res.status).toBe(200);
+    expect(await prisma.proposal.count({ where: { id: demoProposalId } })).toBe(0); // the demo wedding was reseeded
+    expect(await prisma.proposal.count({ where: { id: ana.proposalId } })).toBe(1); // Ana's was not
+    expect(await prisma.vendor.count({ where: { id: ana.vendorId } })).toBe(1);
   });
 });
 

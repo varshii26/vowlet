@@ -10,26 +10,30 @@ import { DEMO_USER } from "@/lib/seed/demo-user";
 const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 /**
- * Wipe all data and write the Priya & Sam demo. Used by the CLI seed, startup
- * seeding and (later) the "Reset demo" button.
+ * Wipe the demo wedding and write it again: Priya & Sam, owned by the demo user.
+ * Used by the CLI seed, startup seeding, the "Reset demo" button and the idle auto-reset.
+ *
+ * It touches only the demo user's wedding. Real couples' weddings, vendors, payments and
+ * accounts are never read or deleted here: a judge pressing Reset must not be able to wipe anyone's data.
  */
 export async function seedDemo(prisma: PrismaClient, options: { message?: string } = {}): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.eventLog.deleteMany();
-    await tx.proposal.deleteMany();
-    await tx.payment.deleteMany();
-    await tx.terms.deleteMany();
-    await tx.clause.deleteMany();
-    await tx.vendor.deleteMany();
-    await tx.wedding.deleteMany();
-
-    // The demo wedding belongs to the demo user. Users are never wiped here: real
-    // accounts must survive a reset (#108 stops the wipe above from touching their weddings too).
+    // The demo user: no password (so it can't be signed into with one), reachable only through "Try the demo".
     await tx.user.upsert({
       where: { id: DEMO_USER.id },
       create: { id: DEMO_USER.id, name: DEMO_USER.name, email: DEMO_USER.email, isDemo: true },
-      update: { name: DEMO_USER.name, email: DEMO_USER.email, isDemo: true },
+      update: { name: DEMO_USER.name, email: DEMO_USER.email, isDemo: true, passwordHash: null },
     });
+
+    // Only the demo user's wedding goes (children first: SQLite enforces the foreign keys).
+    const vendors = { vendor: { wedding: { userId: DEMO_USER.id } } };
+    await tx.eventLog.deleteMany({ where: { wedding: { userId: DEMO_USER.id } } });
+    await tx.proposal.deleteMany({ where: { wedding: { userId: DEMO_USER.id } } });
+    await tx.payment.deleteMany({ where: vendors });
+    await tx.terms.deleteMany({ where: vendors });
+    await tx.clause.deleteMany({ where: vendors });
+    await tx.vendor.deleteMany({ where: { wedding: { userId: DEMO_USER.id } } });
+    await tx.wedding.deleteMany({ where: { userId: DEMO_USER.id } });
 
     const wedding = await tx.wedding.create({
       data: {
@@ -112,9 +116,9 @@ export async function seedDemo(prisma: PrismaClient, options: { message?: string
   });
 }
 
-/** Seed only when the database has no wedding yet. Returns true if it seeded. */
+/** Seed only when the demo wedding is missing (a database full of real couples still needs it). Returns true if it seeded. */
 export async function ensureSeeded(prisma: PrismaClient): Promise<boolean> {
-  if ((await prisma.wedding.count()) > 0) return false;
+  if ((await prisma.wedding.count({ where: { userId: DEMO_USER.id } })) > 0) return false;
   await seedDemo(prisma);
   return true;
 }
