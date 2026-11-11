@@ -82,10 +82,13 @@ describe("renderTaskTooltip", () => {
   it("describes a vendor row", () => {
     const html = renderTaskTooltip({
       kind: "vendor",
+      vendorId: "v-lumen",
       title: "Lumen Photography",
       amountLabel: "$3,200",
       summary: "2 payments, $1,000 of $3,200 paid.",
       cancelled: false,
+      percentPaid: 31,
+      progressLabel: "31% paid",
     });
     expect(html).toContain("Lumen Photography");
     expect(html).toContain("Contract total $3,200");

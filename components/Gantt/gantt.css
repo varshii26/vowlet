@@ -111,9 +111,18 @@
   overscroll-behavior: auto !important;
 }
 
-/* Every payment links to one wedding day, so keep the dependency lines light. */
+/*
+ * Every payment links to one wedding day, so the lines would bunch into one
+ * stripe there. Hide them; hovering a milestone highlights its own links
+ * (highlightDependenciesOnEventHover), and only those show.
+ */
 .b-sch-dependency {
-  --b-dependency-color: #e3d6c9;
+  --b-dependency-color: #c9a99a;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.b-sch-dependency.b-highlighted {
+  opacity: 1;
 }
 
 /* Tooltip content (see components/Gantt/tooltip.ts). */
@@ -206,4 +215,79 @@
   background: #f7e8eb;
   color: #a8435a;
   box-shadow: inset 0 0 0 1px rgb(168 67 90 / 0.35);
+}
+
+/*
+ * Vendor rows start collapsed, so each payment shows as a rollup diamond in its
+ * vendor's row (Rollups feature), coloured by status. Make them big enough to
+ * read and click. `scale`, not `transform`, keeps Bryntum's diamond rotation.
+ */
+.b-gantt .b-task-rollup.b-milestone {
+  scale: 1.5;
+  cursor: pointer;
+}
+/*
+ * A vendor with a single payment is itself a zero-length summary, drawn as a
+ * diamond (coloured by that payment's status in lib/timeline.ts). Its rollup
+ * would only repeat it, as a stray bar, so leave it out.
+ */
+.b-gantt .b-milestone-wrap.b-gantt-task-parent .b-task-rollup-wrap {
+  display: none;
+}
+
+/*
+ * Vendor summary bars fill by the share of the contract paid (percentDone from
+ * lib/timeline). Tint the paid part like a paid milestone so it reads as money
+ * paid, not as generic task progress.
+ */
+.b-gantt .b-gantt-task-parent .b-task-percent-bar {
+  background: color-mix(in srgb, var(--b-color-green) 60%, white);
+}
+
+/*
+ * Amount labels (Labels feature, see components/Gantt/labels.ts). Payment rows
+ * get one right of the diamond; a single-payment vendor (drawn as one diamond)
+ * too. A collapsed vendor bar's right label holds one amount beside each
+ * unpaid rollup diamond.
+ */
+.b-gantt .b-sch-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: #6b5f57;
+}
+.vw-rollup-amount {
+  /* Against the vendor's task wrapper: level with the rollup diamonds. */
+  position: absolute;
+  bottom: -3px;
+  margin-inline-start: 9px;
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.vw-amount-due_soon {
+  color: #a16207;
+}
+.vw-amount-overdue {
+  color: #b91c1c;
+}
+
+/*
+ * Contract deadlines (Indicators feature, lib/deadlines.ts): a small icon in
+ * the vendor's row on the last day of the current date-change or cancellation
+ * tier. Click opens the clause.
+ */
+.b-gantt .b-indicator.vw-deadline {
+  cursor: pointer;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+.b-gantt .b-indicator.vw-deadline:hover {
+  opacity: 1;
+}
+/* Bryntum greys the icon itself, so colour the <i>. */
+.b-gantt .b-indicator.vw-deadline-date_change i {
+  color: #7c3aed;
+}
+.b-gantt .b-indicator.vw-deadline-cancellation i {
+  color: #b45309;
 }

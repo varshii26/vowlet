@@ -5,6 +5,7 @@ import { computeDueDate, toIsoDate, type PaymentStatus } from "@/lib/schedule";
 import { paymentClause } from "@/lib/seed/clauses";
 import { VENDORS, WEDDING } from "@/lib/seed/demo-data";
 import {
+  percentPaid,
   STATUS_COLOR,
   WEDDING_TASK_ID,
   buildTimeline,
@@ -81,7 +82,8 @@ describe("buildTimeline on the demo data", () => {
     for (const row of vendorRows) {
       const spec = VENDORS.find((v) => `vendor-v-${v.slug}` === row.id)!;
       expect(row.children).toHaveLength(spec.payments.length);
-      expect(row.expanded).toBe(true);
+      expect(row.expanded).toBe(false);
+      for (const child of row.children!) expect(child.rollup).toBe(true);
     }
     const input = demoInput();
     for (const v of input.vendors) {
@@ -115,7 +117,7 @@ describe("buildTimeline on the demo data", () => {
   it("covers every milestone with padding either side", () => {
     const all = [data.tasks[0], ...payments].map((t) => t.startDate!).sort();
     expect(data.startDate).toBe("2026-05-22"); // earliest 2026-06-12 minus 21 days
-    expect(data.endDate).toBe("2027-05-08"); // wedding 2027-04-17 plus 21 days
+    expect(data.endDate).toBe("2027-06-01"); // wedding 2027-04-17 plus 45 days of room to drag it
     expect(data.startDate < all[0]).toBe(true);
     expect(data.endDate > all[all.length - 1]).toBe(true);
   });
@@ -150,6 +152,82 @@ describe("reflow when the wedding moves", () => {
   });
 });
 
+describe("vendor progress", () => {
+  it("fills each vendor bar by the share of its contract paid, by amount", () => {
+    const data = buildTimeline(demoInput(), today);
+    const grandOak = data.tasks.find((t) => t.id === vendorTaskId("v-grand-oak-estate"))!;
+    // $3,000 deposit of $9,000 paid
+    expect(grandOak.percentDone).toBe(33);
+    expect(data.details[grandOak.id]).toMatchObject({ percentPaid: 33, progressLabel: "33% paid" });
+    const quartet = data.tasks.find((t) => t.id === vendorTaskId("v-velvet-strings-quartet"))!;
+    expect(quartet.percentDone).toBe(0);
+  });
+
+  it("only reads 100% when fully paid, and says when a vendor is cancelled", () => {
+    expect(percentPaid(299_999, 300_000)).toBe(99);
+    expect(percentPaid(300_000, 300_000)).toBe(100);
+    expect(percentPaid(0, 0)).toBe(0);
+    const cancelled = buildTimeline(single(payment({ status: "void" }), { status: "cancelled" }), today);
+    expect(cancelled.details[cancelled.tasks[1].id]).toMatchObject({ progressLabel: "Cancelled" });
+  });
+});
+
+describe("the demo during judging (Dec 1-15, 2026)", () => {
+  // The seed's own dates put timing colours on screen for judges: the DJ
+  // booking fee (fixed Dec 1) and the venue second installment (Dec 18).
+  const statuses = (iso: string) =>
+    new Set(
+      Object.values(buildTimeline(demoInput(), d(iso)).details).flatMap((x) => (x.kind === "payment" ? [x.status] : [])),
+    );
+
+  it("shows a payment due soon on the first day", () => {
+    expect(statuses("2026-12-01")).toEqual(new Set(["paid", "scheduled", "due_soon"]));
+  });
+
+  it("shows one overdue and one due soon later in the window", () => {
+    const later = statuses("2026-12-08");
+    expect(later.has("overdue")).toBe(true);
+    expect(later.has("due_soon")).toBe(true);
+  });
+});
+
+describe("contract deadlines on vendor rows", () => {
+  const terms = {
+    dateChange: [
+      { minNoticeDays: 60, feePercent: 0, flatFee: 0 },
+      { minNoticeDays: 0, feePercent: 25, flatFee: 0 },
+    ],
+    cancellation: [
+      { minNoticeDays: 90, refundPercent: 50, flatFee: 0 },
+      { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
+    ],
+    dateChangeClause: { id: "c-change", page: 2 },
+    cancellationClause: { id: "c-cancel", page: 2 },
+  };
+  const deadlinesOf = (data: ReturnType<typeof buildTimeline>) => {
+    const detail = data.details[vendorTaskId("v1")];
+    return detail.kind === "vendor" ? detail.deadlines : undefined;
+  };
+
+  it("gives each vendor its next date-change and cancellation deadline", () => {
+    const deadlines = deadlinesOf(buildTimeline(single(payment(), { terms }), today));
+    expect(deadlines?.map((x) => [x.kind, x.isoDate, x.clauseId])).toEqual([
+      ["date_change", "2027-02-16", "c-change"], // 60 days before 2027-04-17
+      ["cancellation", "2027-01-17", "c-cancel"], // 90 days before
+    ]);
+  });
+
+  it("moves them with the wedding during a what-if", () => {
+    const moved = buildTimeline({ ...single(payment(), { terms }), wedding: { coupleNames: "A & B", date: d("2027-06-12") } }, today);
+    expect(deadlinesOf(moved)?.[0].isoDate).toBe("2027-04-13");
+  });
+
+  it("has none for a cancelled vendor or one without terms", () => {
+    expect(deadlinesOf(buildTimeline(single(payment({ status: "void" }), { terms, status: "cancelled" }), today))).toBeUndefined();
+    expect(deadlinesOf(buildTimeline(single(payment()), today))).toBeUndefined();
+  });
+});
+
 describe("withBaseline (what-if ghosts)", () => {
   const flat = (data: ReturnType<typeof buildTimeline>) => data.tasks.flatMap((t) => [t, ...(t.children ?? [])]);
   const base = buildTimeline(demoInput(), today);
@@ -179,6 +257,12 @@ describe("withBaseline (what-if ghosts)", () => {
   it("keeps both the old and the new dates in the visible range", () => {
     expect(preview.startDate <= base.startDate).toBe(true);
     expect(preview.endDate >= buildTimeline(demoInput(d("2027-06-12")), today).endDate).toBe(true);
+  });
+
+  it("opens the vendor rows whose payments moved, so their ghosts are visible", () => {
+    expect(task(vendorTaskId("v-grand-oak-estate")).expanded).toBe(true);
+    expect(task(vendorTaskId("v-paper-crane-invitations")).expanded).toBe(false); // signing date only, nothing moved
+    expect(flat(withBaseline(base, base)).some((t) => t.expanded)).toBe(false);
   });
 
   it("has no ghosts at all when nothing moved", () => {
@@ -232,12 +316,18 @@ describe("milestone colours", () => {
   });
 
   it("colours the wedding day and vendor rows apart from the payments", () => {
-    const data = buildTimeline(single(payment()), today);
+    const data = buildTimeline({ wedding: { coupleNames: "A & B", date: wedding }, vendors: [vendor([payment(), payment({ id: "p2", offsetDays: -10 })])] }, today);
     expect(data.tasks[0].eventColor).toBe("pink");
     expect(data.tasks[1].eventColor).toBe("light-gray");
     const cancelled = buildTimeline(single(payment({ status: "void" }), { status: "cancelled" }), today);
     expect(cancelled.tasks[1].eventColor).toBe("lighter-gray");
     expect(Object.values(STATUS_COLOR)).not.toContain(data.tasks[0].eventColor);
+  });
+
+  it("colours a single-payment vendor by its payment, whose diamond it covers", () => {
+    const data = buildTimeline(single(payment({ status: "paid" })), today);
+    expect(data.tasks[1].eventColor).toBe(STATUS_COLOR.paid);
+    expect(data.tasks[1].children![0].eventColor).toBe(STATUS_COLOR.paid);
   });
 
   it("only uses colours that exist in the Gantt stylesheet", () => {
@@ -298,10 +388,13 @@ describe("task details", () => {
     const detail = buildTimeline(input, today).details[vendorTaskId("v1")];
     expect(detail).toEqual({
       kind: "vendor",
+      vendorId: "v1",
       title: "Vendor One",
       amountLabel: "$1,500",
       summary: "2 payments, $500 of $1,500 paid.",
       cancelled: false,
+      percentPaid: 33,
+      progressLabel: "33% paid",
     });
   });
 
@@ -339,7 +432,7 @@ describe("edge cases", () => {
     expect(data.tasks.map((t) => t.id)).toEqual([WEDDING_TASK_ID]);
     expect(data.dependencies).toEqual([]);
     expect(data.startDate).toBe("2027-03-27");
-    expect(data.endDate).toBe("2027-05-08");
+    expect(data.endDate).toBe("2027-06-01");
   });
 
   it("keeps a vendor with no payments as an empty row", () => {

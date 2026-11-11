@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { StatusLegend } from "@/components/Gantt/StatusLegend";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { usePaymentDrawer } from "@/components/Payments/PaymentDrawer";
 import { useToast } from "@/components/ui/Toast";
@@ -118,6 +119,7 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           the date would cost.
         </p>
       </div>
+      <StatusLegend />
 
       <div className="relative min-h-0 flex-1">
         <PaymentGantt

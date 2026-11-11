@@ -85,11 +85,16 @@ export function dateChangeCost(input: DateChangeInput): DateChangeResult {
     if (!rule) {
       return { ...base, costCents: 0, appliedRule: null, reason: "No date-change terms apply; check the contract." };
     }
-    const costCents = percentOf(vendor.totalCostCents, rule.feePercent) + rule.flatFee;
+    const costCents = dateChangeFee(vendor.totalCostCents, rule);
     return { ...base, costCents, appliedRule: rule, reason: dateChangeReason(rule, noticeDays, costCents) };
   });
 
   return { rows, totalCents: rows.reduce((sum, row) => sum + row.costCents, 0) };
+}
+
+/** The fee one date-change tier charges: its percent of the vendor's total, plus its flat fee. */
+export function dateChangeFee(totalCostCents: number, rule: DateChangeRule): number {
+  return percentOf(totalCostCents, rule.feePercent) + rule.flatFee;
 }
 
 function dateChangeReason(rule: DateChangeRule, noticeDays: number, costCents: number): string {

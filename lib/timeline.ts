@@ -7,6 +7,7 @@
  *
  * Due dates come from lib/schedule.ts. The Gantt never decides a date.
  */
+import { nextDeadlines, type Deadline, type DeadlineTerms } from "@/lib/deadlines";
 import { formatCents } from "@/lib/money";
 import {
   addDaysUtc,
@@ -38,6 +39,8 @@ export type TimelineVendor = {
   status: "active" | "cancelled";
   signingDate: Date;
   payments: TimelinePayment[];
+  /** Cancellation and date-change terms, for the deadline indicators. */
+  terms?: DeadlineTerms;
 };
 
 export type TimelineInput = {
@@ -57,6 +60,16 @@ export type TimelineTask = {
   duration?: number;
   expanded?: boolean;
   manuallyScheduled?: boolean;
+  /**
+   * Payments roll up into their vendor's row (Bryntum's Rollups feature), so a
+   * collapsed vendor still shows every payment diamond in its status colour.
+   */
+  rollup?: boolean;
+  /**
+   * Vendor rows: share of the contract paid, 0-100, by amount. Bryntum fills
+   * that much of the summary bar, so progress reads at a glance.
+   */
+  percentDone?: number;
   /** Only the wedding day can be dragged (to run a what-if); payment dates come from the contracts. */
   draggable: boolean;
   resizable: false;
@@ -101,10 +114,20 @@ export type TaskDetail =
     }
   | {
       kind: "vendor";
+      vendorId: string;
       title: string;
       amountLabel: string;
       summary: string;
       cancelled: boolean;
+      /** Share of the contract paid, 0-100, by amount. */
+      percentPaid: number;
+      /** "67% paid", for the Status column. */
+      progressLabel: string;
+      /**
+       * The next date-change and cancellation deadline (lib/deadlines.ts),
+       * drawn as indicators in the vendor's row. Absent without terms.
+       */
+      deadlines?: Deadline[];
     }
   | {
       kind: "payment";
@@ -167,6 +190,11 @@ const CANCELLED_VENDOR_COLOR = "lighter-gray";
 
 /** Days of padding on each side of the first and last milestone. */
 const RANGE_PADDING_DAYS = 21;
+/**
+ * Room after the wedding day: the milestone stays fully on screen and there is
+ * space to drag it later for a what-if.
+ */
+const WEDDING_TAIL_DAYS = 45;
 
 const longDate = (date: Date) =>
   date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
@@ -182,17 +210,44 @@ function datePayments(vendor: TimelineVendor, weddingDate: Date, today: Date): D
     .sort((a, b) => a.due.getTime() - b.due.getTime() || a.label.localeCompare(b.label));
 }
 
-function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[]): TaskDetail {
+/** Whole percent paid, rounded down so a vendor reads 100% only when fully paid. */
+export const percentPaid = (paidCents: number, totalCents: number) => (totalCents > 0 ? Math.floor((paidCents * 100) / totalCents) : 0);
+
+function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[], weddingDate: Date, today: Date): TaskDetail {
   const total = dated.reduce((sum, p) => sum + p.amountCents, 0);
   const paid = dated.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountCents, 0);
   const count = `${dated.length} payment${dated.length === 1 ? "" : "s"}`;
   return {
     kind: "vendor",
+    vendorId: vendor.id,
     title: vendor.name,
     amountLabel: formatCents(total),
     summary: vendor.status === "cancelled" ? `Cancelled. ${count}.` : `${count}, ${formatCents(paid)} of ${formatCents(total)} paid.`,
     cancelled: vendor.status === "cancelled",
+    percentPaid: percentPaid(paid, total),
+    progressLabel: vendor.status === "cancelled" ? "Cancelled" : `${percentPaid(paid, total)}% paid`,
+    ...(vendor.terms && vendor.status === "active"
+      ? {
+          deadlines: nextDeadlines({
+            weddingDate,
+            today,
+            totalCostCents: total,
+            payments: dated.map((p) => ({ amountCents: p.amountCents, status: p.status })),
+            terms: vendor.terms,
+          }),
+        }
+      : {}),
   };
+}
+
+/**
+ * A vendor row's colour. A vendor with a single payment is drawn as one diamond
+ * (its summary has no length), which covers that payment's rollup, so it takes
+ * the payment's status colour; otherwise a neutral summary bar.
+ */
+function vendorColor(vendor: TimelineVendor, dated: DatedPayment[]): string {
+  if (vendor.status === "cancelled") return CANCELLED_VENDOR_COLOR;
+  return dated.length === 1 ? STATUS_COLOR[dated[0].display] : VENDOR_COLOR;
 }
 
 const UNPAID: ReadonlySet<PaymentStatus> = new Set(["scheduled", "due"]);
@@ -224,7 +279,8 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     });
 
   const vendorTasks = vendors.map(({ vendor, dated }): TimelineTask => {
-    details[vendorTaskId(vendor.id)] = vendorSummary(vendor, dated);
+    const summary = vendorSummary(vendor, dated, weddingDate, today);
+    details[vendorTaskId(vendor.id)] = summary;
     addToCashByMonth(cashByMonth, vendor, dated);
 
     const children = dated.map((payment): TimelineTask => {
@@ -259,6 +315,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
         startDate: toIsoDate(payment.due),
         duration: 0,
         manuallyScheduled: true,
+        rollup: true,
         draggable: false,
         resizable: false,
         eventColor: STATUS_COLOR[payment.display],
@@ -269,10 +326,13 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     return {
       id: vendorTaskId(vendor.id),
       name: vendor.name,
-      expanded: true,
+      // Collapsed, so all vendors fit at once; the payments still show as
+      // rollups in the vendor's row, and expanding lists them one per row.
+      expanded: false,
+      percentDone: summary.kind === "vendor" ? summary.percentPaid : 0,
       draggable: false,
       resizable: false,
-      eventColor: vendor.status === "cancelled" ? CANCELLED_VENDOR_COLOR : VENDOR_COLOR,
+      eventColor: vendorColor(vendor, dated),
       cls: vendor.status === "cancelled" ? "vendor vendor-cancelled" : "vendor",
       children,
     };
@@ -287,7 +347,9 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
 
   const times = allDates.map((d) => d.getTime());
   const start = addDaysUtc(new Date(Math.min(...times)), -RANGE_PADDING_DAYS);
-  const end = addDaysUtc(new Date(Math.max(...times)), RANGE_PADDING_DAYS);
+  const end = new Date(
+    Math.max(addDaysUtc(new Date(Math.max(...times)), RANGE_PADDING_DAYS).getTime(), addDaysUtc(weddingDate, WEDDING_TAIL_DAYS).getTime()),
+  );
 
   return {
     tasks: [
@@ -322,7 +384,8 @@ export const BASELINE_CLS = "vw-ghost";
  * A what-if preview with the schedule from before it as Bryntum baselines: every
  * milestone the preview moved (the wedding day and each wedding-anchored payment)
  * gets a ghost at its old date and a `was` note for its tooltip. Milestones that
- * didn't move get no ghost. Cancelling (back to `base`) or confirming (the
+ * didn't move get no ghost, and a vendor row with a moved payment opens so its
+ * ghosts show. Cancelling (back to `base`) or confirming (the
  * preview becomes the new base) simply stops calling this, so the ghosts go.
  */
 export function withBaseline(preview: TimelineData, base: TimelineData): TimelineData {
@@ -338,8 +401,11 @@ export function withBaseline(preview: TimelineData, base: TimelineData): Timelin
   const mark = (tasks: TimelineTask[]): TimelineTask[] =>
     tasks.map((task) => {
       const children = task.children ? mark(task.children) : undefined;
+      // Open a vendor whose payments moved, so their ghosts (drawn on the
+      // payment rows) show; the saved schedule collapses it again.
+      const opened = children?.some((child) => child.baselines) ? { expanded: true } : {};
       const was = before.get(task.id);
-      if (!was || !task.startDate || was === task.startDate) return children ? { ...task, children } : task;
+      if (!was || !task.startDate || was === task.startDate) return children ? { ...task, ...opened, children } : task;
       const detail = details[task.id];
       if (detail && (detail.kind === "payment" || detail.kind === "wedding")) {
         details[task.id] = {

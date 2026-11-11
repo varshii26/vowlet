@@ -3,8 +3,10 @@
 import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
-import { renderBaselineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { renderBaselineTip, renderDeadlineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import type { Deadline, DeadlineKind } from "@/lib/deadlines";
 import { formatCents } from "@/lib/money";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
@@ -97,7 +99,14 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
     }
   }, [data.dependencies]);
 
-  useTodayLine(ganttRef, todayIso);
+  // Read once, when the chart opens, to choose where it scrolls to.
+  const [openingWeddingIso] = useState(() => {
+    const wedding = data.details[WEDDING_TASK_ID];
+    return wedding?.kind === "wedding" ? wedding.isoDate : undefined;
+  });
+  useTodayLine(ganttRef, todayIso, openingWeddingIso);
+  useVendorProgress(ganttRef, data.tasks);
+  useDeadlineClicks(ganttRef);
 
   // The wrapper syncs new tasks into the existing records, and a field left out
   // keeps its old value. So every task states its baselines, empty when it has
@@ -128,7 +137,19 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       taskSegmentResizeFeature: false,
       projectLinesFeature: false,
       criticalPathsFeature: false,
-      dependenciesFeature: { allowCreate: false },
+      // Every payment links to the wedding day, so the lines would bunch into
+      // one stripe there. They stay hidden (gantt.css) and show only for the
+      // milestone under the mouse.
+      dependenciesFeature: { allowCreate: false, highlightDependenciesOnEventHover: true },
+      // Vendor rows start collapsed so all of them fit; each payment still shows
+      // as a diamond in its vendor's row, in its status colour. Clicking one
+      // fires taskClick with the payment itself (handled below).
+      rollupsFeature: {
+        template: ({ children }: { children: TaskModel[] }) =>
+          children
+            .map((child) => renderTaskTooltip(detailOf(child), child.startDate ? localIsoDay(new Date(child.startDate)) : undefined))
+            .join(""),
+      },
       // What-if before/after: a task whose data carries `baselines` (only while
       // a preview is showing, see withBaseline in lib/timeline) gets a faded
       // ghost at its old date under it. Tasks without baselines draw nothing.
@@ -152,6 +173,56 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       // The busiest month is highlighted; it follows a what-if preview live.
       summaryFeature: {
         renderer: ({ startDate }: { startDate: Date }) => renderCashCell(cashRef.current, monthKey(startDate)),
+      },
+      // Amount labels (Labels feature), so the timeline reads as a cash plan
+      // without hovering; only money still to pay is labelled. A payment row,
+      // or a single-payment vendor (one diamond), gets its amount right of the
+      // diamond. A collapsed vendor bar's right label holds one amount beside
+      // each unpaid rollup diamond, placed by date (see labels.ts). Right labels take no row height, so diamonds keep
+      // their size, and they sit outside the bar, whose bracket shape clips.
+      labelsFeature: {
+        right: {
+          renderer: ({ taskRecord, domConfig }: { taskRecord: TaskModel; domConfig: LabelDomConfig }) => {
+            const single = onlyPayment(taskRecord);
+            const children = taskRecord.children instanceof Array ? (taskRecord.children as TaskModel[]) : [];
+            if (single || children.length === 0) return amountLabelFor(detailOf(single ?? taskRecord));
+            const gantt = ganttRef.current?.instance as unknown as Timeline | undefined;
+            if (!gantt || !taskRecord.startDate) return "";
+            const start = gantt.getCoordinateFromDate(new Date(taskRecord.startDate));
+            const labels = rollupLabels(
+              children.map((child) => ({
+                detail: detailOf(child),
+                x: child.startDate ? gantt.getCoordinateFromDate(new Date(child.startDate)) - start : 0,
+              })),
+            );
+            // Keep Bryntum's own label element and fill it with amounts. They
+            // are positioned against the row's task wrapper, which starts where
+            // the vendor bar starts, so each offset is measured from there.
+            domConfig.children = labels.map((label) => ({
+              tag: "span",
+              className: `vw-rollup-amount vw-amount-${label.status}`,
+              style: { insetInlineStart: `${label.x}px` },
+              text: label.text,
+            }));
+            return undefined;
+          },
+        },
+      },
+      // Contract deadlines in each vendor's row (Enterprise Indicators): the
+      // last day to change the date, and to cancel, at the current tier
+      // (lib/deadlines.ts, computed in code from the extracted terms). They
+      // move with the wedding during a what-if. Bryntum's own scheduling
+      // indicators (early/late dates, constraints) mean nothing here.
+      indicatorsFeature: {
+        items: {
+          earlyDates: false,
+          lateDates: false,
+          constraintDate: false,
+          deadlineDate: false,
+          dateChange: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "date_change"),
+          cancellation: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "cancellation"),
+        },
+        tooltipTemplate: ({ indicator }: { indicator: DeadlineIndicator }) => indicator.tipHtml ?? "",
       },
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
@@ -179,6 +250,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           sortable: false,
           renderer: ({ record }: { record: TaskModel }) => {
             const detail = detailOf(record);
+            if (detail?.kind === "vendor") return detail.progressLabel;
             return detail?.kind === "payment" ? detail.statusLabel : "";
           },
         },
@@ -188,7 +260,10 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           renderTaskTooltip(detailOf(taskRecord), taskRecord.startDate ? localIsoDay(new Date(taskRecord.startDate)) : undefined),
       },
       onTaskClick: ({ taskRecord }: { taskRecord: TaskModel }) => {
-        const detail = detailOf(taskRecord);
+        // A rollup click hands us the payment itself. A vendor with a single
+        // payment is drawn as one diamond (its own summary), so it stands for
+        // that payment.
+        const detail = detailOf(onlyPayment(taskRecord) ?? taskRecord);
         if (detail?.kind !== "payment") return;
         // Without a select handler, a payment opens the clause it comes from.
         if (selectRef.current) selectRef.current(detail);
@@ -209,6 +284,85 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
   );
 }
 
+type ProgressProject = {
+  autoCalculatePercentDoneForParentTasks: boolean;
+  taskStore: { getById(id: string): { percentDone: number; set(field: "percentDone", value: number): void } | undefined };
+};
+
+/**
+ * Vendor bars fill by the share of the contract paid, by amount (lib/timeline).
+ * Bryntum's engine would replace that with its own average over the payment
+ * milestones, which have no duration and so always read 0%. A `project` config
+ * can't sit beside inline tasks, so switch the engine's roll-up off once the
+ * chart exists and put our numbers back, again whenever the data changes.
+ */
+function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: TimelineTask[]) {
+  useEffect(() => {
+    const project = ganttRef.current?.instance?.project as unknown as ProgressProject | undefined;
+    if (!project) return;
+    // Bryntum's project is the chart's own mutable state, not React's.
+    Object.assign(project, { autoCalculatePercentDoneForParentTasks: false });
+    for (const task of tasks) {
+      const record = task.percentDone === undefined ? undefined : project.taskStore.getById(task.id);
+      if (record && record.percentDone !== task.percentDone) record.set("percentDone", task.percentDone!);
+    }
+  }, [ganttRef, tasks]);
+}
+
+type DeadlineIndicator = {
+  startDate: Date;
+  name: string;
+  iconCls: string;
+  cls: string;
+  /** Our own tooltip, escaped (tooltip.ts). */
+  tipHtml: string;
+  /** Where clicking the indicator goes: the clause the terms come from. */
+  href: string | null;
+};
+
+/**
+ * Clicking a deadline indicator opens the contract clause its terms come from.
+ * Bryntum keeps the indicator object on its element as `elementData`.
+ */
+function useDeadlineClicks(ganttRef: RefObject<BryntumGantt | null>) {
+  useEffect(() => {
+    const element = (ganttRef.current?.instance as unknown as { element?: HTMLElement } | undefined)?.element;
+    if (!element) return;
+    const onClick = (event: MouseEvent) => {
+      const indicator = (event.target as Element | null)?.closest?.(".b-indicator.vw-deadline") as (Element & { elementData?: DeadlineIndicator }) | null;
+      if (indicator?.elementData?.href) window.location.assign(indicator.elementData.href);
+    };
+    element.addEventListener("click", onClick);
+    return () => element.removeEventListener("click", onClick);
+  }, [ganttRef]);
+}
+
+const DEADLINE_ICON: Record<DeadlineKind, string> = {
+  date_change: "fa fa-calendar-day",
+  cancellation: "fa fa-rotate-left",
+};
+
+/** The indicator for a vendor's next deadline of one kind, or null when it has none. */
+function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind): DeadlineIndicator | null {
+  if (detail?.kind !== "vendor") return null;
+  const deadline: Deadline | undefined = detail.deadlines?.find((d) => d.kind === kind);
+  if (!deadline) return null;
+  const [y, m, d] = deadline.isoDate.split("-").map(Number);
+  return {
+    startDate: new Date(y, m - 1, d), // Bryntum dates are local midnights
+    name: deadline.title,
+    iconCls: DEADLINE_ICON[kind],
+    cls: `vw-deadline vw-deadline-${kind}`,
+    tipHtml: renderDeadlineTip(deadline, detail.title),
+    href: deadline.clauseId ? clauseHref(detail.vendorId, deadline.clauseId) : null,
+  };
+}
+
+/** A vendor with a single payment is drawn as one diamond that stands for that payment. */
+function onlyPayment(task: TaskModel): TaskModel | undefined {
+  return task.children instanceof Array && task.children.length === 1 ? (task.children[0] as TaskModel) : undefined;
+}
+
 function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
   return tasks.map((task) => ({
     ...task,
@@ -217,12 +371,17 @@ function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
   }));
 }
 
+/** Days kept visible after the wedding day when the chart opens. */
+const WEDDING_VIEW_MARGIN_DAYS = 21;
+
+type LabelDomConfig = { children?: object[] };
+
 type SummaryFeature = { refresh?: () => void; updateTimelineSummaries?: () => void };
 
 type Timeline = {
   foregroundCanvas?: HTMLElement;
   getCoordinateFromDate: (date: Date) => number;
-  timeAxisSubGrid?: { scrollable?: { scrollTo: (x: number) => unknown } };
+  timeAxisSubGrid?: { element?: HTMLElement; scrollable?: { scrollTo: (x: number) => unknown } };
   ion: (listeners: Record<string, () => void>) => () => void;
 };
 
@@ -232,7 +391,7 @@ type Timeline = {
  * axis sub-grid (it scrolls with the timeline). Never put it inside Bryntum's
  * foreground canvas: Bryntum recycles that canvas's children as task elements.
  */
-function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined) {
+function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined, weddingIso: string | undefined) {
   useEffect(() => {
     const gantt = ganttRef.current?.instance as unknown as Timeline | undefined;
     if (!gantt || !todayIso) return;
@@ -257,14 +416,22 @@ function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string
     };
 
     place();
-    // Open on the part that matters: from a month before today onwards. Set the
-    // timeline's own scroll; scrollToDate would also scroll the page to the chart.
+    // Open on the part that matters: from a month before today onwards, but
+    // never so far right that the wedding day (plus room to drag it) is cut
+    // off. Set the timeline's own scroll; scrollToDate would also scroll the
+    // page to the chart.
     const scroller = gantt.timeAxisSubGrid?.scrollable;
-    void scroller?.scrollTo(Math.max(0, gantt.getCoordinateFromDate(new Date(y, m - 2, d))));
+    let x = gantt.getCoordinateFromDate(new Date(y, m - 2, d));
+    const viewport = gantt.timeAxisSubGrid?.element?.clientWidth ?? 0;
+    if (weddingIso && viewport > 0) {
+      const [wy, wm, wd] = weddingIso.split("-").map(Number);
+      x = Math.min(x, gantt.getCoordinateFromDate(new Date(wy, wm - 1, wd + WEDDING_VIEW_MARGIN_DAYS)) - viewport);
+    }
+    void scroller?.scrollTo(Math.max(0, x));
     const detach = gantt.ion({ timeAxisChange: place, timelineViewportResize: place, renderRows: place, horizontalScroll: place });
     return () => {
       detach();
       canvas.remove();
     };
-  }, [ganttRef, todayIso]);
+  }, [ganttRef, todayIso, weddingIso]);
 }

@@ -107,6 +107,9 @@ function wrapClass(selector: string): string {
   return bar?.parentElement?.className ?? "";
 }
 
+/** Classes on the rollup diamond matching `selector`, drawn in the collapsed vendor row. */
+const rollupClass = (selector: string) => host!.querySelector(`.b-task-rollup${selector}`)?.className ?? "";
+
 const barCount = (selector: string) => host!.querySelectorAll(`.b-gantt-task${selector}`).length;
 
 describe("PaymentGanttChart", () => {
@@ -152,10 +155,74 @@ describe("PaymentGanttChart", () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
     });
 
-    expect(wrapClass(".payment-paid")).toContain("b-color-green");
-    expect(wrapClass(".payment-scheduled")).toContain("b-color-blue");
+    // Vendor rows start collapsed: each payment shows as a rollup diamond in
+    // its vendor's row, carrying its own status colour.
+    expect(rollupClass(".payment-paid")).toContain("b-color-green");
+    expect(rollupClass(".payment-scheduled")).toContain("b-color-blue");
+    expect(rollupClass(".payment-scheduled")).toContain("b-milestone");
     expect(wrapClass(".wedding")).toContain("b-color-pink");
-    expect(wrapClass(".payment-scheduled")).toContain("b-milestone-wrap");
+    expect(barCount(".payment")).toBe(0); // the payment rows themselves are folded away
+  });
+
+  it("fills the vendor bar by the share paid, not the engine's own roll-up", async () => {
+    await mount(input);
+    const { tasks } = await engine();
+    // $3,000 of $6,000 paid
+    expect((tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(50);
+
+    await rerender({
+      ...input,
+      vendors: [{ ...input.vendors[0], payments: input.vendors[0].payments.map((p) => ({ ...p, status: "paid" as const })) }],
+    });
+    expect(((await engine()).tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(100);
+  });
+
+  it("labels the amount still to pay beside its diamond, and leaves paid ones unlabelled (Labels feature)", async () => {
+    await mount(input);
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    expect((gantt.features as unknown as { labels?: { disabled: boolean } }).labels?.disabled).toBe(false);
+    // The vendor row is collapsed: its right label holds the amounts of its rollups.
+    const amounts = [...host!.querySelectorAll(".vw-rollup-amount")].map((el) => el.textContent);
+    expect(amounts).toEqual(["$3,000"]); // the scheduled balance; the paid deposit has none
+    expect(host!.querySelector(".vw-rollup-amount")!.className).toContain("vw-amount-scheduled");
+  });
+
+  it("draws the vendor's contract deadlines as indicators in its row, with our tooltip", async () => {
+    await mount({
+      ...input,
+      vendors: [
+        {
+          ...input.vendors[0],
+          terms: {
+            dateChange: [
+              { minNoticeDays: 60, feePercent: 0, flatFee: 0 },
+              { minNoticeDays: 0, feePercent: 25, flatFee: 0 },
+            ],
+            cancellation: [
+              { minNoticeDays: 90, refundPercent: 50, flatFee: 0 },
+              { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
+            ],
+            dateChangeClause: { id: "c-change", page: 2 },
+            cancellationClause: { id: "c-cancel", page: 2 },
+          },
+        },
+      ],
+    });
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const indicators = [...host!.querySelectorAll<HTMLElement & { elementData?: { tipHtml: string; href: string } }>(".b-indicator.vw-deadline")];
+    expect(indicators.map((el) => el.className.match(/vw-deadline-(\w+)/)![1]).sort()).toEqual(["cancellation", "date_change"]);
+    const change = indicators.find((el) => el.className.includes("vw-deadline-date_change"))!;
+    expect(change.elementData!.tipHtml).toContain("Last day to change the date for free");
+    expect(change.elementData!.href).toContain("c-change");
+    // Bryntum's own scheduling indicators stay off.
+    expect(host!.querySelectorAll(".b-indicator:not(.vw-deadline)")).toHaveLength(0);
   });
 
   it("picks up a changed payment status when the page re-renders with new data", async () => {
@@ -183,10 +250,10 @@ describe("PaymentGanttChart", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 200));
     });
-    expect(barCount(".payment-paid")).toBe(2);
-    expect(barCount(".payment-scheduled")).toBe(0);
-    expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-green")).toHaveLength(2);
-    expect(host!.querySelectorAll(".b-gantt-task-wrap.b-color-blue")).toHaveLength(0);
+    const rollups = (selector: string) => host!.querySelectorAll(`.b-task-rollup${selector}`).length;
+    expect(rollups(".payment-paid.b-color-green")).toBe(2);
+    expect(rollups(".payment-scheduled")).toBe(0);
+    expect(rollups(".b-color-blue")).toBe(0);
   });
 
   describe("dragging the wedding day", () => {
