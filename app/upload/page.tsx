@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
+import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 
 export const metadata: Metadata = { title: "Upload contracts · Vowlet" };
 
@@ -18,6 +19,7 @@ export default function UploadPage() {
           Anything it isn&apos;t sure of is marked <span className="font-medium text-amber-800">Please confirm</span>. Amounts are worked out in code, never by
           the AI.
         </p>
+        <AccuracyBadge />
       </header>
       <UploadContracts />
     </main>

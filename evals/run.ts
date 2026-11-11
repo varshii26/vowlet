@@ -7,11 +7,15 @@
  *
  * Needs GEMINI_API_KEY in .env.local. Exits 1 if any extraction fails outright or
  * the accuracy is under --min (default: no minimum). Uses the same models as the app.
+ *
+ * A full run with no failures writes evals/results.json, which the app's accuracy
+ * badge reads (evals/results.ts). Commit it with the README numbers.
  */
 import { config } from "dotenv";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadExpected, EXPECTED_DIR } from "@/evals/expected";
+import { buildResults, resultsJson } from "@/evals/results";
 import { scoreExtraction, type ExtractionScore } from "@/evals/score";
 import { extractContract } from "@/lib/extraction/extract";
 import { createGeminiClient } from "@/lib/llm/gemini";
@@ -45,13 +49,17 @@ async function main() {
   const models = modelChain("extraction");
   console.log(`Extracting ${slugs.length} contracts with ${models.join(" -> ")}\n`);
 
-  type Row = { slug: string; score: ExtractionScore | null; ms: number; error?: string };
+  type Row = { slug: string; score: ExtractionScore | null; ms: number; model: string | null; error?: string };
   const rows: Row[] = [];
   for (const slug of slugs) {
     const expected = loadExpected(slug);
     const pdf = new Uint8Array(await readFile(path.join(process.cwd(), "seed", "contracts", `${slug}.pdf`)));
     const outcome = await extractContract({ client, models, pdf, pages: await extractPdfPages(pdf) });
-    rows.push(outcome.ok ? { slug, score: scoreExtraction(expected, outcome.terms), ms: outcome.ms } : { slug, score: null, ms: outcome.ms, error: outcome.errors[0] ?? "failed" });
+    rows.push(
+      outcome.ok
+        ? { slug, score: scoreExtraction(expected, outcome.terms), ms: outcome.ms, model: outcome.model }
+        : { slug, score: null, ms: outcome.ms, model: outcome.model, error: outcome.errors[0] ?? "failed" },
+    );
     const r = rows[rows.length - 1];
     console.log(r.score ? `${slug.padEnd(30)} ${pct(r.score.accuracy).padStart(5)}  ${r.score.correct}/${r.score.total} fields  quotes ${pct(r.score.quoteRate).padStart(5)}  ${(r.ms / 1000).toFixed(1)}s${r.score.paymentsExtra ? `  (+${r.score.paymentsExtra} extra payments)` : ""}` : `${slug.padEnd(30)} FAILED  ${r.error?.slice(0, 100)}`);
   }
@@ -72,6 +80,16 @@ async function main() {
   const flaggedPlain = scored.reduce((s, r) => s + r.score.flags.plainFlagged, 0);
   const vague = scored.filter((r) => r.score.flags.vagueFlagged !== null);
   console.log(`Review flags: ${vague.filter((r) => r.score.flags.vagueFlagged).length}/${vague.length} deliberately vague clause(s) flagged, ${flaggedPlain} clear payment(s) flagged needlessly.`);
+
+  // Only a complete run speaks for the whole set: write what the app shows.
+  if (!only && failed === 0) {
+    const results = buildResults(
+      scored.map((r) => ({ score: r.score, model: r.model ?? "unknown" })),
+      new Date(),
+    );
+    await writeFile(path.join(process.cwd(), "evals", "results.json"), resultsJson(results));
+    console.log("Wrote evals/results.json (shown in the app's accuracy badge).");
+  }
 
   if (failed > 0 || (min !== null && accuracy * 100 < min)) process.exit(1);
 }
