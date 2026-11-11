@@ -40,6 +40,19 @@ export default async function VendorPage({ params, searchParams }: PageProps<"/v
         </div>
         {vendor.status === "active" && <CancelModal vendorId={vendor.id} vendorName={vendor.name} />}
       </header>
+      {data.suspicious.map((s) => (
+        // Contract text that tries to instruct an AI (lib/injection.ts): show it, don't hide it.
+        <div key={s.clauseId} role="alert" className="flex flex-wrap items-start gap-3 rounded-card border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <span aria-hidden className="text-lg leading-none">⚠</span>
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="font-semibold">Suspicious instruction in this contract (page {s.page})</p>
+            <p>{s.warning}</p>
+          </div>
+          <Link href={`?clause=${encodeURIComponent(s.clauseId)}`} className="btn btn-secondary px-3 py-1 text-xs" scroll={false}>
+            Show it in the contract
+          </Link>
+        </div>
+      ))}
       <VendorContractView key={initialClauseId ?? ""} data={data} initialClauseId={initialClauseId} />
     </main>
   );

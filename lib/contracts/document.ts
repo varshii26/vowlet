@@ -1,5 +1,5 @@
 import { formatCents } from "@/lib/money";
-import { buildVendorClauses, vendorStyle, type Style } from "@/lib/seed/clauses";
+import { BILLING_NOTES_INTRO, SCHEDULE_PAGE_CATEGORIES, buildVendorClauses, vendorStyle, type Style } from "@/lib/seed/clauses";
 import { VENDORS, WEDDING, vendorTotalCents, type VendorSpec } from "@/lib/seed/demo-data";
 
 /**
@@ -12,6 +12,8 @@ export type Block =
   | { type: "heading"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "bullet"; text: string }
+  /** Small grey print, easy to miss on paper (the prompt-injection showcase). */
+  | { type: "fineprint"; text: string }
   | { type: "signature" };
 
 export type ContractDocument = {
@@ -99,7 +101,6 @@ const GENERAL_TERMS = [
 ];
 
 /** Contracts with a third page of service details that contains no terms. */
-const SCHEDULE_PAGE_CATEGORIES = new Set(["venue", "caterer", "photographer"]);
 
 const longDate = (iso: string) =>
   new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", {
@@ -160,6 +161,14 @@ export function buildContractDocument(spec: VendorSpec, style: Style): ContractD
     pages.push([
       { type: "heading", text: "Schedule A: Service Details" },
       ...info.schedule.map((item): Block => ({ type: "bullet", text: item })),
+    ]);
+  }
+
+  if (spec.hiddenInstruction) {
+    pages.push([
+      { type: "heading", text: `Addendum ${cancelOnAddendum ? "B" : "A"}: Billing Notes` },
+      { type: "paragraph", text: BILLING_NOTES_INTRO },
+      { type: "fineprint", text: spec.hiddenInstruction },
     ]);
   }
 

@@ -39,6 +39,9 @@ export function renderContractPdf(contract: ContractDocument): Promise<Buffer> {
           case "paragraph":
             doc.font("Helvetica").fontSize(10.5).text(block.text, { width, lineGap: 3 }).moveDown(0.9);
             break;
+          case "fineprint":
+            doc.font("Helvetica").fontSize(7).fillColor("#9a9a9a").text(block.text, { width, lineGap: 1 }).fillColor("black").moveDown(0.6);
+            break;
           case "bullet":
             doc.font("Helvetica").fontSize(10.5).text(`- ${block.text}`, { width, lineGap: 3 }).moveDown(0.4);
             break;

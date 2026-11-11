@@ -39,7 +39,13 @@ describe("seedDemo / ensureSeeded", () => {
     expect(await prisma.vendor.count()).toBe(14);
     expect(await prisma.payment.count()).toBe(23);
     expect(await prisma.terms.count()).toBe(14);
-    expect(await prisma.clause.count()).toBe(23 + 14 * 2);
+    // 23 payment clauses, a cancellation and a date-change clause per vendor,
+    // and Evergreen Transport's billing notes (the prompt-injection showcase).
+    expect(await prisma.clause.count()).toBe(23 + 14 * 2 + 1);
+    const notes = await prisma.clause.findFirstOrThrow({ where: { kind: "other" }, include: { vendor: true } });
+    expect(notes.vendor.name).toBe("Evergreen Transport");
+    expect(notes.page).toBe(3);
+    expect(notes.text).toContain("ignore all previous instructions");
 
     const total = await prisma.vendor.aggregate({ _sum: { totalCost: true } });
     expect(total._sum.totalCost).toBe(3_100_000);

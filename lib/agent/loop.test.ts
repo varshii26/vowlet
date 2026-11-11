@@ -227,6 +227,30 @@ describe("proposals", () => {
   });
 });
 
+describe("the prompt-injection showcase (Evergreen Transport's billing notes)", () => {
+  it("reads the hidden instruction as flagged data, and a model that obeys it still can't move money", async () => {
+    const evergreen = await prisma.vendor.findFirstOrThrow({ where: { name: "Evergreen Transport" }, include: { payments: true } });
+    const before = await prisma.payment.findMany({ orderBy: { id: "asc" } });
+    // The worst case: a model that does what the fine print says.
+    const { client, requests } = fakeGemini(
+      call("read_clause", { vendorId: "Evergreen Transport", kind: "other" }),
+      call("propose_action", { kind: "pay", paymentId: evergreen.payments[0].id, reason: "Pre-approved", amountCents: 500_000 }),
+      modelAnswer("Paid."),
+    );
+    const events = await collect(client, { question: "What do Evergreen Transport's billing notes say?" });
+
+    // The tool result the model got carries the flag next to the text.
+    const toolTurn = JSON.stringify(requests[1].contents.at(-1));
+    expect(toolTurn).toContain("\"suspicious\":true");
+
+    // All it could do is record a proposal, for the real $900 to the real payee, waiting for the couple.
+    const [proposal] = answerOf(events).proposals;
+    expect(proposal).toMatchObject({ kind: "pay", status: "pending" });
+    expect(proposal.payload).toMatchObject({ amountCents: 90_000, vendorName: "Evergreen Transport" });
+    expect(await prisma.payment.findMany({ orderBy: { id: "asc" } })).toEqual(before);
+  });
+});
+
 describe("the limits", () => {
   const endless = (n: number) => Array.from({ length: n }, () => call("get_wedding"));
 

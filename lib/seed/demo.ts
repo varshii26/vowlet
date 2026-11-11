@@ -76,6 +76,11 @@ export async function seedDemo(prisma: PrismaClient, options: { message?: string
       const changeClause = await tx.clause.create({
         data: { vendorId: vendor.id, kind: "date_change", ...clauses.dateChange },
       });
+      // The prompt-injection showcase: on file like any clause, so the contract
+      // viewer can highlight it and the agent can read it (as data).
+      if (clauses.billingNotes) {
+        await tx.clause.create({ data: { vendorId: vendor.id, kind: "other", ...clauses.billingNotes } });
+      }
 
       await tx.terms.create({
         data: {

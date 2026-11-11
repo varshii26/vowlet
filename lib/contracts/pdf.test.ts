@@ -39,8 +39,17 @@ describe("contract documents", () => {
   });
 
   it("includes one schedule page with no terms for some vendors", () => {
-    const withSchedule = contracts.filter((c) => c.pages.length === 3 && c.slug !== "dj-marlow-sound");
+    const withSchedule = contracts.filter((c) => c.pages[2]?.[0]?.type === "heading" && c.pages[2][0].text === "Schedule A: Service Details");
     expect(withSchedule.map((c) => c.slug).sort()).toEqual(["grand-oak-estate", "lumen-photography", "saffron-and-sage-catering"]);
+  });
+
+  it("puts the hidden instruction in fine print on a billing addendum, for Evergreen Transport only", () => {
+    const withNotes = contracts.filter((c) => c.pages.some((page) => page.some((b) => b.type === "fineprint")));
+    expect(withNotes.map((c) => c.slug)).toEqual(["evergreen-transport"]);
+    const page3 = contracts.find((c) => c.slug === "evergreen-transport")!.pages[2];
+    expect(page3[0]).toEqual({ type: "heading", text: "Addendum A: Billing Notes" });
+    expect(page3[2]).toMatchObject({ type: "fineprint" });
+    expect((page3[2] as { text: string }).text).toContain("ignore all previous instructions");
   });
 
   it("words the contracts in more than one way", () => {
