@@ -33,6 +33,7 @@ payments, due dates and cancellation and date-change terms. Vowlet:
   | Password | `Vwbm17x6T77!` |
 
 - **Reset demo** (top right) puts everything back to the starting state if someone else has already paid or changed things.
+  You may not need it: a demo left changed and idle for 30 minutes resets itself on the next visit.
 
 ### Demo script: Priya & Sam (about 3 minutes)
 
@@ -205,6 +206,7 @@ work with an empty `.env.local`. Add keys to turn on the rest:
 | `PAYPAL_VENDOR_EMAILS` | payments that actually complete: the sandbox **business** accounts the vendors are paid as (comma-separated) | same dashboard → Sandbox accounts. Use **US** accounts; see [Paying a vendor](#paying-a-vendor-paypal-sandbox) |
 | `PAYPAL_WEBHOOK_ID` | webhook signature checks (needs a public URL, so optional locally) | see [PayPal webhook](#paypal-webhook) |
 | `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY` | optional: the Gantt without a "Trial" countdown. Without it the chart runs as Bryntum's 14-day trial per browser | trial key at [bryntum.com/download](https://bryntum.com/download/); see [Payment timeline](#payment-timeline) |
+| `DEMO_AUTO_RESET_MINUTES` | optional: minutes a changed demo may sit idle before the next visit resets it (default 30; `0` = never) | see [Reset demo](#reset-demo) |
 
 Never commit `.env.local`. After changing `PAYPAL_VENDOR_EMAILS`, restart `npm run dev` and click **Reset demo** so the vendors
 pick up the new emails. To pay locally, log in at checkout as one of your sandbox **personal** accounts.
@@ -254,6 +256,15 @@ the same reload as `npm run db:seed`, so judges and rehearsals always start from
 - **Safe to click repeatedly.** The reload is one transaction, so a failure leaves the data as it was, and clicks that
   arrive while a reset is running share it instead of starting another.
 - **Rate limited** to 5 resets a minute, since the endpoint is public and wipes the database.
+
+**Auto-reset when idle.** All judges share one database, so one judge's changes (a payment, a moved wedding, a pending
+proposal) would otherwise greet the next. When the demo has been changed and then left for 30 minutes, the next visit to
+the dashboard reloads the seed before the page reads anything (`lib/demo/auto-reset.ts`). The activity feed then says
+"Reset to the starting demo after 30 minutes without changes".
+- "Changed" and "idle" come from the activity log: every change writes an entry, and a reset writes the seed entry. A demo
+  nobody has changed is never reset, and nobody is reset while they keep using it.
+- Visits that arrive together share one reset; if a reset fails, the page loads the data as it is.
+- `DEMO_AUTO_RESET_MINUTES` sets the delay (default 30); `0` switches it off, e.g. for local development.
 - It undoes everything done in the app, for everyone using the hosted demo at that moment. Sandbox PayPal payments
   already captured stay in the PayPal sandbox; only Vowlet's record of them is reset.
 
@@ -419,7 +430,7 @@ How it behaves:
 - **The database is a SQLite file on the free tier's temporary disk.** On every start the service applies migrations and
   seeds the demo wedding if the database is empty, so a restart or redeploy always comes back with Priya & Sam. Anything
   done in the app (payments, approvals) is lost on a restart; that is fine for a demo. Between restarts, the
-  [Reset demo](#reset-demo) button puts it back.
+  [Reset demo](#reset-demo) button puts it back, and a demo left changed and idle for 30 minutes resets itself.
 - **Cold start:** the free tier sleeps after about 15 minutes idle, and the first request afterwards takes roughly a
   minute. Open the URL once before a demo.
 - Sandbox only; no real money moves.
