@@ -302,8 +302,8 @@ the dashboard reloads the seed before the page reads anything (`lib/demo/auto-re
 ### Accounts (Auth.js)
 
 Sign-in with **Google** or an **email and password**, built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
-published as a beta tag, so it is pinned to an exact version). The foundation is #101 and the sign-in page is #102; the
-sign-up page, redirects, per-user access checks and the demo account rules follow in #103 to #108. The shared demo stays
+published as a beta tag, so it is pinned to an exact version). The foundation is #101, the sign-in page #102 and the sign-up page #103; redirects,
+per-user access checks and the demo account rules follow in #105 to #108. The shared demo stays
 one click: nobody has to sign up to see it.
 
 - **Tables** (`prisma/schema.prisma`): `User` (email, name, optional `passwordHash`, `isDemo`) and `Account` (a linked
@@ -320,6 +320,13 @@ one click: nobody has to sign up to see it.
   when configured), then email and password with a show/hide toggle. A wrong password, an unknown email and a Google-only
   account all give the same message ("That email and password don't match"), so it can't be used to find out who has an
   account. The error is announced to screen readers and takes focus; the email is kept so a typo doesn't mean retyping it.
+- **Sign-up page** (`/signup`): Google first (when configured), then names (optional), email and password. The password
+  rules are shown up front with a live tick; each field is checked when you leave it, and again on submit, which focuses
+  the first problem instead of disabling the button. The browser and the server check the same schema
+  (`lib/auth/rules.ts`). An email that already has an account says so, with a **Sign in instead?** link that carries the
+  address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`); once
+  onboarding exists (#104), a signed-in user with no wedding is sent there from any page. Sign-ups are rate limited to 10
+  per address per 10 minutes, shared with `POST /api/register`.
 - **Lockout:** 5 failed sign-ins for one email, or 30 from one address, in 10 minutes locks further attempts out, **even
   with the right password** (`lib/auth/attempts.ts`). Only failures count, and a success clears the email's count. The
   limiter is shared by the sign-in form and the Auth.js API endpoint, since an attacker would use the endpoint directly.

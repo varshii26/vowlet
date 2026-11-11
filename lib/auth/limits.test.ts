@@ -15,5 +15,7 @@ describe("the shared sign-in limiters", () => {
     for (let i = 0; i < 5; i++) first.signInAttempts.fail("victim@example.com", "1.1.1.1");
     expect(second.signInAttempts.status("victim@example.com", "9.9.9.9").blocked).toBe(true);
     expect(second.demoSignIns).toBe(first.demoSignIns);
+    // The sign-up form and POST /api/register share one limit too, so neither is a way around the other's.
+    expect(second.registrations).toBe(first.registrations);
   });
 });

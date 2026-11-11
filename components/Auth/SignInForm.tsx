@@ -14,17 +14,17 @@ type Props = {
   googleEnabled: boolean;
   /** An error code from the URL (`/login?error=`), for failures that happen away from the form, such as Google's. */
   urlError?: string | null;
+  /** Pre-fills the email: the sign-up page's "Sign in instead" link sends the address along. */
+  initialEmail?: string;
 };
-
-const INITIAL: SignInState = { error: null, email: "" };
 
 /**
  * The whole sign-in card: the demo shortcut, Google (when configured), then email
  * and password. One error region, announced to screen readers and given focus
  * when something fails.
  */
-export function SignInForm({ next, googleEnabled, urlError = null }: Props) {
-  const [state, formAction, pending] = useActionState(signInWithPassword, INITIAL);
+export function SignInForm({ next, googleEnabled, urlError = null, initialEmail = "" }: Props) {
+  const [state, formAction, pending] = useActionState(signInWithPassword, { error: null, email: initialEmail } satisfies SignInState);
   const alert = useRef<HTMLDivElement>(null);
 
   // A failed attempt beats the URL's error, which was about an earlier one.

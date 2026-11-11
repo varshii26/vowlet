@@ -13,7 +13,7 @@ export function AuthFrame({ title, children, footer }: { title: string; children
         <p className="text-muted">Your wedding payments, read from your contracts.</p>
       </header>
       <div className="space-y-5 rounded-card border border-line bg-surface p-6 shadow-card">{children}</div>
-      {footer && <p className="text-center text-sm text-muted">{footer}</p>}
+      {footer && <div className="space-y-1 text-center text-sm text-muted">{footer}</div>}
     </main>
   );
 }

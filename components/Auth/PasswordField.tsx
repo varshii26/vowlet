@@ -11,10 +11,13 @@ type Props = {
   hint?: string;
   error?: string | null;
   required?: boolean;
+  /** Called with the new text on every keystroke, for a live checklist. The field itself stays uncontrolled. */
+  onValueChange?: (value: string) => void;
+  onBlur?: (value: string) => void;
 };
 
 /** A password input with a Show/Hide button. The toggle is a real button: keyboard and screen reader friendly. */
-export function PasswordField({ name = "password", label = "Password", autoComplete, hint, error, required = true }: Props) {
+export function PasswordField({ name = "password", label = "Password", autoComplete, hint, error, required = true, onValueChange, onBlur }: Props) {
   const id = useId();
   const [shown, setShown] = useState(false);
   const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(" ") || undefined;
@@ -33,6 +36,8 @@ export function PasswordField({ name = "password", label = "Password", autoCompl
           required={required}
           aria-invalid={error ? true : undefined}
           aria-describedby={describedBy}
+          onChange={onValueChange ? (event) => onValueChange(event.currentTarget.value) : undefined}
+          onBlur={onBlur ? (event) => onBlur(event.currentTarget.value) : undefined}
           className="w-full rounded-control border border-line bg-canvas py-2.5 pl-3 pr-16 text-sm text-ink focus:border-accent/50 focus:outline-none focus-visible:outline-2"
         />
         <button
