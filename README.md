@@ -327,6 +327,13 @@ one click: nobody has to sign up to see it.
   address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`), and
   a signed-in user with no wedding is sent to onboarding from any page. Sign-ups are rate limited to 10
   per address per 10 minutes, shared with `POST /api/register`.
+- **Account menu** (#107): on the dashboard, vendor and upload pages, an avatar at the top right (the Google photo, or
+  initials from the name or email) opens a small menu with the name, email and **Sign out**, which ends the session and
+  returns to `/login` with "You've signed out." It is a button with `aria-haspopup="menu"`; opening it focuses Sign out,
+  and Esc, Tab-away or a click elsewhere closes it (Esc returns focus to the avatar). The demo account gets a **Demo
+  account** chip and "You're in the shared demo. Changes reset after 30 idle minutes." (the number follows
+  `DEMO_AUTO_RESET_MINUTES`). It is hidden from the printed timeline (`vw-no-print`) and sits above PayPal's button, whose
+  iframe uses z-index 100.
 - **Access checks** (#106). *Authentication:* every API route except the auth routes, sign-up and PayPal's webhook is
   wrapped in `withSession` (`lib/auth/guard.ts`): no session is a 401 in the app's `{ ok: false, error }` shape. *Authorization:*
   every vendor, payment, proposal and contract lookup by id is scoped to the caller's wedding, so someone else's id

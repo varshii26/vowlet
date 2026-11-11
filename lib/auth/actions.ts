@@ -3,7 +3,7 @@
 import { AuthError, CredentialsSignin } from "next-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { signIn } from "@/lib/auth";
+import { signIn, signOut } from "@/lib/auth";
 import { clientIp } from "@/lib/auth/ip";
 import { registrations } from "@/lib/auth/limits";
 import { safeNextPath } from "@/lib/auth/redirect";
@@ -36,6 +36,11 @@ export async function signInWithPassword(_previous: SignInState, formData: FormD
 /** Starts the Google flow. Google then sends the person back to the callback, and on a problem to /login?error=. */
 export async function signInWithGoogle(formData: FormData): Promise<void> {
   await signIn("google", { redirectTo: safeNextPath(field(formData, "next")) });
+}
+
+/** Ends the session and goes to the sign-in page, which says "You've signed out." */
+export async function signOutAction(): Promise<void> {
+  await signOut({ redirectTo: "/login?signedout=1" });
 }
 
 /** "Try the demo": signs into the shared Priya & Sam account. */
