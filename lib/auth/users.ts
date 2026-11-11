@@ -34,7 +34,7 @@ export const credentialsSchema = z.object({
 /** What the rest of the app may know about a user. Never the hash. */
 export type PublicUser = { id: string; name: string | null; email: string; image: string | null; isDemo: boolean };
 
-const publicUser = (user: { id: string; name: string | null; email: string; image: string | null; isDemo: boolean }): PublicUser => ({
+export const publicUser = (user: { id: string; name: string | null; email: string; image: string | null; isDemo: boolean }): PublicUser => ({
   id: user.id,
   name: user.name,
   email: user.email,

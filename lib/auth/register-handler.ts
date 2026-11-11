@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
+import { clientIp } from "@/lib/auth/ip";
 import { registerSchema, registerUser } from "@/lib/auth/users";
 import type { RateLimiter } from "@/lib/rate-limit";
 
@@ -7,11 +8,6 @@ type Deps = { prisma: PrismaClient; limiter: RateLimiter };
 const fail = (status: number, code: string, message: string, extra?: Record<string, unknown>, headers?: HeadersInit) =>
   Response.json({ ok: false, error: { code, message, ...extra } }, { status, headers });
 
-/** The caller's address, as Render's proxy reports it: the first hop of x-forwarded-for. */
-function clientKey(request: Request): string {
-  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-}
-
 /**
  * POST /api/register `{ name?, email, password }`: create an email + password
  * account. Signing in afterwards is the sign-in page's job (Auth.js). Public, so
@@ -19,7 +15,7 @@ function clientKey(request: Request): string {
  */
 export function createRegisterHandler(deps: Deps) {
   return async function registerHandler(request: Request): Promise<Response> {
-    const limit = deps.limiter.check(clientKey(request));
+    const limit = deps.limiter.check(clientIp(request));
     if (!limit.allowed) {
       const seconds = Math.max(1, Math.ceil(limit.retryAfterMs / 1000));
       return fail(429, "too_many_requests", `Too many sign-up attempts. Try again in ${seconds} seconds.`, undefined, { "Retry-After": String(seconds) });
