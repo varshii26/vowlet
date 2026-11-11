@@ -302,9 +302,9 @@ the dashboard reloads the seed before the page reads anything (`lib/demo/auto-re
 ### Accounts (Auth.js)
 
 Sign-in with **Google** or an **email and password**, built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
-published as a beta tag, so it is pinned to an exact version). This is the foundation (issue #101); the sign-in and
-sign-up pages, redirects, per-user access checks and the demo account follow in #102 to #108. The shared demo stays one
-click: nobody has to sign up to see it.
+published as a beta tag, so it is pinned to an exact version). The foundation is #101 and the sign-in page is #102; the
+sign-up page, redirects, per-user access checks and the demo account rules follow in #103 to #108. The shared demo stays
+one click: nobody has to sign up to see it.
 
 - **Tables** (`prisma/schema.prisma`): `User` (email, name, optional `passwordHash`, `isDemo`) and `Account` (a linked
   Google sign-in). A `Wedding` belongs to a user (`userId`, unique, so one wedding per user). The migration gives the
@@ -316,6 +316,16 @@ click: nobody has to sign up to see it.
   user, stored with their own parameters so the cost can be raised later, and never logged or returned by any API. Sign-in
   gives the same answer, and takes the same time, for "no such account" and "wrong password".
 - **Emails** are trimmed and lower-cased everywhere (and in the Auth.js adapter), so one address is one user.
+- **Sign-in page** (`/login`): **Try the demo (Priya & Sam)** first (one click, no form), then Continue with Google (only
+  when configured), then email and password with a show/hide toggle. A wrong password, an unknown email and a Google-only
+  account all give the same message ("That email and password don't match"), so it can't be used to find out who has an
+  account. The error is announced to screen readers and takes focus; the email is kept so a typo doesn't mean retyping it.
+- **Lockout:** 5 failed sign-ins for one email, or 30 from one address, in 10 minutes locks further attempts out, **even
+  with the right password** (`lib/auth/attempts.ts`). Only failures count, and a success clears the email's count. The
+  limiter is shared by the sign-in form and the Auth.js API endpoint, since an attacker would use the endpoint directly.
+- **`?next=`**: the page to land on after signing in. Only a path on this site is accepted (`lib/auth/redirect.ts`): not
+  `https://…`, `//host`, `/\host`, control characters, or anything that normalises to one of those; never the auth pages
+  or API routes. Anything else becomes the dashboard.
 - **New accounts:** `POST /api/register` `{ name?, email, password }` (rate limited per caller; at least 10
   characters). It answers 201, 400 with a message per field, 409 for an address that already has an account, or 429.
 - **No automatic linking** of a Google sign-in to an existing password account, or the reverse. This is deliberate: with
