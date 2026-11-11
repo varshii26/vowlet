@@ -43,7 +43,7 @@ describe("loadActivity", () => {
 
   it("lists the newest first, and records a proposal being made and dismissed by name", async () => {
     const { proposalId } = await ok(prisma, "propose_action", { kind: "reschedule", newDate: "2027-06-12", reason: "because" });
-    await resolveProposal(prisma, proposalId, "dismiss", TODAY);
+    await resolveProposal(prisma, await soleWeddingId(prisma), proposalId, "dismiss", TODAY);
     const items = await loadActivity(prisma, await soleWeddingId(prisma));
     expect(items.map((i) => i.type)).toEqual(["proposal_dismissed", "proposal_created", "demo_seeded"]);
     expect(items[0].message).toBe("Dismissed: Move the wedding");
@@ -52,7 +52,7 @@ describe("loadActivity", () => {
 
   it("records an approval with what it did", async () => {
     const { proposalId } = await ok(prisma, "propose_action", { kind: "reschedule", newDate: "2027-06-12", reason: "because" });
-    await resolveProposal(prisma, proposalId, "approve", TODAY);
+    await resolveProposal(prisma, await soleWeddingId(prisma), proposalId, "approve", TODAY);
     const [latest] = await loadActivity(prisma, await soleWeddingId(prisma));
     expect(latest).toMatchObject({ type: "proposal_approved", tone: "success" });
     expect(latest.message).toContain("2027-06-12");

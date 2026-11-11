@@ -81,10 +81,10 @@ type Deps = {
   readPages?: (contractPath: string) => Promise<string[] | null>;
 };
 
-/** The vendor page's data, or null when there is no such vendor. Server only. */
-export async function loadVendorPage(prisma: PrismaClient, vendorId: string, deps: Deps = {}): Promise<VendorPageData | null> {
-  const vendor = await prisma.vendor.findUnique({
-    where: { id: vendorId },
+/** The vendor page's data, or null when this wedding has no such vendor (someone else's id counts as none). Server only. */
+export async function loadVendorPage(prisma: PrismaClient, weddingId: string, vendorId: string, deps: Deps = {}): Promise<VendorPageData | null> {
+  const vendor = await prisma.vendor.findFirst({
+    where: { id: vendorId, weddingId },
     include: { wedding: true, clauses: true, payments: true, terms: true },
   });
   if (!vendor) return null;

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { contractHandler, readContractPages, resolveContractPath } from "@/lib/vendors/contract-file";
 
 const ROOT = process.cwd();
@@ -48,7 +48,7 @@ describe("GET /api/vendors/[id]/contract", () => {
 
   it("serves a seeded contract inline as a PDF", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
-    const res = await contractHandler(vendor.id, { prisma });
+    const res = await contractHandler(vendor.id, { prisma, resolveWeddingId: () => soleWeddingId(prisma) });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("application/pdf");
     expect(res.headers.get("content-disposition")).toBe('inline; filename="grand-oak-estate.pdf"');
@@ -57,7 +57,7 @@ describe("GET /api/vendors/[id]/contract", () => {
   });
 
   it("answers 404 for an unknown vendor", async () => {
-    const res = await contractHandler("nope", { prisma });
+    const res = await contractHandler("nope", { prisma, resolveWeddingId: () => soleWeddingId(prisma) });
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("not_found");
   });
@@ -65,7 +65,7 @@ describe("GET /api/vendors/[id]/contract", () => {
   it("answers 404 when the file is missing", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
     await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath: "data/uploads/does-not-exist.pdf" } });
-    const res = await contractHandler(vendor.id, { prisma });
+    const res = await contractHandler(vendor.id, { prisma, resolveWeddingId: () => soleWeddingId(prisma) });
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe("missing_file");
   });
@@ -75,7 +75,7 @@ describe("GET /api/vendors/[id]/contract", () => {
     async (contractPath) => {
       const vendor = await vendorNamed("Grand Oak Estate");
       await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath } });
-      const res = await contractHandler(vendor.id, { prisma });
+      const res = await contractHandler(vendor.id, { prisma, resolveWeddingId: () => soleWeddingId(prisma) });
       expect(res.status).toBe(403);
       expect(res.headers.get("content-type")).not.toBe("application/pdf");
     },
@@ -94,7 +94,7 @@ describe("GET /api/vendors/[id]/contract", () => {
     it("serves an uploaded contract", async () => {
       const vendor = await vendorNamed("Grand Oak Estate");
       await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath: "data/uploads/up1.pdf" } });
-      const res = await contractHandler(vendor.id, { prisma, root });
+      const res = await contractHandler(vendor.id, { prisma, resolveWeddingId: () => soleWeddingId(prisma), root });
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("%PDF-uploaded");
     });
@@ -107,7 +107,7 @@ describe("GET /api/vendors/[id]/contract", () => {
       }
       const vendor = await vendorNamed("Grand Oak Estate");
       await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath: "data/uploads/link.pdf" } });
-      expect((await contractHandler(vendor.id, { prisma, root })).status).toBe(403);
+      expect((await contractHandler(vendor.id, { prisma, resolveWeddingId: () => soleWeddingId(prisma), root })).status).toBe(403);
     });
   });
 });

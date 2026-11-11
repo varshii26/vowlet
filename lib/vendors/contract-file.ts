@@ -87,8 +87,13 @@ export async function readContractPages(contractPath: string, root: string = pro
 const fail = (status: number, code: string, message: string) => Response.json({ ok: false, error: { code, message } }, { status });
 
 /** GET /api/vendors/[id]/contract: the vendor's contract PDF, shown inline. */
-export async function contractHandler(vendorId: string, deps: { prisma: PrismaClient; root?: string }): Promise<Response> {
-  const vendor = await deps.prisma.vendor.findUnique({ where: { id: vendorId }, select: { contractPath: true } });
+export async function contractHandler(
+  vendorId: string,
+  deps: { prisma: PrismaClient; resolveWeddingId: () => Promise<string | null>; root?: string },
+): Promise<Response> {
+  // Contracts go only to the couple they belong to: someone else's vendor id is a plain 404, same as a missing one.
+  const weddingId = await deps.resolveWeddingId();
+  const vendor = weddingId ? await deps.prisma.vendor.findFirst({ where: { id: vendorId, weddingId }, select: { contractPath: true } }) : null;
   if (!vendor) return fail(404, "not_found", "No vendor with that id.");
 
   const read = await readContractFile(vendor.contractPath, deps.root);

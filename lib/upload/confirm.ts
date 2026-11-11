@@ -59,7 +59,9 @@ function recheck(contract: ReviewedContract, pages: readonly string[]): Reviewed
  * `data/uploads/<vendorId>.pdf`. The path is chosen here, never by the browser.
  */
 export async function confirmHandler(request: Request, deps: ConfirmDeps): Promise<Response> {
-  const limit = deps.limiter.check();
+  // The vendor goes into the signed-in couple's own wedding, never "the first one"; the limit is theirs too.
+  const weddingId = await deps.resolveWeddingId();
+  const limit = deps.limiter.check(weddingId ?? undefined);
   if (!limit.allowed) {
     const seconds = Math.max(1, Math.ceil(limit.retryAfterMs / 1000));
     return fail(429, "too_many_requests", `Too many contracts saved at once. Try again in ${seconds} seconds.`, { "Retry-After": String(seconds) });
@@ -105,8 +107,6 @@ export async function confirmHandler(request: Request, deps: ConfirmDeps): Promi
     return fail(422, "needs_confirmation", `Please confirm these before saving: ${pending.join(", ")}.`);
   }
 
-  // The vendor goes into the signed-in couple's own wedding, never "the first one".
-  const weddingId = await deps.resolveWeddingId();
   const wedding = weddingId ? await deps.prisma.wedding.findUnique({ where: { id: weddingId } }) : null;
   if (!wedding) return fail(409, "no_wedding", "Set up your wedding first, then add contracts to it.");
 

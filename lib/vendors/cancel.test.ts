@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { TODAY, ok } from "@/lib/agent/tools/test-utils";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 import { cancelVendorHandler } from "@/lib/vendors/cancel-handler";
 import { confirmCancellation, draftRefundRequest, previewCancellation } from "@/lib/vendors/cancel";
 
@@ -23,7 +23,7 @@ describe("previewCancellation", () => {
     for (const name of ["Bloom & Thistle Florals", "Grand Oak Estate", "Saffron & Sage Catering"]) {
       const v = await vendor(name);
       for (const cancelledBy of ["vendor", "couple"] as const) {
-        const preview = await previewCancellation(prisma, v.id, cancelledBy, TODAY);
+        const preview = await previewCancellation(prisma, await soleWeddingId(prisma), v.id, cancelledBy, TODAY);
         const tool = await ok(prisma, "compute_refund_owed", { vendorId: v.id, cancelledBy });
         expect(preview).toMatchObject({ ok: true, owedCents: tool.owedBack.cents, paidCents: tool.paidSoFar.cents, clauseId: tool.clauseId, citation: tool.citation });
       }
@@ -32,7 +32,7 @@ describe("previewCancellation", () => {
 
   it("drafts a request citing the clause and the computed amount, and changes nothing", async () => {
     const v = await vendor("Bloom & Thistle Florals");
-    const preview = await previewCancellation(prisma, v.id, "vendor", TODAY);
+    const preview = await previewCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY);
     if (!preview.ok) throw new Error(preview.message);
 
     expect(preview.owedCents).toBe(80_000);
@@ -46,23 +46,23 @@ describe("previewCancellation", () => {
 
   it("has no draft when nothing is owed back", async () => {
     const v = await vendor("Velvet Strings Quartet"); // nothing paid yet
-    const preview = await previewCancellation(prisma, v.id, "vendor", TODAY);
+    const preview = await previewCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY);
     expect(preview).toMatchObject({ ok: true, owedCents: 0, draft: null });
   });
 
   it("refuses an unknown or already-cancelled vendor", async () => {
-    expect(await previewCancellation(prisma, "nope", "vendor", TODAY)).toMatchObject({ ok: false, code: "not_found", status: 404 });
+    expect(await previewCancellation(prisma, await soleWeddingId(prisma), "nope", "vendor", TODAY)).toMatchObject({ ok: false, code: "not_found", status: 404 });
     const v = await vendor("Bloom & Thistle Florals");
     await prisma.vendor.update({ where: { id: v.id }, data: { status: "cancelled" } });
-    expect(await previewCancellation(prisma, v.id, "vendor", TODAY)).toMatchObject({ ok: false, code: "already_cancelled", status: 409 });
+    expect(await previewCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY)).toMatchObject({ ok: false, code: "already_cancelled", status: 409 });
   });
 });
 
 describe("confirmCancellation", () => {
   it("cancels the vendor, marks paid payments refund requested and returns the draft; sends nothing", async () => {
     const v = await vendor("Bloom & Thistle Florals");
-    const preview = await previewCancellation(prisma, v.id, "vendor", TODAY);
-    const result = await confirmCancellation(prisma, v.id, "vendor", TODAY);
+    const preview = await previewCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY);
+    const result = await confirmCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY);
 
     expect(result).toMatchObject({ ok: true, owedCents: 80_000, draft: preview.ok ? preview.draft : "" });
     expect(result.ok && result.message).toContain("nothing has been sent");
@@ -74,7 +74,7 @@ describe("confirmCancellation", () => {
 
   it("cancels with no refund request when nothing is owed back", async () => {
     const v = await vendor("Velvet Strings Quartet");
-    const result = await confirmCancellation(prisma, v.id, "couple", TODAY);
+    const result = await confirmCancellation(prisma, await soleWeddingId(prisma), v.id, "couple", TODAY);
     expect(result).toMatchObject({ ok: true, owedCents: 0, draft: null });
     expect((await vendor("Velvet Strings Quartet")).status).toBe("cancelled");
     expect(await prisma.proposal.count()).toBe(0);
@@ -83,8 +83,8 @@ describe("confirmCancellation", () => {
 
   it("can't cancel the same vendor twice", async () => {
     const v = await vendor("Bloom & Thistle Florals");
-    await confirmCancellation(prisma, v.id, "vendor", TODAY);
-    expect(await confirmCancellation(prisma, v.id, "vendor", TODAY)).toMatchObject({ ok: false, code: "already_cancelled" });
+    await confirmCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY);
+    expect(await confirmCancellation(prisma, await soleWeddingId(prisma), v.id, "vendor", TODAY)).toMatchObject({ ok: false, code: "already_cancelled" });
   });
 });
 
@@ -109,7 +109,7 @@ describe("draftRefundRequest", () => {
 describe("cancelVendorHandler", () => {
   const call = async (id: string, body: unknown) => {
     const req = new Request("http://localhost/api/vendors/x/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) });
-    const res = await cancelVendorHandler(id, req, { prisma, now: () => TODAY });
+    const res = await cancelVendorHandler(id, req, { prisma, resolveWeddingId: () => soleWeddingId(prisma), now: () => TODAY });
     return { status: res.status, body: await res.json() };
   };
 

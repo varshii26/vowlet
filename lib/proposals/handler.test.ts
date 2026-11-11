@@ -18,7 +18,7 @@ beforeEach(async () => seedDemo(prisma));
 const post = (body: unknown) =>
   new Request("http://localhost/api/proposals/x", { method: "POST", headers: { "Content-Type": "application/json" }, body: typeof body === "string" ? body : JSON.stringify(body) });
 const call = async (id: string, body: unknown) => {
-  const res = await proposalHandler(id, post(body), { prisma, now: () => TODAY });
+  const res = await proposalHandler(id, post(body), { prisma, resolveWeddingId: () => soleWeddingId(prisma), now: () => TODAY });
   return { status: res.status, body: await res.json() };
 };
 const propose = async (args: Record<string, unknown>) => (await ok(prisma, "propose_action", { reason: "because", ...args })).proposalId as string;

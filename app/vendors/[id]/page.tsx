@@ -15,8 +15,8 @@ export const metadata: Metadata = { title: "Vendor contract · Vowlet" };
 export default async function VendorPage({ params, searchParams }: PageProps<"/vendors/[id]">) {
   const { id } = await params;
   const { clause } = await searchParams;
-  await requireWeddingOrOnboarding(`/vendors/${id}${typeof clause === "string" ? `?clause=${encodeURIComponent(clause)}` : ""}`);
-  const data = await loadVendorPage(prisma, id);
+  const { weddingId } = await requireWeddingOrOnboarding(`/vendors/${id}${typeof clause === "string" ? `?clause=${encodeURIComponent(clause)}` : ""}`);
+  const data = await loadVendorPage(prisma, weddingId, id);
   if (!data) notFound();
 
   const initialClauseId = typeof clause === "string" && clause.length > 0 ? clause : null;

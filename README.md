@@ -327,6 +327,17 @@ one click: nobody has to sign up to see it.
   address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`), and
   a signed-in user with no wedding is sent to onboarding from any page. Sign-ups are rate limited to 10
   per address per 10 minutes, shared with `POST /api/register`.
+- **Access checks** (#106). *Authentication:* every API route except the auth routes, sign-up and PayPal's webhook is
+  wrapped in `withSession` (`lib/auth/guard.ts`): no session is a 401 in the app's `{ ok: false, error }` shape. *Authorization:*
+  every vendor, payment, proposal and contract lookup by id is scoped to the caller's wedding, so someone else's id
+  answers **404** exactly like an id that doesn't exist (never 403, never data; the tests compare the two bodies). The
+  assistant's tools get the wedding id from the server, never from the model, and a source check fails the build if a
+  tool query isn't tied to it. The webhook only marks a payment paid when the capture's order is the one we created
+  for that payment. Rate limits are per wedding (the assistant, the what-if summary, saving a contract) or per user
+  (reading a contract), so one couple can't use up another's allowance. *CSRF:* a state-changing request whose
+  `Origin` is another site (or `Sec-Fetch-Site: cross-site`) is refused with 403 before anything happens, on top of
+  the SameSite cookie. `app/api/authz.test.ts` runs every route: no session, another couple's id, your own id.
+  Not yet: `/api/demo/reset` is open to any signed-in user until #108 limits it to the demo account.
 - **Redirects** (#105): a signed-out visitor to any app page (`/`, `/vendors/*`, `/upload`, `/onboarding`) goes to
   `/login?next=<the page>`, and API calls answer 401. It is enforced twice: `proxy.ts` turns away requests with no session
   cookie, and every page (`requireUser` / `requireWeddingOrOnboarding`) and API route (`withSession`) checks the session

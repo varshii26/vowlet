@@ -17,7 +17,11 @@ export type HandlerDeps = {
   prisma: PrismaClient;
   /** Lazily built, because it throws when PayPal credentials are missing. */
   paypal: () => PayPalPort;
+  /** The caller's wedding, from their session; null if they have none yet. */
+  resolveWeddingId: () => Promise<string | null>;
 };
+
+const notFound = () => failure({ code: "not_found", message: "That payment does not exist.", status: 404 });
 
 const captureBodySchema = z.object({ orderId: z.string().min(1).max(64) });
 
@@ -43,10 +47,12 @@ function tryPayPal(deps: HandlerDeps): PayPalPort | Response {
 
 /** POST /api/payments/[id]/order */
 export async function createOrderHandler(paymentId: string, deps: HandlerDeps): Promise<Response> {
+  const weddingId = await deps.resolveWeddingId();
+  if (!weddingId) return notFound();
   const paypal = tryPayPal(deps);
   if (paypal instanceof Response) return paypal;
 
-  const result = await createPaymentOrder(deps.prisma, paypal, paymentId);
+  const result = await createPaymentOrder(deps.prisma, paypal, weddingId, paymentId);
   return result.ok ? Response.json({ ok: true, orderId: result.orderId }) : failure(result);
 }
 
@@ -61,10 +67,12 @@ export async function captureHandler(paymentId: string, request: Request, deps: 
   const parsed = captureBodySchema.safeParse(body);
   if (!parsed.success) return badRequest("An orderId is required.");
 
+  const weddingId = await deps.resolveWeddingId();
+  if (!weddingId) return notFound();
   const paypal = tryPayPal(deps);
   if (paypal instanceof Response) return paypal;
 
-  const result = await capturePaymentOrder(deps.prisma, paypal, paymentId, parsed.data.orderId);
+  const result = await capturePaymentOrder(deps.prisma, paypal, weddingId, paymentId, parsed.data.orderId);
   if (!result.ok) return failure(result);
   // 202: PayPal accepted the payment but has not finished processing it.
   return Response.json({ ok: true, state: result.state, message: result.message }, { status: result.state === "pending" ? 202 : 200 });

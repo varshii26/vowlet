@@ -159,7 +159,7 @@ export async function applyDateChange(
     throw error;
   }
 
-  const resolved = await resolveProposal(prisma, proposalId, "approve", now);
+  const resolved = await resolveProposal(prisma, weddingId, proposalId, "approve", now);
   if (!resolved.ok) {
     return failure(resolved.code === "in_past" ? "in_past" : "stale", resolved.message, resolved.status);
   }

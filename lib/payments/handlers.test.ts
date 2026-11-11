@@ -3,7 +3,7 @@ import type { PrismaClient } from "@/generated/prisma/client";
 import { PayPalError, type CapturedOrder, type CreatedOrder } from "@/lib/paypal";
 import { captureHandler, createOrderHandler, type HandlerDeps } from "@/lib/payments/handlers";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -22,6 +22,7 @@ beforeEach(async () => {
 function deps(over: { capture?: Partial<CapturedOrder>; captureError?: PayPalError } = {}): HandlerDeps {
   return {
     prisma,
+    resolveWeddingId: () => soleWeddingId(prisma),
     paypal: () => ({
       createOrder: vi.fn(async (): Promise<CreatedOrder> => ({ orderId: "ORDER-1", status: "CREATED", approveUrl: null })),
       captureOrder: vi.fn(async (orderId: string): Promise<CapturedOrder> => {
@@ -62,6 +63,7 @@ describe("createOrderHandler", () => {
   it("returns 503 with a plain message when PayPal is not configured", async () => {
     const unconfigured: HandlerDeps = {
       prisma,
+      resolveWeddingId: () => soleWeddingId(prisma),
       paypal: () => {
         throw new PayPalError("PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET must be set", null);
       },
@@ -76,6 +78,7 @@ describe("createOrderHandler", () => {
   it("does not hide a programming error as a PayPal problem", async () => {
     const broken: HandlerDeps = {
       prisma,
+      resolveWeddingId: () => soleWeddingId(prisma),
       paypal: () => {
         throw new TypeError("bug");
       },
@@ -162,6 +165,7 @@ describe("captureHandler", () => {
     await withOrder();
     const unconfigured: HandlerDeps = {
       prisma,
+      resolveWeddingId: () => soleWeddingId(prisma),
       paypal: () => {
         throw new PayPalError("not set", null);
       },

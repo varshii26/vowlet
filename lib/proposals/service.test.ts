@@ -6,7 +6,7 @@ import { TODAY, ok } from "@/lib/agent/tools/test-utils";
 import { markPaymentPaid } from "@/lib/payments/service";
 import { resolveProposal } from "@/lib/proposals/service";
 import { seedDemo } from "@/lib/seed/demo";
-import { createTestDatabase } from "@/lib/test-utils/db";
+import { createTestDatabase, soleWeddingId } from "@/lib/test-utils/db";
 
 let prisma: PrismaClient;
 let cleanup: () => Promise<void>;
@@ -19,8 +19,8 @@ beforeEach(async () => seedDemo(prisma));
 
 /** Records a proposal the way the agent does, through the real tool, and returns its id. */
 const propose = async (args: Record<string, unknown>) => (await ok(prisma, "propose_action", { reason: "because", ...args })).proposalId as string;
-const approve = (id: string) => resolveProposal(prisma, id, "approve", TODAY);
-const dismiss = (id: string) => resolveProposal(prisma, id, "dismiss", TODAY);
+const approve = async (id: string) => resolveProposal(prisma, await soleWeddingId(prisma), id, "approve", TODAY);
+const dismiss = async (id: string) => resolveProposal(prisma, await soleWeddingId(prisma), id, "dismiss", TODAY);
 
 const payment = (label: string) => prisma.payment.findFirstOrThrow({ where: { label } });
 const wedding = () => prisma.wedding.findFirstOrThrow();
