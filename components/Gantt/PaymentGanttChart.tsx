@@ -234,7 +234,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
 
 type ProgressProject = {
   autoCalculatePercentDoneForParentTasks: boolean;
-  taskStore: { getById(id: string): { percentDone: number } | undefined };
+  taskStore: { getById(id: string): { percentDone: number; set(field: "percentDone", value: number): void } | undefined };
 };
 
 /**
@@ -251,7 +251,7 @@ function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: Time
     project.autoCalculatePercentDoneForParentTasks = false;
     for (const task of tasks) {
       const record = task.percentDone === undefined ? undefined : project.taskStore.getById(task.id);
-      if (record && record.percentDone !== task.percentDone) record.percentDone = task.percentDone!;
+      if (record && record.percentDone !== task.percentDone) record.set("percentDone", task.percentDone!);
     }
   }, [ganttRef, tasks]);
 }
