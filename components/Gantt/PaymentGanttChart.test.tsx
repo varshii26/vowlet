@@ -344,6 +344,31 @@ describe("what-if ghosts (Baselines)", () => {
   });
 });
 
+describe("the vendor name column's tooltip", () => {
+  it("shows the full name only when the column cuts it off", async () => {
+    await mount(input);
+    await engine();
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    expect((gantt.features as unknown as { cellTooltip?: { disabled: boolean } }).cellTooltip?.disabled).toBe(false);
+
+    type Renderer = (data: { cellElement: HTMLElement; record: { name: string } }) => string | undefined;
+    const column = ((gantt.columns as unknown as { records: { field: string; tooltipRenderer: Renderer }[] }).records).find((c) => c.field === "name")!;
+    // jsdom has no layout, so say whether the text fits by hand.
+    const cell = (scrollWidth: number, clientWidth: number) => {
+      const el = document.createElement("div");
+      el.innerHTML = `<span class="b-tree-cell-value"></span>`;
+      const value = el.firstElementChild as HTMLElement;
+      Object.defineProperty(value, "scrollWidth", { value: scrollWidth });
+      Object.defineProperty(value, "clientWidth", { value: clientWidth });
+      return el;
+    };
+    const record = { name: "Starlight Lighting & <Decor>" };
+    expect(column.tooltipRenderer({ cellElement: cell(190, 150), record })).toBe("Starlight Lighting &amp; &lt;Decor&gt;");
+    expect(column.tooltipRenderer({ cellElement: cell(120, 150), record })).toBeUndefined();
+    expect(column.tooltipRenderer({ cellElement: document.createElement("div"), record })).toBeUndefined();
+  });
+});
+
 describe("printing the schedule (Print feature)", () => {
   it("hands over a print function that prints every row expanded, then folds the rows back", async () => {
     let print: (() => Promise<void>) | null = null;

@@ -196,6 +196,10 @@ const RANGE_PADDING_DAYS = 21;
  */
 const WEDDING_TAIL_DAYS = 45;
 
+/** "Apr 17": month and day, for places too narrow for the year. */
+const shortDate = (iso: string) =>
+  new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
+
 const longDate = (date: Date) =>
   date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 
@@ -355,7 +359,9 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     tasks: [
       {
         id: WEDDING_TASK_ID,
-        name: `Wedding day: ${input.wedding.coupleNames}`,
+        // The grid's first column is narrow, and the couple's names are already in
+        // the page header (and in the tooltip), so the row says what and when.
+        name: `Wedding day · ${shortDate(toIsoDate(weddingDate))}`,
         startDate: toIsoDate(weddingDate),
         duration: 0,
         manuallyScheduled: true,
@@ -373,9 +379,6 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     endDate: toIsoDate(end),
   };
 }
-
-const shortDate = (iso: string) =>
-  new Date(`${iso}T00:00:00.000Z`).toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric" });
 
 /** The CSS class on every what-if ghost; styled in components/Gantt/gantt.css. */
 export const BASELINE_CLS = "vw-ghost";

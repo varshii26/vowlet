@@ -7,7 +7,7 @@ import { DEADLINE_ICON } from "@/components/Gantt/deadline-icons";
 import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
 import { PRINT_OPTIONS, renderPrintFooter, renderPrintHeader } from "@/components/Gantt/print";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
-import { renderBaselineTip, renderDeadlineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { escapeHtml, renderBaselineTip, renderDeadlineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import type { Deadline, DeadlineKind } from "@/lib/deadlines";
 import { formatCents } from "@/lib/money";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
@@ -15,6 +15,8 @@ import { clauseHref } from "@/lib/vendors/links";
 
 // TimeRanges is a Scheduler feature: it registers with Gantt only once its module is loaded.
 import "@bryntum/scheduler-enterprise/lib/Scheduler/feature/TimeRanges.js";
+// Likewise CellTooltip, a Grid feature (the vendor name column's hover tooltip).
+import "@bryntum/grid-enterprise/lib/Grid/feature/CellTooltip.js";
 import { DIM_CLS, type TimelineRange } from "@/lib/timeline-focus";
 
 import "@bryntum/core-enterprise/fontawesome/css/fontawesome.css";
@@ -268,6 +270,8 @@ export function PaymentGanttChart({
         },
         footerTpl: ({ currentPage, totalPages }: { currentPage: number; totalPages: number }) => renderPrintFooter(currentPage, totalPages),
       },
+      // Enables the name column's tooltip above (it has no effect without this feature).
+      cellTooltipFeature: true,
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
       subGridConfigs: { locked: { width: 400 } },
@@ -275,7 +279,19 @@ export function PaymentGanttChart({
       barMargin: 8,
       columnLines: true,
       columns: [
-        { type: "name", text: "Vendor / payment", width: 210, sum: "count", summaryRenderer: () => "Cash needed each month" },
+        {
+          type: "name",
+          text: "Vendor / payment",
+          width: 210,
+          sum: "count",
+          summaryRenderer: () => "Cash needed each month",
+          // A long vendor name is cut off by the column ("Starlight Lighting & De…"):
+          // hovering it shows the whole name. Only when it really is cut off.
+          tooltipRenderer: ({ cellElement, record }: { cellElement: HTMLElement; record: TaskModel }) => {
+            const value = cellElement.querySelector<HTMLElement>(".b-tree-cell-value");
+            return value && value.scrollWidth > value.clientWidth ? escapeHtml(String(record.name)) : undefined;
+          },
+        },
         {
           text: "Amount",
           width: 84,
