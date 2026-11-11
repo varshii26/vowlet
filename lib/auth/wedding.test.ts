@@ -38,14 +38,10 @@ describe("weddingIdFor", () => {
     expect(await weddingIdFor(prisma, newcomer.id)).toBeNull();
   });
 
-  it("is the demo wedding for a signed-out visitor, and never a real user's, however old", async () => {
-    const real = await prisma.user.create({ data: { email: "real@example.com" } });
-    await wedding(real.id, "Real & Couple"); // created first, so a "first wedding" lookup would find it
-    expect(await weddingIdFor(prisma, null)).toBeNull(); // no demo wedding: nothing to show
-
+  it("is nothing for a signed-out visitor, however many weddings exist", async () => {
     const demo = await prisma.user.create({ data: { id: "demo-user", email: "demo@vowlet.invalid", isDemo: true } });
-    const demoWedding = await wedding(demo.id, "Priya & Sam");
-    expect(await weddingIdFor(prisma, null)).toBe(demoWedding.id);
+    await wedding(demo.id, "Priya & Sam");
+    expect(await weddingIdFor(prisma, null)).toBeNull();
   });
 
   it("is null for an unknown user id", async () => {

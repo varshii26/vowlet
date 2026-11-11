@@ -1,3 +1,4 @@
+import { withSession } from "@/lib/auth/guard";
 import { extractHandler } from "@/lib/extraction/handler";
 import { createGeminiClient } from "@/lib/llm/gemini";
 import { modelChain } from "@/lib/llm/config";
@@ -7,7 +8,7 @@ import { createRateLimiter } from "@/lib/rate-limit";
 const limiter = createRateLimiter({ max: 6, windowMs: 60_000 });
 const client = createGeminiClient();
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return extractHandler(request, {
     client,
     models: modelChain("extraction"),
@@ -15,3 +16,5 @@ export async function POST(request: Request) {
     configured: Boolean(process.env.GEMINI_API_KEY),
   });
 }
+
+export const POST = withSession(handlePOST);

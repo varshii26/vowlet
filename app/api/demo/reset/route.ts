@@ -1,3 +1,4 @@
+import { withSession } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { createResetHandler } from "@/lib/demo/reset";
 import { createRateLimiter } from "@/lib/rate-limit";
@@ -8,6 +9,8 @@ import { createRateLimiter } from "@/lib/rate-limit";
 const reset = createResetHandler({ prisma, limiter: createRateLimiter({ max: 5, windowMs: 60_000 }) });
 
 // Called only by the "Reset demo" button, after the couple confirms.
-export async function POST() {
+async function handlePOST() {
   return reset();
 }
+
+export const POST = withSession(handlePOST);

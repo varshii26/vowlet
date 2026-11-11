@@ -1,3 +1,4 @@
+import { withSession } from "@/lib/auth/guard";
 import { agentHandler } from "@/lib/agent/handler";
 import { requestWeddingId } from "@/lib/auth/request-wedding";
 import { prisma } from "@/lib/db";
@@ -12,7 +13,7 @@ const limiter = createRateLimiter({ max: 8, windowMs: 60_000 });
 // A short retry budget: the agent loop has its own 60 s deadline to keep.
 const client = createGeminiClient({ timeoutMs: 30_000, maxRetries: 1, maxWaitMs: 8_000 });
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return agentHandler(request, {
     client,
     models: modelChain("agent"),
@@ -24,3 +25,5 @@ export async function POST(request: Request) {
     configured: Boolean(process.env.GEMINI_API_KEY),
   });
 }
+
+export const POST = withSession(handlePOST);

@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
 import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 
 export const metadata: Metadata = { title: "Upload contracts · Vowlet" };
 
-export default function UploadPage() {
+export default async function UploadPage() {
+  await requireWeddingOrOnboarding("/upload");
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-8">
       <header className="space-y-2">

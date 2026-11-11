@@ -12,11 +12,11 @@ export type RequestScope = {
   isDemo: boolean;
 };
 
-/** The signed-in user and wedding for the current request (see `weddingIdFor` for the signed-out case). */
+/** The signed-in user and wedding for the current request. Both are null when signed out. */
 export async function requestScope(): Promise<RequestScope> {
   const session = await auth();
   const userId = session?.user?.id ?? null;
-  return { userId, weddingId: await weddingIdFor(prisma, userId), isDemo: session?.user?.isDemo ?? userId === null };
+  return { userId, weddingId: await weddingIdFor(prisma, userId), isDemo: session?.user?.isDemo ?? false };
 }
 
 /** For API routes: the wedding id of the current request, or null. */

@@ -302,7 +302,7 @@ the dashboard reloads the seed before the page reads anything (`lib/demo/auto-re
 ### Accounts (Auth.js)
 
 Sign-in with **Google** or an **email and password**, built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
-published as a beta tag, so it is pinned to an exact version). The foundation is #101, the sign-in page #102 and the sign-up page #103; redirects,
+published as a beta tag, so it is pinned to an exact version). The foundation is #101, the sign-in page #102 and the sign-up page #103, redirects #105; 
 per-user access checks and the demo account rules follow in #105 to #108. The shared demo stays
 one click: nobody has to sign up to see it.
 
@@ -324,17 +324,24 @@ one click: nobody has to sign up to see it.
   rules are shown up front with a live tick; each field is checked when you leave it, and again on submit, which focuses
   the first problem instead of disabling the button. The browser and the server check the same schema
   (`lib/auth/rules.ts`). An email that already has an account says so, with a **Sign in instead?** link that carries the
-  address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`); once
-  onboarding exists (#104), a signed-in user with no wedding is sent there from any page. Sign-ups are rate limited to 10
+  address and `next` to `/login`. On success the new user is signed in and lands on the dashboard (or `next`), and
+  a signed-in user with no wedding is sent to onboarding from any page. Sign-ups are rate limited to 10
   per address per 10 minutes, shared with `POST /api/register`.
+- **Redirects** (#105): a signed-out visitor to any app page (`/`, `/vendors/*`, `/upload`, `/onboarding`) goes to
+  `/login?next=<the page>`, and API calls answer 401. It is enforced twice: `proxy.ts` turns away requests with no session
+  cookie, and every page (`requireUser` / `requireWeddingOrOnboarding`) and API route (`withSession`) checks the session
+  itself, because the proxy can only see that a cookie exists, not that it is still valid. Public: `/login`, `/signup`,
+  `/api/auth/*`, `/api/register` and PayPal's webhook (verified by its signature). Signed in and opening `/login` or
+  `/signup` goes to the dashboard (or a safe `next`). `/login?signedout=1` shows "You've signed out." (the sign-out
+  button itself is #107). When a session ends mid-use, a banner ("Your session ended. Sign in again") links back to
+  sign-in with the current page as `next`.
 - **Onboarding** (`/onboarding`, #104): a signed-in user with no wedding is sent here from the dashboard. Names, date and an
   optional budget (parsed to cents, `lib/onboarding/rules.ts`) create their one wedding; a double submit keeps the first.
   The dashboard then shows an empty state with one next step (upload a contract) and starter questions for the assistant.
 - **Every wedding lookup is by the signed-in couple's wedding id** (`lib/auth/wedding.ts`), never "the first wedding": the
   dashboard, the assistant's tools, what-if, uploads, proposals and activity. The id comes from the session on the
   server and is never taken from the browser or the model. `lib/auth/wedding-isolation.test.ts` runs two couples in one
-  database and checks each sees only their own. Signed-out visitors still see the shared demo until #105 adds the
-  redirects. **Reset demo** is hidden for real accounts; the reset itself still wipes every wedding until #108.
+  database and checks each sees only their own. **Reset demo** is hidden for real accounts; the reset itself still wipes every wedding until #108.
 - **Lockout:** 5 failed sign-ins for one email, or 30 from one address, in 10 minutes locks further attempts out, **even
   with the right password** (`lib/auth/attempts.ts`). Only failures count, and a success clears the email's count. The
   limiter is shared by the sign-in form and the Auth.js API endpoint, since an attacker would use the endpoint directly.

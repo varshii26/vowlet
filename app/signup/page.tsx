@@ -3,7 +3,8 @@ import Link from "next/link";
 import { AuthFrame } from "@/components/Auth/AuthFrame";
 import { DemoButton } from "@/components/Auth/ProviderButtons";
 import { SignUpForm } from "@/components/Auth/SignUpForm";
-import { googleEnabled } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { auth, googleEnabled } from "@/lib/auth";
 import { safeNextPath } from "@/lib/auth/redirect";
 
 export const metadata: Metadata = { title: "Create an account · Vowlet" };
@@ -14,6 +15,7 @@ export const dynamic = "force-dynamic";
 export default async function SignUpPage({ searchParams }: PageProps<"/signup">) {
   const { next } = await searchParams;
   const safeNext = safeNextPath(next);
+  if ((await auth())?.user?.id) redirect(safeNext);
   return (
     <AuthFrame
       title="Create your Vowlet account"
