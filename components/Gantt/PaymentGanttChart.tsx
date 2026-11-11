@@ -248,7 +248,8 @@ function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: Time
   useEffect(() => {
     const project = ganttRef.current?.instance?.project as unknown as ProgressProject | undefined;
     if (!project) return;
-    project.autoCalculatePercentDoneForParentTasks = false;
+    // Bryntum's project is the chart's own mutable state, not React's.
+    Object.assign(project, { autoCalculatePercentDoneForParentTasks: false });
     for (const task of tasks) {
       const record = task.percentDone === undefined ? undefined : project.taskStore.getById(task.id);
       if (record && record.percentDone !== task.percentDone) record.set("percentDone", task.percentDone!);
