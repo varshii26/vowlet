@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
+import { AccountHeader } from "@/components/Account/AccountHeader";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
 import { AccuracyBadge } from "@/components/ui/AccuracyBadge";
 
@@ -11,7 +12,10 @@ export default async function UploadPage() {
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-8">
       <header className="space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
+          <AccountHeader />
+        </div>
         <Link href="/" className="rounded text-sm font-medium text-accent hover:text-accent-strong">
           &larr; Back to the dashboard
         </Link>

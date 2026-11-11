@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { AccountHeader } from "@/components/Account/AccountHeader";
 import { VendorContractView } from "@/components/Clauses/VendorContractView";
 import { CancelModal } from "@/components/Vendors/CancelModal";
 import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
@@ -24,7 +25,10 @@ export default async function VendorPage({ params, searchParams }: PageProps<"/v
 
   return (
     <main className="mx-auto w-full max-w-7xl space-y-6 p-8">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Vowlet</p>
+        <AccountHeader />
+      </div>
       <nav>
         <Link href="/" className="rounded text-sm font-medium text-accent hover:text-accent-strong">
           &larr; Back to the dashboard

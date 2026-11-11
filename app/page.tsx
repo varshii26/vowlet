@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AgentPanel } from "@/components/Agent/AgentPanel";
+import { AccountHeader } from "@/components/Account/AccountHeader";
 import { ActivityFeed } from "@/components/Dashboard/ActivityFeed";
 import { PAYMENT_LISTS_ID } from "@/components/Dashboard/anchors";
 import { EmptyDashboard } from "@/components/Dashboard/EmptyDashboard";
@@ -85,6 +86,7 @@ export default async function Home() {
       </Link>
       {/* Reset wipes and reseeds everything: only for the shared demo, never a couple's real data. */}
       {isDemo && <ResetDemoButton />}
+      <AccountHeader />
     </div>
   );
 
