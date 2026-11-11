@@ -65,11 +65,6 @@ export type TimelineTask = {
    * collapsed vendor still shows every payment diamond in its status colour.
    */
   rollup?: boolean;
-  /**
-   * Vendor rows: share of the contract paid, 0-100, by amount. Bryntum fills
-   * that much of the summary bar, so progress reads at a glance.
-   */
-  percentDone?: number;
   /** Only the wedding day can be dragged (to run a what-if); payment dates come from the contracts. */
   draggable: boolean;
   resizable: false;
@@ -121,7 +116,7 @@ export type TaskDetail =
       cancelled: boolean;
       /** Share of the contract paid, 0-100, by amount. */
       percentPaid: number;
-      /** "67% paid", for the Status column. */
+      /** "$3,000 of $9,000 paid", under the vendor's name in the grid. */
       progressLabel: string;
       /**
        * The next date-change and cancellation deadline (lib/deadlines.ts),
@@ -184,6 +179,20 @@ export const STATUS_COLOR: Record<DisplayStatus, string> = {
   void: "gray",
 };
 
+/**
+ * The colour a status is drawn in on the chart's diamonds, the tooltip badge
+ * and the legend. gantt.css holds the same values as `--vw-status`; keep them in step.
+ */
+export const STATUS_HEX: Record<DisplayStatus, string> = {
+  paid: "#16a34a",
+  due_soon: "#d97706",
+  overdue: "#dc2626",
+  scheduled: "#2563eb",
+  refund_requested: "#7c3aed",
+  refunded: "#0d9488",
+  void: "#78716c",
+};
+
 const WEDDING_COLOR = "pink";
 const VENDOR_COLOR = "light-gray";
 const CANCELLED_VENDOR_COLOR = "lighter-gray";
@@ -217,6 +226,13 @@ function datePayments(vendor: TimelineVendor, weddingDate: Date, today: Date): D
 /** Whole percent paid, rounded down so a vendor reads 100% only when fully paid. */
 export const percentPaid = (paidCents: number, totalCents: number) => (totalCents > 0 ? Math.floor((paidCents * 100) / totalCents) : 0);
 
+/** The vendor's line under its name: what has been paid, by amount, so it never reads as time passing. */
+function progressLabel(cancelled: boolean, paidCents: number, totalCents: number): string {
+  if (cancelled) return "Cancelled";
+  if (totalCents > 0 && paidCents >= totalCents) return `${formatCents(totalCents)} · paid in full`;
+  return `${formatCents(paidCents)} of ${formatCents(totalCents)} paid`;
+}
+
 function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[], weddingDate: Date, today: Date): TaskDetail {
   const total = dated.reduce((sum, p) => sum + p.amountCents, 0);
   const paid = dated.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountCents, 0);
@@ -229,7 +245,7 @@ function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[], weddingDat
     summary: vendor.status === "cancelled" ? `Cancelled. ${count}.` : `${count}, ${formatCents(paid)} of ${formatCents(total)} paid.`,
     cancelled: vendor.status === "cancelled",
     percentPaid: percentPaid(paid, total),
-    progressLabel: vendor.status === "cancelled" ? "Cancelled" : `${percentPaid(paid, total)}% paid`,
+    progressLabel: progressLabel(vendor.status === "cancelled", paid, total),
     ...(vendor.terms && vendor.status === "active"
       ? {
           deadlines: nextDeadlines({
@@ -333,11 +349,17 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
       // Collapsed, so all vendors fit at once; the payments still show as
       // rollups in the vendor's row, and expanding lists them one per row.
       expanded: false,
-      percentDone: summary.kind === "vendor" ? summary.percentPaid : 0,
       draggable: false,
       resizable: false,
       eventColor: vendorColor(vendor, dated),
-      cls: vendor.status === "cancelled" ? "vendor vendor-cancelled" : "vendor",
+      // A single-payment vendor is drawn as one diamond, so it carries that payment's status class for its colour.
+      cls: [
+        "vendor",
+        vendor.status === "cancelled" ? "vendor-cancelled" : "",
+        vendor.status !== "cancelled" && dated.length === 1 ? `solo solo-${dated[0].display}` : "",
+      ]
+        .filter(Boolean)
+        .join(" "),
       children,
     };
   });

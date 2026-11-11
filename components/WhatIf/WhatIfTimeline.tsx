@@ -42,6 +42,10 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
   const baseIso = toIsoDate(input.wedding.date);
 
   const [preview, setPreview] = useState<string | null>(null);
+  // Contract deadlines are noise most of the time; they show on request, and
+  // on their own while a what-if preview is up (that's when they matter).
+  const [deadlinesOn, setDeadlinesOn] = useState(false);
+  const showDeadlines = deadlinesOn || Boolean(preview);
   // The chart hands over its print function once Bryntum has loaded.
   const printRef = useRef<(() => Promise<void>) | null>(null);
   const [canPrint, setCanPrint] = useState(false);
@@ -108,6 +112,10 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
   }, [registerPreview]);
 
   const payments = input.vendors.flatMap((vendor) => vendor.payments);
+  const presentStatuses = useMemo(
+    () => new Set(Object.values(timeline.details).flatMap((detail) => (detail.kind === "payment" ? [detail.status] : []))),
+    [timeline.details],
+  );
   const movedCount = payments.filter((p) => p.anchor === "wedding_date").length;
 
   /** An agent answer's what-if is over once its preview is cancelled or confirmed: drop its banner too. */
@@ -202,7 +210,23 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
       >
         Skip the timeline: go to the list of payments
       </a>
-      <StatusLegend />
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+        <StatusLegend present={presentStatuses} showDeadlines={showDeadlines} />
+        <label
+          className="vw-no-print flex cursor-pointer items-center gap-2 text-xs font-medium text-muted"
+          title={preview ? "Shown while you try a new date, so you can see which deadlines it crosses" : "Each vendor's last day to change the date or cancel at the current terms"}
+        >
+          <input
+            type="checkbox"
+            role="switch"
+            className="size-3.5 accent-accent"
+            checked={showDeadlines}
+            disabled={Boolean(preview)}
+            onChange={(event) => setDeadlinesOn(event.target.checked)}
+          />
+          Contract deadlines
+        </label>
+      </div>
 
       <div className="relative min-h-0 flex-1">
         <PaymentGantt
@@ -216,6 +240,7 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           todayIso={todayIso}
           onPrintReady={onPrintReady}
           coupleNames={input.wedding.coupleNames}
+          showDeadlines={showDeadlines}
         />
 
         {preview && (

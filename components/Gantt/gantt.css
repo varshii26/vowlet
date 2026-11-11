@@ -29,8 +29,39 @@
   font-size: 13px;
 }
 
+/* Name column: the row's name, with what's paid (or a payment's amount and status) under it. */
+:is(.vw-gantt, .b-export) .b-tree-cell-value:has(.vw-name-main) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.2;
+}
+.vw-name-main {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vw-name-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #6b5d55;
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+/* The footer's first cell: "Cash needed each month" over the total still to pay. */
+:is(.vw-gantt, .b-export) .b-grid-summary-value:has(.vw-name-main) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  line-height: 1.25;
+}
 /* Vendor rows read as group headings. */
-:is(.vw-gantt, .b-export) .b-grid-row:has(.b-tree-parent-cell) .b-tree-cell-value {
+:is(.vw-gantt, .b-export) .b-grid-row:has(.b-tree-parent-cell) .vw-name-main {
   font-weight: 600;
 }
 
@@ -77,27 +108,107 @@
   line-height: 18px;
 }
 
-/* Status badge colours in the tooltip. Keep in step with STATUS_COLOR. */
-.vw-status-paid {
+/*
+ * Status colours: one set for the tooltip badge, the legend and the diamonds
+ * on the chart (a payment's `payment-*` class, or `solo-*` on a vendor drawn as
+ * its one payment). Keep in step with STATUS_COLOR.
+ */
+.vw-status-paid,
+.payment-paid,
+.solo-paid {
   --vw-status: #16a34a;
 }
-.vw-status-due_soon {
+.vw-status-due_soon,
+.payment-due_soon,
+.solo-due_soon {
   --vw-status: #d97706;
 }
-.vw-status-overdue {
+.vw-status-overdue,
+.payment-overdue,
+.solo-overdue {
   --vw-status: #dc2626;
 }
-.vw-status-refund_requested {
+.vw-status-refund_requested,
+.payment-refund_requested,
+.solo-refund_requested {
   --vw-status: #7c3aed;
 }
-.vw-status-scheduled {
+.vw-status-scheduled,
+.payment-scheduled,
+.solo-scheduled {
   --vw-status: #2563eb;
 }
-.vw-status-refunded {
+.vw-status-refunded,
+.payment-refunded,
+.solo-refunded {
   --vw-status: #0d9488;
 }
-.vw-status-void {
+.vw-status-void,
+.payment-void,
+.solo-void {
   --vw-status: #78716c;
+}
+
+/*
+ * Diamonds in full status colour, not Bryntum's pale 60% tint, so due soon and
+ * overdue stand out from scheduled at a glance.
+ */
+:is(.vw-gantt, .b-export) .b-task-rollup.b-milestone.payment {
+  background: var(--vw-status);
+  opacity: 1;
+}
+/* A milestone of its own (a payment row, or a single-payment vendor) draws its diamond from Bryntum's event colour. */
+:is(.vw-gantt, .b-export) .b-milestone-wrap .b-gantt-task:is(.payment, .solo) {
+  --b-sch-event-background: var(--vw-status);
+}
+/* Paid ones carry a tick, upright on the rotated square, so paid reads without colour too. */
+:is(.vw-gantt, .b-export) .b-task-rollup.b-milestone.payment-paid::after,
+:is(.vw-gantt, .b-export) .b-milestone-wrap .b-gantt-task:is(.payment-paid, .solo-paid) .b-gantt-task-content::after {
+  content: "✓";
+  position: absolute;
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+:is(.vw-gantt, .b-export) .b-task-rollup.b-milestone.payment-paid::after {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  rotate: -45deg;
+  font-size: 7px;
+}
+:is(.vw-gantt, .b-export) .b-milestone-wrap .b-gantt-task:is(.payment-paid, .solo-paid) .b-gantt-task-content::after {
+  inset-inline-start: 0;
+  translate: -50% 0;
+  font-size: 10px;
+}
+
+/* The wedding: a full-height line across every row, labelled at the top (positioned in PaymentGanttChart). */
+.vw-wedding-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid rgb(219 39 119 / 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+.vw-wedding-line::before {
+  content: attr(data-label);
+  position: absolute;
+  top: 4px;
+  /* Left of the line: the wedding is near the chart's right edge, and its diamond sits on the line. */
+  right: 14px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background: #fce7f3;
+  color: #9d174d;
+  box-shadow: inset 0 0 0 1px rgb(219 39 119 / 0.35);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 /* Void payments fade on the chart. The task's cls lands on the bar itself. */
@@ -226,7 +337,7 @@
  * read and click. `scale`, not `transform`, keeps Bryntum's diamond rotation.
  */
 .b-gantt .b-task-rollup.b-milestone {
-  scale: 1.5;
+  scale: 1.7;
   cursor: pointer;
 }
 /*
@@ -239,12 +350,29 @@
 }
 
 /*
- * Vendor summary bars fill by the share of the contract paid (percentDone from
- * lib/timeline). Tint the paid part like a paid milestone so it reads as money
- * paid, not as generic task progress.
+ * A vendor's summary bar is only a track from its first payment to its last:
+ * a thin neutral line through the diamonds, not Bryntum's bracket. What's paid
+ * is money, not time, so it lives under the vendor's name instead of filling
+ * the bar.
  */
-.b-gantt .b-gantt-task-parent .b-task-percent-bar {
-  background: color-mix(in srgb, var(--b-color-green) 60%, white);
+.b-gantt .b-gantt-task-wrap.b-gantt-task-parent:not(.b-milestone-wrap) > .b-gantt-task {
+  clip-path: none;
+  background: transparent;
+  overflow: visible;
+}
+/* Level with the rollup diamonds, which hang below the bar's box (19px from the row's task area top). */
+.b-gantt .b-gantt-task-wrap.b-gantt-task-parent:not(.b-milestone-wrap) > .b-gantt-task::before {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 18px;
+  height: 2px;
+  border-radius: 1px;
+  background: #ddd0c4;
+  pointer-events: none;
+}
+.b-gantt .b-gantt-task-parent .b-task-percent-bar-outer {
+  display: none;
 }
 
 /*
@@ -262,7 +390,11 @@
   /* Against the vendor's task wrapper: level with the rollup diamonds. */
   position: absolute;
   bottom: -3px;
-  margin-inline-start: 9px;
+  margin-inline-start: 7px;
+  padding: 1px 3px;
+  border-radius: 3px;
+  /* The vendor's track runs through here; a backing keeps the amount readable. */
+  background: rgb(255 253 250 / 0.95);
   line-height: 1;
   white-space: nowrap;
   pointer-events: none;

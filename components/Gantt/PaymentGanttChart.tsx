@@ -55,6 +55,11 @@ type Props = {
   timeRanges?: TimelineRange[];
   /** A row to scroll into view when it changes, e.g. the vendor an agent answer is about. */
   focusTaskId?: string | null;
+  /**
+   * Draw each vendor's contract deadlines (date-change and cancellation cutoffs)
+   * in its row. Off by default: they matter while deciding to move the date.
+   */
+  showDeadlines?: boolean;
 };
 
 /** `YYYY-MM-DD` of the calendar day Bryntum shows. Its dates are local midnights, built from our `YYYY-MM-DD` strings. */
@@ -78,6 +83,7 @@ export function PaymentGanttChart({
   coupleNames,
   timeRanges = NO_RANGES,
   focusTaskId = null,
+  showDeadlines = false,
 }: Props) {
   // The chart is configured once, so it reads the latest data and callback
   // through refs instead of being rebuilt on every update.
@@ -89,6 +95,8 @@ export function PaymentGanttChart({
   const minDateRef = useRef(minWeddingDate);
   // The drag feature is switched on once, at creation, if the parent can handle a drop.
   const [canDragWedding] = useState(() => Boolean(onWeddingDateChange));
+  // The config is built once; later changes go through useDeadlines.
+  const [showDeadlinesAtStart] = useState(showDeadlines);
   useEffect(() => {
     selectRef.current = onPaymentSelect;
     weddingDropRef.current = onWeddingDateChange;
@@ -125,13 +133,10 @@ export function PaymentGanttChart({
     }
   }, [data.dependencies]);
 
-  // Read once, when the chart opens, to choose where it scrolls to.
-  const [openingWeddingIso] = useState(() => {
-    const wedding = data.details[WEDDING_TASK_ID];
-    return wedding?.kind === "wedding" ? wedding.isoDate : undefined;
-  });
-  useTodayLine(ganttRef, todayIso, openingWeddingIso);
-  useVendorProgress(ganttRef, data.tasks);
+  const weddingDetail = data.details[WEDDING_TASK_ID];
+  const weddingIso = weddingDetail?.kind === "wedding" ? weddingDetail.isoDate : undefined;
+  useMarkerLines(ganttRef, todayIso, weddingIso);
+  useDeadlines(ganttRef, showDeadlines);
   useDeadlineClicks(ganttRef);
   usePrint(ganttRef, onPrintReady);
   useScrollToFocus(ganttRef, focusTaskId);
@@ -146,6 +151,9 @@ export function PaymentGanttChart({
   const tasks = useMemo(() => withExplicitBaselines(data.tasks), [data.tasks]);
 
   const config = useMemo((): BryntumGanttProps => {
+    // Ctrl+wheel and double-click zoom would drift to quarters or weeks, where
+    // payments bunch up; the chart stays on months, fitted to the space (useMarkerLines).
+
     const detailOf = (record: TaskModel) => detailsRef.current[String(record.id)];
 
     const tooEarly = (date: Date) => Boolean(minDateRef.current && localIsoDay(date) < minDateRef.current);
@@ -154,6 +162,8 @@ export function PaymentGanttChart({
       // Not read-only when the wedding day can move, so every other editing
       // feature is switched off below and only the wedding milestone drags.
       readOnly: !canDragWedding,
+      zoomOnMouseWheel: false,
+      zoomOnTimeAxisDoubleClick: false,
       cellEditFeature: false,
       cellMenuFeature: false,
       taskMenuFeature: false,
@@ -246,6 +256,7 @@ export function PaymentGanttChart({
       // move with the wedding during a what-if. Bryntum's own scheduling
       // indicators (early/late dates, constraints) mean nothing here.
       indicatorsFeature: {
+        disabled: !showDeadlinesAtStart,
         items: {
           earlyDates: false,
           lateDates: false,
@@ -257,7 +268,7 @@ export function PaymentGanttChart({
         tooltipTemplate: ({ indicator }: { indicator: DeadlineIndicator }) => indicator.tipHtml ?? "",
       },
       // Shaded spans from an agent answer ("what do we owe in the next 30
-      // days?"). The today line stays our own (see useTodayLine).
+      // days?"). The today and wedding lines are our own (see useMarkerLines).
       // The banner above the chart names the span, so no header label.
       timeRangesFeature: { showCurrentTimeLine: false, showHeaderElements: false },
       // Print the schedule through the browser's print dialog (Enterprise
@@ -272,46 +283,28 @@ export function PaymentGanttChart({
       },
       // Enables the name column's tooltip above (it has no effect without this feature).
       cellTooltipFeature: true,
-      // Narrow months, so today through the wedding fits without scrolling.
+      // Months, widened to fill the chart (useMarkerLines fits them to the space).
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
-      subGridConfigs: { locked: { width: 400 } },
-      rowHeight: 36,
-      barMargin: 8,
+      // One narrow column: the vendor's name with what's paid under it. The
+      // timeline gets the width; amounts are on the diamonds themselves.
+      subGridConfigs: { locked: { width: 248 } },
+      rowHeight: 42,
+      barMargin: 10,
       columnLines: true,
       columns: [
         {
           type: "name",
-          text: "Vendor / payment",
-          width: 210,
+          text: "Vendor",
+          flex: 1,
           sum: "count",
-          summaryRenderer: () => "Cash needed each month",
+          summaryRenderer: () =>
+            `<span class="vw-name-main">Cash needed each month</span><span class="vw-name-sub">${escapeHtml(formatCents(totalCash(cashRef.current)))} still to pay</span>`,
+          renderer: ({ record }: { record: TaskModel }) => nameCell(String(record.name), subLineFor(detailOf(record))),
           // A long vendor name is cut off by the column ("Starlight Lighting & De…"):
           // hovering it shows the whole name. Only when it really is cut off.
           tooltipRenderer: ({ cellElement, record }: { cellElement: HTMLElement; record: TaskModel }) => {
-            const value = cellElement.querySelector<HTMLElement>(".b-tree-cell-value");
+            const value = cellElement.querySelector<HTMLElement>(".vw-name-main");
             return value && value.scrollWidth > value.clientWidth ? escapeHtml(String(record.name)) : undefined;
-          },
-        },
-        {
-          text: "Amount",
-          width: 84,
-          align: "right",
-          sortable: false,
-          sum: "count",
-          summaryRenderer: () => formatCents(totalCash(cashRef.current)),
-          renderer: ({ record }: { record: TaskModel }) => {
-            const detail = detailOf(record);
-            return detail && detail.kind !== "wedding" ? detail.amountLabel : "";
-          },
-        },
-        {
-          text: "Status",
-          width: 104,
-          sortable: false,
-          renderer: ({ record }: { record: TaskModel }) => {
-            const detail = detailOf(record);
-            if (detail?.kind === "vendor") return detail.progressLabel;
-            return detail?.kind === "payment" ? detail.statusLabel : "";
           },
         },
       ],
@@ -330,7 +323,7 @@ export function PaymentGanttChart({
         else if (detail.clauseId) window.location.assign(clauseHref(detail.vendorId, detail.clauseId));
       },
     };
-  }, [canDragWedding]);
+  }, [canDragWedding, showDeadlinesAtStart]);
 
   return (
     <BryntumGantt
@@ -343,31 +336,6 @@ export function PaymentGanttChart({
       endDate={data.endDate}
     />
   );
-}
-
-type ProgressProject = {
-  autoCalculatePercentDoneForParentTasks: boolean;
-  taskStore: { getById(id: string): { percentDone: number; set(field: "percentDone", value: number): void } | undefined };
-};
-
-/**
- * Vendor bars fill by the share of the contract paid, by amount (lib/timeline).
- * Bryntum's engine would replace that with its own average over the payment
- * milestones, which have no duration and so always read 0%. A `project` config
- * can't sit beside inline tasks, so switch the engine's roll-up off once the
- * chart exists and put our numbers back, again whenever the data changes.
- */
-function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: TimelineTask[]) {
-  useEffect(() => {
-    const project = ganttRef.current?.instance?.project as unknown as ProgressProject | undefined;
-    if (!project) return;
-    // Bryntum's project is the chart's own mutable state, not React's.
-    Object.assign(project, { autoCalculatePercentDoneForParentTasks: false });
-    for (const task of tasks) {
-      const record = task.percentDone === undefined ? undefined : project.taskStore.getById(task.id);
-      if (record && record.percentDone !== task.percentDone) record.set("percentDone", task.percentDone!);
-    }
-  }, [ganttRef, tasks]);
 }
 
 type DeadlineIndicator = {
@@ -495,6 +463,40 @@ function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
 
 /** Days kept visible after the wedding day when the chart opens. */
 const WEDDING_VIEW_MARGIN_DAYS = 21;
+/** Days kept visible before today when the chart opens. */
+const PAST_VIEW_DAYS = 30;
+/** Months never get narrower than this, or the amount labels collide. */
+const MIN_MONTH_WIDTH = 56;
+const DAY_MS = 86_400_000;
+
+/**
+ * Grid cell: the row's name, with a smaller line under it (what's paid, or a
+ * payment's amount and status). A DomConfig, so Bryntum sets both as text.
+ */
+function nameCell(name: string, sub: string) {
+  const main = { tag: "span", className: "vw-name-main", text: name };
+  return { children: sub ? [main, { tag: "span", className: "vw-name-sub", text: sub }] : [main] };
+}
+
+export function subLineFor(detail: TaskDetail | undefined): string {
+  if (detail?.kind === "vendor") return detail.progressLabel;
+  if (detail?.kind === "payment") return `${detail.amountLabel} · ${detail.statusLabel}`;
+  if (detail?.kind === "wedding") return "Drag it to try another date";
+  return "";
+}
+
+/** Contract deadlines show only when asked for (the toggle, or a what-if preview). */
+function useDeadlines(ganttRef: RefObject<BryntumGantt | null>, show: boolean) {
+  useEffect(() => {
+    const gantt = ganttRef.current?.instance;
+    const indicators = (gantt?.features as { indicators?: { disabled: boolean } } | undefined)?.indicators;
+    if (!gantt || !indicators || indicators.disabled === !show) return;
+    // Bryntum's features are the chart's own mutable state, not React's.
+    Object.assign(indicators, { disabled: !show });
+    // Switching the feature doesn't repaint the rows already drawn.
+    gantt.refreshRows();
+  }, [ganttRef, show]);
+}
 
 type LabelDomConfig = { children?: object[] };
 
@@ -503,57 +505,108 @@ type SummaryFeature = { refresh?: () => void; updateTimelineSummaries?: () => vo
 type Timeline = {
   foregroundCanvas?: HTMLElement;
   getCoordinateFromDate: (date: Date) => number;
+  tickSize: number;
   timeAxisSubGrid?: { element?: HTMLElement; scrollable?: { scrollTo: (x: number) => unknown } };
   ion: (listeners: Record<string, () => void>) => () => void;
 };
 
+const localDay = (iso: string, plusDays = 0) => {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d + plusDays); // Bryntum dates are local midnights
+};
+
+const shortDay = (iso: string) => localDay(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
 /**
- * A dashed "Today" line, hand-made (it predates the move to the Enterprise
- * tier, whose TimeRanges feature could replace it), so the line lives in a canvas of our own beside Bryntum's canvases in the time
- * axis sub-grid (it scrolls with the timeline). Never put it inside Bryntum's
- * foreground canvas: Bryntum recycles that canvas's children as task elements.
+ * Two full-height lines across the chart: a dashed "Today" and a solid
+ * "Wedding" line, so every payment reads against both. Hand-made, in a canvas
+ * of our own beside Bryntum's canvases in the time axis sub-grid (it scrolls
+ * with the timeline). Never put it inside Bryntum's foreground canvas: Bryntum
+ * recycles that canvas's children as task elements. The wedding line follows a
+ * what-if preview.
+ *
+ * When the chart opens (and when its width changes), the months are widened so
+ * a month before today through just after the wedding fills the timeline, and
+ * it scrolls there.
  */
-function useTodayLine(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined, weddingIso: string | undefined) {
+function useMarkerLines(ganttRef: RefObject<BryntumGantt | null>, todayIso: string | undefined, weddingIso: string | undefined) {
+  const weddingRef = useRef(weddingIso);
+  const placeRef = useRef<(() => void) | null>(null);
+  // The first wedding date decides the opening view; a preview doesn't refit it.
+  const [openingWeddingIso] = useState(weddingIso);
+
+  useEffect(() => {
+    weddingRef.current = weddingIso;
+    placeRef.current?.();
+  }, [weddingIso]);
+
   useEffect(() => {
     const gantt = ganttRef.current?.instance as unknown as Timeline | undefined;
     if (!gantt || !todayIso) return;
-    const [y, m, d] = todayIso.split("-").map(Number);
-    const today = new Date(y, m - 1, d); // Bryntum dates are local midnights
+    const today = localDay(todayIso);
     const canvas = document.createElement("div");
     canvas.className = "vw-today-canvas";
     canvas.setAttribute("aria-hidden", "true");
-    const line = document.createElement("div");
-    line.className = "vw-today-line";
-    canvas.appendChild(line);
+    const todayLine = document.createElement("div");
+    todayLine.className = "vw-today-line";
+    const weddingLine = document.createElement("div");
+    weddingLine.className = "vw-wedding-line";
+    canvas.append(todayLine, weddingLine);
 
+    const position = (line: HTMLElement, date: Date) => {
+      const x = gantt.getCoordinateFromDate(date);
+      line.style.display = x >= 0 ? "" : "none";
+      line.style.left = `${x}px`;
+    };
     const place = () => {
       const subGrid = gantt.foregroundCanvas?.parentElement;
       if (!subGrid) return;
       if (canvas.parentElement !== subGrid) subGrid.appendChild(canvas);
-      const x = gantt.getCoordinateFromDate(today);
-      line.style.display = x >= 0 ? "" : "none";
-      line.style.left = `${x}px`;
+      position(todayLine, today);
+      const wedding = weddingRef.current;
+      if (wedding) {
+        weddingLine.dataset.label = `Wedding · ${shortDay(wedding)}`;
+        position(weddingLine, localDay(wedding));
+      } else weddingLine.style.display = "none";
       canvas.style.height = "0"; // measure the rows without our own canvas in the way
       canvas.style.height = `${subGrid.scrollHeight}px`;
     };
+    placeRef.current = place;
 
+    // Fit a month before today through just after the wedding into the
+    // timeline's width. Set the timeline's own scroll; scrollToDate would also
+    // scroll the page to the chart.
+    let fittedWidth = 0;
+    const fit = () => {
+      const viewport = gantt.timeAxisSubGrid?.element?.clientWidth ?? 0;
+      if (viewport <= 0 || Math.abs(viewport - fittedWidth) < 8) return;
+      fittedWidth = viewport;
+      // From the first of the month PAST_VIEW_DAYS back, so the view starts on a whole month.
+      const back = localDay(todayIso, -PAST_VIEW_DAYS);
+      const from = new Date(back.getFullYear(), back.getMonth(), 1);
+      const to = openingWeddingIso ? localDay(openingWeddingIso, WEDDING_VIEW_MARGIN_DAYS) : localDay(todayIso, 240);
+      const months = Math.max(1, (to.getTime() - from.getTime()) / DAY_MS / 30.44);
+      const tick = Math.max(MIN_MONTH_WIDTH, Math.floor(viewport / months));
+      if (gantt.tickSize !== tick) Object.assign(gantt, { tickSize: tick }); // Bryntum's own state, not React's
+      void gantt.timeAxisSubGrid?.scrollable?.scrollTo(Math.max(0, gantt.getCoordinateFromDate(from)));
+      place();
+    };
+
+    fit();
     place();
-    // Open on the part that matters: from a month before today onwards, but
-    // never so far right that the wedding day (plus room to drag it) is cut
-    // off. Set the timeline's own scroll; scrollToDate would also scroll the
-    // page to the chart.
-    const scroller = gantt.timeAxisSubGrid?.scrollable;
-    let x = gantt.getCoordinateFromDate(new Date(y, m - 2, d));
-    const viewport = gantt.timeAxisSubGrid?.element?.clientWidth ?? 0;
-    if (weddingIso && viewport > 0) {
-      const [wy, wm, wd] = weddingIso.split("-").map(Number);
-      x = Math.min(x, gantt.getCoordinateFromDate(new Date(wy, wm - 1, wd + WEDDING_VIEW_MARGIN_DAYS)) - viewport);
-    }
-    void scroller?.scrollTo(Math.max(0, x));
-    const detach = gantt.ion({ timeAxisChange: place, timelineViewportResize: place, renderRows: place, horizontalScroll: place });
+    const detach = gantt.ion({
+      timeAxisChange: place,
+      timelineViewportResize: () => {
+        fit();
+        place();
+      },
+      renderRows: place,
+      horizontalScroll: place,
+    });
     return () => {
       detach();
+      placeRef.current = null;
       canvas.remove();
     };
-  }, [ganttRef, todayIso, weddingIso]);
+  }, [ganttRef, todayIso, openingWeddingIso]);
 }

@@ -61,21 +61,23 @@ afterEach(() => {
   host = undefined;
 });
 
-async function mount(data: TimelineInput, onWeddingDateChange?: (iso: string) => void) {
+type Extra = { showDeadlines?: boolean; todayIso?: string };
+
+async function mount(data: TimelineInput, onWeddingDateChange?: (iso: string) => void, extra: Extra = {}) {
   host = document.createElement("div");
   host.style.height = "600px";
   host.style.width = "1200px";
   document.body.appendChild(host);
   root = createRoot(host);
   await act(async () => {
-    root!.render(<PaymentGanttChart data={buildTimeline(data, today)} onWeddingDateChange={onWeddingDateChange} minWeddingDate="2026-11-07" />);
+    root!.render(<PaymentGanttChart data={buildTimeline(data, today)} onWeddingDateChange={onWeddingDateChange} minWeddingDate="2026-11-07" {...extra} />);
   });
 }
 
-async function rerender(data: TimelineInput | TimelineData) {
+async function rerender(data: TimelineInput | TimelineData, extra: Extra = {}) {
   const timeline = "tasks" in data ? data : buildTimeline(data, today);
   await act(async () => {
-    root!.render(<PaymentGanttChart data={timeline} />);
+    root!.render(<PaymentGanttChart data={timeline} {...extra} />);
   });
 }
 
@@ -165,17 +167,38 @@ describe("PaymentGanttChart", () => {
     expect(barCount(".payment")).toBe(0); // the payment rows themselves are folded away
   });
 
-  it("fills the vendor bar by the share paid, not the engine's own roll-up", async () => {
+  it("says what's paid under the vendor's name, in one narrow column, instead of filling the bar", async () => {
     await mount(input);
-    const { tasks } = await engine();
+    await engine();
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    // The timeline itself is a column too; the grid has only the name.
+    const fields = (gantt.columns as unknown as { records: { field: string; type: string }[] }).records.filter((c) => c.type !== "timeAxis").map((c) => c.field);
+    expect(fields).toEqual(["name"]);
+    const vendorCell = [...host!.querySelectorAll(".b-tree-cell-value")].find((el) => el.textContent?.includes("Grand Oak Estate"))!;
     // $3,000 of $6,000 paid
-    expect((tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(50);
+    expect(vendorCell.querySelector(".vw-name-sub")!.textContent).toBe("$3,000 of $6,000 paid");
+    expect(host!.querySelector(".b-task-percent-bar[data-percent]:not([data-percent='0'])")).toBeNull();
+  });
 
-    await rerender({
-      ...input,
-      vendors: [{ ...input.vendors[0], payments: input.vendors[0].payments.map((p) => ({ ...p, status: "paid" as const })) }],
+  it("keeps to months: no Ctrl+wheel or double-click zoom", async () => {
+    await mount(input);
+    await engine();
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as unknown as { zoomOnMouseWheel: boolean; zoomOnTimeAxisDoubleClick: boolean };
+    expect(gantt.zoomOnMouseWheel).toBe(false);
+    expect(gantt.zoomOnTimeAxisDoubleClick).toBe(false);
+  });
+
+  it("draws a labelled wedding line that follows a what-if preview, beside the Today line", async () => {
+    await mount(input, undefined, { todayIso: "2026-11-07" });
+    await engine();
+    const line = () => host!.querySelector<HTMLElement>(".vw-wedding-line")!;
+    expect(host!.querySelector(".vw-today-line")).not.toBeNull();
+    expect(line().dataset.label).toBe("Wedding · Apr 17");
+
+    await rerender(withBaseline(buildTimeline({ ...input, wedding: { ...input.wedding, date: d("2027-06-12") } }, today), buildTimeline(input, today)), {
+      todayIso: "2026-11-07",
     });
-    expect(((await engine()).tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(100);
+    expect(line().dataset.label).toBe("Wedding · Jun 12");
   });
 
   it("labels the amount still to pay beside its diamond, and leaves paid ones unlabelled (Labels feature)", async () => {
@@ -192,8 +215,38 @@ describe("PaymentGanttChart", () => {
     expect(host!.querySelector(".vw-rollup-amount")!.className).toContain("vw-amount-scheduled");
   });
 
-  it("draws the vendor's contract deadlines as indicators in its row, with our tooltip", async () => {
-    await mount({
+  it("draws the vendor's contract deadlines as indicators in its row, with our tooltip, when asked to", async () => {
+    await mount(withTerms, undefined, { showDeadlines: true });
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const indicators = [...host!.querySelectorAll<HTMLElement & { elementData?: { tipHtml: string; href: string } }>(".b-indicator.vw-deadline")];
+    expect(indicators.map((el) => el.className.match(/vw-deadline-(\w+)/)![1]).sort()).toEqual(["cancellation", "date_change"]);
+    const change = indicators.find((el) => el.className.includes("vw-deadline-date_change"))!;
+    expect(change.elementData!.tipHtml).toContain("Last day to change the date for free");
+    expect(change.elementData!.href).toContain("c-change");
+    // Bryntum's own scheduling indicators stay off.
+    expect(host!.querySelectorAll(".b-indicator:not(.vw-deadline)")).toHaveLength(0);
+  });
+
+  it("leaves the deadlines off by default, and switches them on and off with the prop", async () => {
+    const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 200))));
+    await mount(withTerms);
+    await engine();
+    await settle();
+    expect(host!.querySelectorAll(".b-indicator.vw-deadline")).toHaveLength(0);
+
+    await rerender(withTerms, { showDeadlines: true });
+    await settle();
+    expect(host!.querySelectorAll(".b-indicator.vw-deadline")).toHaveLength(2);
+
+    await rerender(withTerms, { showDeadlines: false });
+    await settle();
+    expect(host!.querySelectorAll(".b-indicator.vw-deadline")).toHaveLength(0);
+  });
+
+  const withTerms: TimelineInput = {
       ...input,
       vendors: [
         {
@@ -212,19 +265,7 @@ describe("PaymentGanttChart", () => {
           },
         },
       ],
-    });
-    await engine();
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    });
-    const indicators = [...host!.querySelectorAll<HTMLElement & { elementData?: { tipHtml: string; href: string } }>(".b-indicator.vw-deadline")];
-    expect(indicators.map((el) => el.className.match(/vw-deadline-(\w+)/)![1]).sort()).toEqual(["cancellation", "date_change"]);
-    const change = indicators.find((el) => el.className.includes("vw-deadline-date_change"))!;
-    expect(change.elementData!.tipHtml).toContain("Last day to change the date for free");
-    expect(change.elementData!.href).toContain("c-change");
-    // Bryntum's own scheduling indicators stay off.
-    expect(host!.querySelectorAll(".b-indicator:not(.vw-deadline)")).toHaveLength(0);
-  });
+  };
 
   it("picks up a changed payment status when the page re-renders with new data", async () => {
     await mount(input);
@@ -356,7 +397,7 @@ describe("the vendor name column's tooltip", () => {
     // jsdom has no layout, so say whether the text fits by hand.
     const cell = (scrollWidth: number, clientWidth: number) => {
       const el = document.createElement("div");
-      el.innerHTML = `<span class="b-tree-cell-value"></span>`;
+      el.innerHTML = `<span class="vw-name-main"></span>`;
       const value = el.firstElementChild as HTMLElement;
       Object.defineProperty(value, "scrollWidth", { value: scrollWidth });
       Object.defineProperty(value, "clientWidth", { value: clientWidth });
@@ -430,7 +471,7 @@ describe("the agent's focus (TimeRanges, selection, dimming)", () => {
     document.body.appendChild(host);
     root = createRoot(host);
     await act(async () => {
-      root!.render(<PaymentGanttChart data={focused} timeRanges={focused.timeRanges} focusTaskId={focused.focusTaskId} />);
+      root!.render(<PaymentGanttChart data={focused} timeRanges={focused.timeRanges} focusTaskId={focused.focusTaskId} showDeadlines />);
     });
     await engine();
     await act(async () => {
