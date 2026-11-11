@@ -36,6 +36,7 @@ const DATA: VendorPageData = {
   ],
   cancellation: { clauseId: "c-can", tiers: ["90+ days' notice: 50% of payments made refunded"] },
   dateChange: { clauseId: null, tiers: [] },
+  suspicious: [],
 };
 
 const mark = (id: string) => document.getElementById(`clause-${id}`);

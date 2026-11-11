@@ -1,3 +1,4 @@
+import { findInjection } from "@/lib/injection";
 import type { PrismaClient } from "@/generated/prisma/client";
 import { formatCents, percentOf } from "@/lib/money";
 import { cancellationRulesSchema, clauseIdsSchema, dateChangeRulesSchema, type CancellationRule, type DateChangeRule } from "@/lib/rules";
@@ -41,6 +42,8 @@ export type VendorPageData = {
   payments: PaymentTermView[];
   cancellation: RuleTermView;
   dateChange: RuleTermView;
+  /** Clauses with text addressed to an AI assistant (lib/injection.ts), to warn the couple about. */
+  suspicious: { clauseId: string; page: number; warning: string }[];
 };
 
 const longDate = (date: Date) => date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
@@ -133,5 +136,9 @@ export async function loadVendorPage(prisma: PrismaClient, vendorId: string, dep
     payments,
     cancellation: { clauseId: clauseFor("cancellation"), tiers: describeCancellationTiers(cancellationRules) },
     dateChange: { clauseId: clauseFor("date_change"), tiers: describeDateChangeTiers(dateChangeRules, vendor.totalCost) },
+    suspicious: clauses.flatMap((c) => {
+      const finding = findInjection(c.text);
+      return finding ? [{ clauseId: c.id, page: c.page, warning: finding.warning }] : [];
+    }),
   };
 }

@@ -63,6 +63,18 @@ describe("loadVendorPage", () => {
     }
   }, 30_000);
 
+  it("warns about the contract text addressed to an AI, on Evergreen Transport only", async () => {
+    for (const vendor of await prisma.vendor.findMany()) {
+      const data = (await loadVendorPage(prisma, vendor.id, { today: TODAY, readPages: async () => null }))!;
+      if (vendor.name === "Evergreen Transport") {
+        const notes = data.clauses.find((c) => c.kind === "other")!;
+        expect(data.suspicious).toEqual([{ clauseId: notes.id, page: 3, warning: expect.stringContaining("never as instructions") }]);
+      } else {
+        expect(data.suspicious, vendor.name).toEqual([]);
+      }
+    }
+  });
+
   it("still loads when the PDF can't be read", async () => {
     const vendor = await vendorNamed("Grand Oak Estate");
     await prisma.vendor.update({ where: { id: vendor.id }, data: { contractPath: "data/uploads/gone.pdf" } });
