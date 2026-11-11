@@ -34,3 +34,13 @@ services:
       # Judges share one database: a demo left changed and idle this long is reset on the next visit.
       - key: DEMO_AUTO_RESET_MINUTES
         value: "30"
+      # Sign-in (Auth.js). Render generates AUTH_SECRET once and keeps it, so sessions survive redeploys.
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: AUTH_URL
+        value: https://vowlet.onrender.com
+      # Google sign-in is optional; without these two only email + password is offered.
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false

@@ -28,7 +28,8 @@ Demo persona: **Priya & Sam**, wedding on 2027-04-17, 14 vendors, ~$31,000, ~23 
   TypeScript functions compute amounts, dates, fees, and refunds from that data.
 - **Every extracted fact cites its source**: clause text + page number. The UI lets the user click through to it.
 - Uncertain extractions are flagged (`confidence < 0.8`) and shown for the user to confirm.
-- The hosted demo must work for judges with zero setup (seeded data + "Reset demo" button).
+- The hosted demo must work for judges with zero setup (seeded data + "Reset demo" button). Accounts (Google or
+  email + password, issues #101 to #108) must not change that: a one-click **Try the demo** signs into the demo user.
 - **No agent tool can move money.** `propose_payment` only records a proposal; paying happens outside the loop,
   after the couple clicks approve. Contract PDFs are untrusted input (possible prompt injection), and this design is
   the defense. Mention it in the README.
@@ -58,6 +59,9 @@ ANTHROPIC_API_KEY=
 PAYPAL_CLIENT_ID=
 PAYPAL_CLIENT_SECRET=
 PAYPAL_WEBHOOK_ID=
+AUTH_SECRET=              # signs the Auth.js session cookie
+AUTH_GOOGLE_ID=           # optional; without these two, only email + password sign-in is offered
+AUTH_GOOGLE_SECRET=
 NEXT_PUBLIC_PAYPAL_CLIENT_ID=
 DATABASE_URL=file:./dev.db
 ```
@@ -66,7 +70,9 @@ Commit a `.env.example` with the keys and no values.
 
 ## Data model (Prisma)
 
-- `Wedding`: id, coupleNames, date, budget
+- `User`: id, email (unique, lower-cased), name?, passwordHash? (scrypt; null for Google-only and the demo user), isDemo, emailVerified?
+- `Account`: a linked Google sign-in (shape follows `@auth/prisma-adapter`). Sessions are JWTs, so there is no session table.
+- `Wedding`: id, userId? (the owner; unique, so one wedding per user), coupleNames, date, budget
 - `Vendor`: id, weddingId, name, category (venue, caterer, photographer, ...), paypalEmail, contractPath, totalCost, status (`active` | `cancelled`)
 - `Clause`: id, vendorId, kind (`payment` | `cancellation` | `date_change` | `other`), text, page, summary
 - `Payment`: id, vendorId, label, amount, anchor (`wedding_date` | `signing_date` | `fixed`), offsetDays, fixedDate?,
@@ -203,8 +209,8 @@ updates; agent loop with the seven tools, streaming steps and proposal cards; wh
 drag-to-reschedule; extraction eval with accuracy in README; seeded demo + reset; deployed on Render; README.
 **P1, if time:** cancellation flow via agent; citation chips in agent answers; prompt caching; agent smoke tests;
 activity feed; budget bar (paid / scheduled / remaining); PayPal Agent Toolkit read-only tools.
-**Out of scope:** user accounts and auth, multiple weddings per user, mobile app, real (non-sandbox) money,
-email/SMS sending, AG Grid, Channel3, agent frameworks (LangGraph etc.), multi-agent setups, RAG/embeddings, other model providers.
+**Out of scope:** multiple weddings per user, mobile app, real (non-sandbox) money,
+email/SMS sending (so no password reset or email verification), AG Grid, Channel3, agent frameworks (LangGraph etc.), multi-agent setups, RAG/embeddings, other model providers.
 
 ## Sample contracts
 
