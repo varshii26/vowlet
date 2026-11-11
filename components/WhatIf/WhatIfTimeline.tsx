@@ -164,10 +164,22 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
     <section aria-label="Payment timeline" className="flex h-full min-h-0 flex-col gap-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-xl text-ink">Payment timeline</h2>
-        <p className="text-sm text-muted">
-          Click a payment for its clause and Pay button. Drag the <span className="font-medium text-accent">Wedding day</span> to see what moving
-          the date would cost.
-        </p>
+        {/* The hint and the Print button share the right of the heading, so the legend below gets the whole row. */}
+        <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <p className="text-sm text-muted">
+            Click a payment for its clause and Pay button. Drag the <span className="font-medium text-accent">Wedding day</span> to see what moving it
+            costs.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary vw-no-print px-3 py-1 text-xs"
+            onClick={() => void printSchedule()}
+            disabled={!canPrint || printing}
+            title="Print the timeline, or save it as a PDF, for a planner or family"
+          >
+            {printing ? "Preparing…" : "Print schedule"}
+          </button>
+        </div>
       </div>
       {focus && ganttFocus && (
         <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-1.5 text-sm">
@@ -182,18 +194,7 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           </button>
         </div>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <StatusLegend />
-        <button
-          type="button"
-          className="btn btn-secondary vw-no-print px-3 py-1 text-xs"
-          onClick={() => void printSchedule()}
-          disabled={!canPrint || printing}
-          title="Print the timeline, or save it as a PDF, for a planner or family"
-        >
-          {printing ? "Preparing…" : "Print schedule"}
-        </button>
-      </div>
+      <StatusLegend />
 
       <div className="relative min-h-0 flex-1">
         <PaymentGantt
