@@ -283,6 +283,21 @@
   cursor: pointer;
   font-size: 0.75rem;
   opacity: 0.9;
+  /*
+   * Their own lane: the top of the vendor row, riding on the summary bar. Bryntum
+   * makes the indicator box as tall as the row's bar area (20px) and centres the
+   * icon in it, which lands on the payment diamonds hanging below the bar (and
+   * their amount labels). Shrinking the box to the strip above the diamonds
+   * keeps the icons clear of them and keeps both hoverable and clickable.
+   */
+  height: 11px !important;
+  align-items: flex-start;
+  transform: translateY(-3px);
+}
+/* A soft backing, so the icon reads on top of the bar. */
+.b-gantt .b-indicator.vw-deadline i {
+  border-radius: 50%;
+  background: rgb(255 250 245 / 0.9);
 }
 .b-gantt .b-indicator.vw-deadline:hover {
   opacity: 1;
