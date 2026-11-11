@@ -304,10 +304,10 @@
 }
 /* Bryntum greys the icon itself, so colour the <i>. */
 .b-gantt .b-indicator.vw-deadline-date_change i {
-  color: #7c3aed;
+  color: var(--vw-deadline-date-change);
 }
 .b-gantt .b-indicator.vw-deadline-cancellation i {
-  color: #b45309;
+  color: var(--vw-deadline-cancellation);
 }
 
 /*

@@ -3,6 +3,7 @@
 import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { DEADLINE_ICON } from "@/components/Gantt/deadline-icons";
 import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
 import { PRINT_OPTIONS, renderPrintFooter, renderPrintHeader } from "@/components/Gantt/print";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
@@ -380,11 +381,6 @@ function useDeadlineClicks(ganttRef: RefObject<BryntumGantt | null>) {
     return () => element.removeEventListener("click", onClick);
   }, [ganttRef]);
 }
-
-const DEADLINE_ICON: Record<DeadlineKind, string> = {
-  date_change: "fa fa-calendar-day",
-  cancellation: "fa fa-rotate-left",
-};
 
 /** The indicator for a vendor's next deadline of one kind, or null when it has none. */
 /** A row the agent's focus steps back (lib/timeline-focus.ts). */

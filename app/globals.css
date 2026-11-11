@@ -36,6 +36,9 @@
 
 :root {
   color-scheme: light;
+  /* The timeline's contract-deadline icons and the legend that explains them (components/Gantt). */
+  --vw-deadline-date-change: #7c3aed;
+  --vw-deadline-cancellation: #b45309;
 }
 
 body {
