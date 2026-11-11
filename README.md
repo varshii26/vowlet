@@ -22,7 +22,7 @@ payments, due dates and cancellation and date-change terms. Vowlet:
 and you are on Priya & Sam's wedding: 2027-04-17, 14 vendors, $31,000 across 23 payments, against a $36,000 budget.
 The demo is a dedicated demo account (no password, reachable only through that button), shared by everyone who tries it.
 
-- **To use it for your own wedding**, click **Create an account** instead (Google, or an email and password). A new
+- **To use it for your own wedding**, click **Create an account** instead (email and password). A new
   account starts with a short setup (your names, date and budget), then an empty dashboard where you upload your own
   contracts. Your wedding is private to you and is never touched by the demo or its reset.
 
@@ -307,7 +307,7 @@ the dashboard reloads the seed before the page reads anything (`lib/demo/auto-re
 
 ### Accounts (Auth.js)
 
-Sign-in with **Google** or an **email and password**, built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
+Sign-in with an **email and password** (Google sign-in is built but switched off for now, see below), built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
 published as a beta tag, so it is pinned to an exact version). The foundation is #101, the sign-in page #102 and the sign-up page #103, redirects #105; 
 per-user access checks and the demo account rules follow in #105 to #108. The shared demo stays
 one click: nobody has to sign up to see it.
@@ -379,7 +379,11 @@ one click: nobody has to sign up to see it.
   they know, and a later Google sign-in by the victim would link to the attacker's account. So an address that has an
   account by one method is refused by the other, and the sign-in page says which method to use. Google must also report
   the address as verified. Adding email verification would allow safe linking.
-- **Google sign-in setup** (optional): in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+- **Google sign-in is switched off for now.** `googleEnabled` in `lib/auth/index.ts` is `false`, which hides the buttons,
+  hides the "Signed up with Google?" hint and leaves the provider unregistered, even if `AUTH_GOOGLE_ID` and
+  `AUTH_GOOGLE_SECRET` are set. All the Google code is still in place. To turn it back on, restore the commented line
+  above `googleEnabled` and follow the setup below.
+- **Google sign-in setup** (optional, and only once it is switched back on): in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
   create an **OAuth client ID** of type *Web application*, and add these **authorized redirect URIs**:
   `http://localhost:3000/api/auth/callback/google` and `https://vowlet.onrender.com/api/auth/callback/google`. Put the
   client id and secret in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` (locally in `.env.local`, on Render as environment

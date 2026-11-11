@@ -25,7 +25,12 @@ import { DEMO_USER } from "@/lib/seed/demo-user";
 // Before anything builds a callback URL: on Render this is what makes Google redirect to the public address, not localhost:10000.
 applyPublicUrl();
 
-export const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+// Google sign-in is switched off for now: this one flag hides the "Continue with Google" buttons and the
+// "Signed up with Google?" hint, and leaves the provider (and its /api/auth/*/google routes) unregistered, even
+// if AUTH_GOOGLE_ID and AUTH_GOOGLE_SECRET are set. The Google code is all still here: to turn it back on,
+// restore the line below and delete the `false` one.
+// export const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET);
+export const googleEnabled = false;
 
 /** Thrown when someone has failed too often: the sign-in page shows "wait a minute" for this code. */
 class RateLimited extends CredentialsSignin {
