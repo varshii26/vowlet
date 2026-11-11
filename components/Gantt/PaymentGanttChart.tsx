@@ -3,7 +3,9 @@
 import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
 import { renderBaselineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { formatCents } from "@/lib/money";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
 
@@ -53,6 +55,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
   // through refs instead of being rebuilt on every update.
   const ganttRef = useRef<BryntumGantt>(null);
   const detailsRef = useRef(data.details);
+  const cashRef = useRef(data.cashByMonth);
   const selectRef = useRef(onPaymentSelect);
   const weddingDropRef = useRef(onWeddingDateChange);
   const minDateRef = useRef(minWeddingDate);
@@ -72,6 +75,15 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
     // otherwise a paid payment keeps saying "Scheduled" until a page reload.
     ganttRef.current?.instance?.refreshRows();
   }, [data.details]);
+  useEffect(() => {
+    // The footer reads cash per month through a ref, so tell it to redraw when
+    // the numbers change: a what-if preview, a payment, a reset.
+    if (cashRef.current === data.cashByMonth) return;
+    cashRef.current = data.cashByMonth;
+    const summary = (ganttRef.current?.instance?.features as { summary?: SummaryFeature } | undefined)?.summary;
+    summary?.refresh?.();
+    summary?.updateTimelineSummaries?.();
+  }, [data.cashByMonth]);
   useEffect(() => {
     // The wrapper applies new dependencies before new tasks, and replacing the
     // tasks removes every link to the old ones, which empties the dependency
@@ -135,6 +147,12 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
         const wedding = taskRecords.find((task) => task.id === WEDDING_TASK_ID);
         if (wedding?.startDate) weddingDropRef.current?.(localIsoDay(new Date(wedding.startDate)));
       },
+      // Enterprise Summary footer: cash needed each month (unpaid payments only,
+      // integer cents from lib/timeline), so the couple sees cash-flow peaks.
+      // The busiest month is highlighted; it follows a what-if preview live.
+      summaryFeature: {
+        renderer: ({ startDate }: { startDate: Date }) => renderCashCell(cashRef.current, monthKey(startDate)),
+      },
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
       subGridConfigs: { locked: { width: 400 } },
@@ -142,12 +160,14 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       barMargin: 8,
       columnLines: true,
       columns: [
-        { type: "name", text: "Vendor / payment", width: 210 },
+        { type: "name", text: "Vendor / payment", width: 210, sum: "count", summaryRenderer: () => "Cash needed each month" },
         {
           text: "Amount",
           width: 84,
           align: "right",
           sortable: false,
+          sum: "count",
+          summaryRenderer: () => formatCents(totalCash(cashRef.current)),
           renderer: ({ record }: { record: TaskModel }) => {
             const detail = detailOf(record);
             return detail && detail.kind !== "wedding" ? detail.amountLabel : "";
@@ -196,6 +216,8 @@ function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {
     ...(task.children ? { children: withExplicitBaselines(task.children) } : {}),
   }));
 }
+
+type SummaryFeature = { refresh?: () => void; updateTimelineSummaries?: () => void };
 
 type Timeline = {
   foregroundCanvas?: HTMLElement;

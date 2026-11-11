@@ -48,3 +48,33 @@ export function budgetBar(s: BudgetSummary): BudgetBar {
   const scheduled = (s.scheduledCents / whole) * 100;
   return { paid, scheduled, left: Math.max(0, 100 - paid - scheduled), overBudget };
 }
+
+export type BudgetImpact = {
+  budgetCents: number;
+  /** Paid plus scheduled before the change. */
+  committedCents: number;
+  /** What the change adds (for a date change: the vendors' fees). */
+  extraCents: number;
+  /** committed + extra: the wedding's total cost after the change. */
+  projectedCents: number;
+  /** How far the projected total is over budget; 0 when within it. */
+  overByCents: number;
+  overBudget: boolean;
+};
+
+/**
+ * What a change costing `extraCents` does to the budget. Pure code, so the
+ * agent never has to add up or compare money itself.
+ */
+export function budgetImpact(summary: BudgetSummary, extraCents: number): BudgetImpact {
+  if (!Number.isInteger(extraCents) || extraCents < 0) throw new RangeError("extraCents must be a non-negative integer");
+  const committedCents = summary.paidCents + summary.scheduledCents;
+  const projectedCents = committedCents + extraCents;
+  const overByCents = Math.max(0, projectedCents - summary.budgetCents);
+  return { budgetCents: summary.budgetCents, committedCents, extraCents, projectedCents, overByCents, overBudget: overByCents > 0 };
+}
+
+/** The largest charge (ties: the first one given), or null when nothing is charged. */
+export function largestCharge<T extends { costCents: number }>(charges: readonly T[]): T | null {
+  return charges.reduce<T | null>((best, c) => (c.costCents > 0 && (!best || c.costCents > best.costCents) ? c : best), null);
+}

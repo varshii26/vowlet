@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetBar, summarizeBudget, type BudgetPayment } from "@/lib/budget";
+import { budgetBar, budgetImpact, largestCharge, summarizeBudget, type BudgetPayment } from "@/lib/budget";
 
 const pay = (amountCents: number, status: string, vendorActive = true): BudgetPayment => ({ amountCents, status, vendorActive });
 
@@ -40,5 +40,47 @@ describe("budgetBar", () => {
 
   it("is all 'left' for an empty or zero budget", () => {
     expect(budgetBar(summarizeBudget(0, []))).toEqual({ paid: 0, scheduled: 0, left: 100, overBudget: false });
+  });
+});
+
+describe("budgetImpact", () => {
+  const summary = summarizeBudget(3_600_000, [
+    { amountCents: 1_000_000, status: "paid", vendorActive: true },
+    { amountCents: 2_400_000, status: "scheduled", vendorActive: true },
+  ]);
+
+  it("stays within budget when the change fits", () => {
+    expect(budgetImpact(summary, 133_000)).toEqual({
+      budgetCents: 3_600_000,
+      committedCents: 3_400_000,
+      extraCents: 133_000,
+      projectedCents: 3_533_000,
+      overByCents: 0,
+      overBudget: false,
+    });
+  });
+
+  it("reports the overage in cents when the change pushes the total over", () => {
+    expect(budgetImpact(summary, 270_000)).toMatchObject({ projectedCents: 3_670_000, overByCents: 70_000, overBudget: true });
+  });
+
+  it("is not over budget when landing exactly on it", () => {
+    expect(budgetImpact(summary, 200_000)).toMatchObject({ overByCents: 0, overBudget: false });
+  });
+
+  it("rejects fractional or negative extras", () => {
+    expect(() => budgetImpact(summary, -1)).toThrow(RangeError);
+    expect(() => budgetImpact(summary, 1.5)).toThrow(RangeError);
+  });
+});
+
+describe("largestCharge", () => {
+  it("picks the biggest fee, the first on a tie, and ignores zero fees", () => {
+    const a = { name: "a", costCents: 100 };
+    const b = { name: "b", costCents: 300 };
+    const c = { name: "c", costCents: 300 };
+    expect(largestCharge([a, b, c])).toBe(b);
+    expect(largestCharge([{ costCents: 0 }])).toBeNull();
+    expect(largestCharge([])).toBeNull();
   });
 });

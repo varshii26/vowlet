@@ -201,6 +201,9 @@ describe("asking and answering", () => {
         clauseHref: null,
         paymentId: null,
         approvable: true,
+        fees: [],
+        dateChange: null,
+        warning: null,
         createdAt: "2026-11-11T00:00:00.000Z",
       });
       stubFetch(complete(answer("I've prepared a proposal.", { proposals: [proposal("p1")] })));

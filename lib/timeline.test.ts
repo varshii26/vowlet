@@ -365,3 +365,60 @@ describe("edge cases", () => {
     expect(buildTimeline(input, today).tasks[0].startDate).toBe("2027-04-17");
   });
 });
+
+describe("cash needed per month (the Summary footer)", () => {
+  it("adds up unpaid payments by the month they fall due, in cents", () => {
+    const t = buildTimeline(
+      {
+        wedding: { coupleNames: "Priya & Sam", date: wedding },
+        vendors: [
+          vendor([
+            payment({ id: "a", offsetDays: -30, amountCents: 100_000 }), // Mar 18
+            payment({ id: "b", offsetDays: -20, amountCents: 50_050, status: "due" }), // Mar 28
+            payment({ id: "c", offsetDays: 0, amountCents: 70_000 }), // Apr 17
+          ]),
+        ],
+      },
+      today,
+    );
+    expect(t.cashByMonth).toEqual({ "2027-03": 150_050, "2027-04": 70_000 });
+  });
+
+  it("leaves out paid, void and refund payments, and cancelled vendors", () => {
+    const statuses: PaymentStatus[] = ["paid", "void", "refund_requested", "refunded"];
+    const settled = buildTimeline(
+      { wedding: { coupleNames: "x", date: wedding }, vendors: [vendor(statuses.map((status, i) => payment({ id: `s${i}`, status })))] },
+      today,
+    );
+    expect(settled.cashByMonth).toEqual({});
+    expect(buildTimeline(single(payment(), { status: "cancelled" }), today).cashByMonth).toEqual({});
+  });
+
+  it("matches the demo's unpaid total, and moves with the wedding during a what-if", () => {
+    const input = demoInput();
+    const unpaid = input.vendors.flatMap((v) => v.payments).filter((p) => p.status === "scheduled").reduce((s, p) => s + p.amountCents, 0);
+    const base = buildTimeline(input, today);
+    const sum = (m: Record<string, number>) => Object.values(m).reduce((s, c) => s + c, 0);
+    expect(sum(base.cashByMonth)).toBe(unpaid);
+
+    const later = withBaseline(buildTimeline(demoInput(d("2027-06-17")), today), base);
+    expect(sum(later.cashByMonth)).toBe(unpaid);
+    expect(later.cashByMonth).not.toEqual(base.cashByMonth);
+    // The wedding-day payments now land in June, not April.
+    const onTheDay = input.vendors.flatMap((v) => v.payments).filter((p) => p.anchor === "wedding_date" && p.offsetDays === 0);
+    if (onTheDay.length) expect(later.cashByMonth["2027-06"]).toBeGreaterThan(0);
+  });
+
+  it("agrees with lib/schedule.ts on every due date", () => {
+    const input = demoInput();
+    const t = buildTimeline(input, today);
+    const expected: Record<string, number> = {};
+    for (const v of input.vendors)
+      for (const p of v.payments) {
+        if (p.status !== "scheduled") continue;
+        const m = toIsoDate(computeDueDate(p, { weddingDate: wedding, signingDate: v.signingDate })).slice(0, 7);
+        expected[m] = (expected[m] ?? 0) + p.amountCents;
+      }
+    expect(t.cashByMonth).toEqual(expected);
+  });
+});

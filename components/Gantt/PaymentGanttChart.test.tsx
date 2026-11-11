@@ -276,6 +276,36 @@ describe("what-if ghosts (Baselines)", () => {
   });
 });
 
+describe("cash needed each month (Summary footer)", () => {
+  const moved = { ...input, wedding: { ...input.wedding, date: d("2027-06-12") } };
+  const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 200))));
+  const cells = () => [...host!.querySelectorAll(".vw-cash")].map((el) => el.getAttribute("title"));
+
+  it("switches the Summary feature on, with labels in the locked grid", async () => {
+    await mount(input);
+    await engine();
+    await settle();
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    const summary = (gantt.features as unknown as Record<string, { disabled?: boolean } | undefined>).summary;
+    expect(summary && !summary.disabled).toBe(true);
+    expect(host!.textContent).toContain("Cash needed each month");
+    // Only the unpaid $3,000 balance; the paid deposit is left out.
+    expect(host!.textContent).toContain("$3,000");
+  });
+
+  it("shows the unpaid balance in its month, and moves it live during a what-if preview", async () => {
+    await mount(input);
+    await engine();
+    await settle();
+    expect(cells()).toEqual(["$3,000 due in March 2027 (the busiest month)"]);
+
+    await rerender(withBaseline(buildTimeline(moved, today), buildTimeline(input, today)));
+    await engine();
+    await settle();
+    expect(cells()).toEqual(["$3,000 due in May 2027 (the busiest month)"]);
+  });
+});
+
 describe("localIsoDay", () => {
   it("reads the calendar day Bryntum shows, in local time", () => {
     expect(localIsoDay(new Date(2027, 0, 5))).toBe("2027-01-05");

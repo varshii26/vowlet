@@ -74,6 +74,12 @@ describe("POST /api/whatif", () => {
     expect(expected.totalCents).toBeGreaterThan(0);
   });
 
+  it("reports the wedding's total after the move against the budget", async () => {
+    const r = await preview({ newDate: "2027-06-12" });
+    expect(r.body.budget).toMatchObject({ budgetCents: 3_600_000, overByCents: 0 });
+    expect(r.body.budget.projectedCents).toBeGreaterThan(r.body.totalCents);
+  });
+
   it("cites the date-change clause for rows that have one, with the clause text to open", async () => {
     const r = await preview({ newDate: "2027-06-12" });
     const cited = r.body.rows.filter((row: { clauseId: string | null }) => row.clauseId);

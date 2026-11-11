@@ -96,6 +96,43 @@ describe("propose_action: reschedule", () => {
     expect(payload.charges.every((c) => c.clauseId)).toBe(true);
   });
 
+  it("sorts the fees largest first and stores each vendor's citation", async () => {
+    await propose({ kind: "reschedule", newDate: "2027-06-17", reason: "r" });
+    const [row] = await proposals();
+    const charges = (row.payload as { charges: Array<{ vendorName: string; costCents: number; citation: string }> }).charges;
+    const costs = charges.map((c) => c.costCents);
+    expect(costs).toEqual([...costs].sort((a, b) => b - a));
+    expect(charges[0]).toMatchObject({ vendorName: "Grand Oak Estate", costCents: 45_000, citation: "Grand Oak Estate contract, page 2" });
+    expect(charges.every((c) => c.citation === `${c.vendorName} contract, page 2`)).toBe(true);
+  });
+
+  it("stores the next three payments that move, with their dates before and after", async () => {
+    await propose({ kind: "reschedule", newDate: "2027-06-17", reason: "r" });
+    const [row] = await proposals();
+    const moving = (row.payload as { movingPayments: Array<{ fromDate: string; toDate: string }> }).movingPayments;
+    expect(moving).toHaveLength(3);
+    const from = moving.map((m) => m.fromDate);
+    expect(from).toEqual([...from].sort());
+    for (const m of moving) {
+      // Two months later: 61 days, the same as the wedding.
+      expect((Date.parse(m.toDate) - Date.parse(m.fromDate)) / 86_400_000).toBe(61);
+    }
+  });
+
+  it("records the budget impact, and says so in the summary when it goes over", async () => {
+    await propose({ kind: "reschedule", newDate: "2027-06-17", reason: "r" });
+    const [within] = await proposals();
+    expect((within.payload as { budget: { overByCents: number; budgetCents: number } }).budget).toMatchObject({ budgetCents: 3_600_000, overByCents: 0 });
+
+    const wedding = await prisma.wedding.findFirstOrThrow();
+    const budget = await ok(prisma, "get_wedding");
+    // Leave $1,000 of headroom, so the $1,330 of fees goes $330 over.
+    const committed = budget.paid.cents + budget.scheduled.cents;
+    await prisma.wedding.update({ where: { id: wedding.id }, data: { budget: committed + 100_000 } });
+    const r = await propose({ kind: "reschedule", newDate: "2027-07-17", reason: "r" });
+    expect(r.summary).toBe("Move the wedding from 2027-04-17 to 2027-07-17 (extra cost $1,330, $330 over budget)");
+  });
+
   it("does not move the wedding", async () => {
     await propose({ kind: "reschedule", newDate: "2027-06-17", reason: "r" });
     expect((await prisma.wedding.findFirstOrThrow()).date.toISOString()).toBe("2027-04-17T00:00:00.000Z");

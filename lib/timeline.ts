@@ -129,6 +129,12 @@ export type TimelineData = {
   tasks: TimelineTask[];
   dependencies: TimelineDependency[];
   details: Record<string, TaskDetail>;
+  /**
+   * Cash needed per month, `YYYY-MM` -> integer cents: payments still to make
+   * (scheduled or due) to active vendors, by computed due date. Paid, void and
+   * refund payments are left out. Feeds the Gantt's Summary footer.
+   */
+  cashByMonth: Record<string, number>;
   /** Visible range, `YYYY-MM-DD`, always containing every milestone. */
   startDate: string;
   endDate: string;
@@ -189,11 +195,24 @@ function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[]): TaskDetai
   };
 }
 
+const UNPAID: ReadonlySet<PaymentStatus> = new Set(["scheduled", "due"]);
+
+/** Add each unpaid payment of an active vendor to the month it falls due in. */
+function addToCashByMonth(totals: Record<string, number>, vendor: TimelineVendor, dated: DatedPayment[]): void {
+  if (vendor.status !== "active") return;
+  for (const payment of dated) {
+    if (!UNPAID.has(payment.status)) continue;
+    const month = toIsoDate(payment.due).slice(0, 7);
+    totals[month] = (totals[month] ?? 0) + payment.amountCents;
+  }
+}
+
 /** Build the Gantt data. `today` is passed in so the result is deterministic. */
 export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
   const weddingDate = startOfUtcDay(input.wedding.date);
   const details: Record<string, TaskDetail> = {};
   const dependencies: TimelineDependency[] = [];
+  const cashByMonth: Record<string, number> = {};
   const allDates: Date[] = [weddingDate];
 
   const vendors = input.vendors
@@ -206,6 +225,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
 
   const vendorTasks = vendors.map(({ vendor, dated }): TimelineTask => {
     details[vendorTaskId(vendor.id)] = vendorSummary(vendor, dated);
+    addToCashByMonth(cashByMonth, vendor, dated);
 
     const children = dated.map((payment): TimelineTask => {
       const taskId = paymentTaskId(payment.id);
@@ -286,6 +306,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     ],
     dependencies,
     details,
+    cashByMonth,
     startDate: toIsoDate(start),
     endDate: toIsoDate(end),
   };

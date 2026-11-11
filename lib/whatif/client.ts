@@ -24,6 +24,7 @@ const previewSchema = z.object({
   shiftDays: z.number().int(),
   noticeDays: z.number().int().nonnegative(),
   totalCents: z.number().int().nonnegative(),
+  budget: z.object({ budgetCents: z.number().int(), projectedCents: z.number().int(), overByCents: z.number().int().nonnegative() }).nullable().default(null),
   rows: z.array(rowSchema),
 });
 const applySchema = z.object({ ok: z.literal(true), message: z.string() });
@@ -55,8 +56,8 @@ export async function requestWhatIf(newDate: string): Promise<{ ok: true; previe
   if ("error" in res) return { ok: false, message: res.error };
   const parsed = previewSchema.safeParse(res.json);
   if (!parsed.success) return { ok: false, message: failureMessage(res.json) };
-  const { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } = parsed.data;
-  return { ok: true, preview: { currentDate, newDate: date, shiftDays, noticeDays, totalCents, rows } };
+  const { currentDate, newDate: date, shiftDays, noticeDays, totalCents, budget, rows } = parsed.data;
+  return { ok: true, preview: { currentDate, newDate: date, shiftDays, noticeDays, totalCents, budget, rows } };
 }
 
 export async function requestApply(newDate: string, previousDate: string): Promise<{ ok: true; message: string } | { ok: false; message: string }> {

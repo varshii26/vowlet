@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { ClauseChip } from "@/components/Clauses/ClauseChip";
 import { PayButton } from "@/components/Payments/PayButton";
 import { requestResolve } from "@/lib/proposals/client";
-import type { ProposalView } from "@/lib/proposals/view";
+import type { ProposalDateChange, ProposalFeeLine, ProposalView } from "@/lib/proposals/view";
 
 export type Resolved = { proposal: ProposalView; status: "approved" | "dismissed"; message: string; draft?: string };
 
@@ -13,6 +14,52 @@ const APPROVE_LABEL = {
   message: "Got it",
   pay: "",
 } as const;
+
+/** Old vs new: the wedding date, then the next payments that move with it. */
+function DateChangePreview({ change }: { change: ProposalDateChange }) {
+  return (
+    <div className="rounded-lg bg-canvas p-3 text-sm" data-testid="proposal-dates">
+      <p className="flex flex-wrap items-baseline gap-x-2">
+        <span className="text-xs uppercase tracking-wide text-muted">Wedding</span>
+        <span className="text-muted line-through decoration-muted/60">{change.from}</span>
+        <span aria-hidden="true" className="text-muted">→</span>
+        <span className="sr-only">to</span>
+        <span className="font-medium text-ink">{change.to}</span>
+      </p>
+      {change.payments.length > 0 && (
+        <>
+          <p className="mt-2 text-xs uppercase tracking-wide text-muted">Next payments that move</p>
+          <ul className="mt-1 space-y-0.5">
+            {change.payments.map((p) => (
+              <li key={p.key} className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="text-ink">{p.title}</span>
+                <span className="tabular-nums text-muted">
+                  <span className="line-through decoration-muted/60">{p.from}</span> <span aria-hidden="true">→</span>
+                  <span className="sr-only">to</span> <span className="font-medium text-ink">{p.to}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Each vendor's fee, largest first, with a chip that opens the clause it comes from. */
+function FeeLines({ fees }: { fees: ProposalFeeLine[] }) {
+  return (
+    <ul className="space-y-1 text-sm" aria-label="Change fee per vendor">
+      {fees.map((fee) => (
+        <li key={fee.vendorId} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-medium text-ink">{fee.vendorName}</span>
+          <span className="tabular-nums text-ink">{fee.amountLabel}</span>
+          {fee.citation && <ClauseChip label={fee.citation} clause={null} href={fee.clauseHref} />}
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * One thing the assistant proposed: what will happen, how much, which clause it
@@ -37,7 +84,13 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
   const pays = proposal.kind === "pay" && proposal.paymentId !== null;
 
   return (
-    <article aria-labelledby={headingId} className="animate-fade-up space-y-3 rounded-card border border-accent/25 border-l-4 border-l-accent bg-surface p-4 shadow-card">
+    <article
+      aria-labelledby={headingId}
+      data-warning={proposal.warning ? "over-budget" : undefined}
+      className={`animate-fade-up space-y-3 rounded-card border border-l-4 p-4 shadow-card ${
+        proposal.warning ? "border-amber-300 border-l-amber-500 bg-amber-50/60" : "border-accent/25 border-l-accent bg-surface"
+      }`}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <h3 id={headingId} className="text-base text-ink">
@@ -52,6 +105,16 @@ export function ProposalCard({ proposal, onResolved }: { proposal: ProposalView;
           </p>
         )}
       </div>
+
+      {proposal.warning && (
+        <p role="note" className="rounded-lg border border-amber-300 bg-amber-100 p-2 text-sm font-medium text-amber-900">
+          {proposal.warning}
+        </p>
+      )}
+
+      {proposal.dateChange && <DateChangePreview change={proposal.dateChange} />}
+
+      {proposal.fees.length > 0 && <FeeLines fees={proposal.fees} />}
 
       {proposal.details.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted">

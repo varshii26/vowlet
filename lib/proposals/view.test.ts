@@ -41,6 +41,9 @@ describe("toProposalView", () => {
       clauseHref: "/vendors/v1?clause=cl1",
       paymentId: "pay1",
       approvable: true,
+      fees: [],
+      dateChange: null,
+      warning: null,
       createdAt: "2026-11-07T10:00:00.000Z",
     });
   });
@@ -64,15 +67,58 @@ describe("toProposalView", () => {
     expect(v.title).toBe("Move the wedding");
     expect(v.summary).toBe("From Apr 17, 2027 to Jun 12, 2027. Every payment date moves with it.");
     expect(v.amount).toEqual({ label: "$1,330", caption: "in vendor change fees" });
-    expect(v.details).toEqual(["Grand Oak Estate: $450", "Bloom & Thistle Florals: $150"]);
+    expect(v.fees).toEqual([
+      { vendorId: "a", vendorName: "Grand Oak Estate", amountLabel: "$450", citation: null, clauseHref: "/vendors/a?clause=c1" },
+      { vendorId: "b", vendorName: "Bloom & Thistle Florals", amountLabel: "$150", citation: null, clauseHref: null },
+    ]);
+    expect(v.dateChange).toEqual({ from: "Apr 17, 2027", to: "Jun 12, 2027", payments: [] });
+    expect(v.warning).toBeNull();
     expect(v.paymentId).toBeNull();
     expect(v.citation).toBeNull();
+  });
+
+  const rich = {
+    previousDate: "2027-04-17",
+    newDate: "2027-06-12",
+    totalCostCents: 321_000,
+    charges: [
+      { vendorId: "b", vendorName: "Bloom & Thistle Florals", costCents: 51_000, clauseId: "c2", citation: "Bloom & Thistle Florals contract, page 2" },
+      { vendorId: "a", vendorName: "Grand Oak Estate", costCents: 270_000, clauseId: "c1", citation: "Grand Oak Estate contract, page 2" },
+    ],
+    budget: { budgetCents: 3_600_000, committedCents: 3_450_000, projectedCents: 3_771_000, overByCents: 171_000 },
+    movingPayments: [{ vendorName: "Grand Oak Estate", label: "Venue balance", fromDate: "2027-03-18", toDate: "2027-05-13" }],
+    reason: "",
+  };
+
+  it("sorts a reschedule's fees largest first, each with its own clause chip", () => {
+    const v = toProposalView(row({ kind: "reschedule", payload: rich }));
+    expect(v.fees.map((f) => [f.vendorName, f.amountLabel, f.citation, f.clauseHref])).toEqual([
+      ["Grand Oak Estate", "$2,700", "Grand Oak Estate contract, page 2", "/vendors/a?clause=c1"],
+      ["Bloom & Thistle Florals", "$510", "Bloom & Thistle Florals contract, page 2", "/vendors/b?clause=c2"],
+    ]);
+  });
+
+  it("shows the next payments that move, before and after", () => {
+    const v = toProposalView(row({ kind: "reschedule", payload: rich }));
+    expect(v.dateChange?.payments).toEqual([{ key: "Grand Oak Estate|Venue balance", title: "Grand Oak Estate: Venue balance", from: "Mar 18, 2027", to: "May 13, 2027" }]);
+  });
+
+  it("warns when the move pushes the wedding over budget, naming the costliest vendor", () => {
+    const v = toProposalView(row({ kind: "reschedule", payload: rich }));
+    expect(v.warning).toBe(
+      "Over budget by $1,710: the wedding would cost $37,710 against a $36,000 budget. The biggest change fee is Grand Oak Estate ($2,700).",
+    );
+  });
+
+  it("does not warn within budget", () => {
+    const v = toProposalView(row({ kind: "reschedule", payload: { ...rich, budget: { ...rich.budget, projectedCents: 3_500_000, overByCents: 0 } } }));
+    expect(v.warning).toBeNull();
   });
 
   it("says there are no fees when there are none", () => {
     const v = toProposalView(row({ kind: "reschedule", payload: { previousDate: "2027-04-17", newDate: "2027-04-24", totalCostCents: 0, charges: [], reason: "" } }));
     expect(v.amount).toEqual({ label: "$0", caption: "no change fees" });
-    expect(v.details).toEqual([]);
+    expect(v.fees).toEqual([]);
   });
 
   it("describes a refund request with the drafted message and who cancelled", () => {

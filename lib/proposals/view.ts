@@ -1,6 +1,24 @@
+import { largestCharge } from "@/lib/budget";
 import { formatCents } from "@/lib/money";
-import { parsePayload, type ProposalKind } from "@/lib/proposals/payloads";
+import { parsePayload, type ProposalKind, type ReschedulePayload } from "@/lib/proposals/payloads";
 import { clauseHref } from "@/lib/vendors/links";
+
+/** One vendor's fee on a reschedule card, with the clause it comes from. */
+export type ProposalFeeLine = {
+  vendorId: string;
+  vendorName: string;
+  amountLabel: string;
+  /** "Grand Oak Estate contract, page 2", or null when the contract has no date-change clause. */
+  citation: string | null;
+  clauseHref: string | null;
+};
+
+/** Before/after of a reschedule: the wedding date and the next payments that move with it. */
+export type ProposalDateChange = {
+  from: string;
+  to: string;
+  payments: { key: string; title: string; from: string; to: string }[];
+};
 
 /** What a proposal card shows. Plain data, so it can cross from server to browser. */
 export type ProposalView = {
@@ -10,8 +28,14 @@ export type ProposalView = {
   /** What will happen if approved, in one sentence. */
   summary: string;
   amount: { label: string; caption: string } | null;
-  /** Supporting lines: the calculation, the dates, the per-vendor fees. */
+  /** Supporting lines: the calculation, who cancelled. */
   details: string[];
+  /** For a reschedule: each vendor's fee, largest first, with its clause. */
+  fees: ProposalFeeLine[];
+  /** For a reschedule: old vs new dates. */
+  dateChange: ProposalDateChange | null;
+  /** Set when approving would push the wedding over budget: the overage, worked out in code. */
+  warning: string | null;
   /** For a refund request: the drafted message to send the vendor. */
   draft: string | null;
   /** Why the assistant proposed it. */
@@ -34,6 +58,14 @@ export function formatIsoDate(iso: string): string {
   return date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
 }
 
+/** "Over budget by $700: ..." when the move takes the total past the budget, else null. */
+function overBudgetWarning(p: ReschedulePayload): string | null {
+  if (!p.budget || p.budget.overByCents <= 0) return null;
+  const biggest = largestCharge(p.charges);
+  const top = biggest ? ` The biggest change fee is ${biggest.vendorName} (${formatCents(biggest.costCents)}).` : "";
+  return `Over budget by ${formatCents(p.budget.overByCents)}: the wedding would cost ${formatCents(p.budget.projectedCents)} against a ${formatCents(p.budget.budgetCents)} budget.${top}`;
+}
+
 export type ProposalRow = {
   id: string;
   kind: ProposalKind;
@@ -44,6 +76,9 @@ export type ProposalRow = {
 
 export function toProposalView(row: ProposalRow): ProposalView {
   const base = {
+    fees: [] as ProposalFeeLine[],
+    dateChange: null,
+    warning: null,
     id: row.id,
     kind: row.kind,
     citation: row.clause ? `${row.clause.vendor.name} contract, page ${row.clause.page}` : null,
@@ -92,7 +127,27 @@ export function toProposalView(row: ProposalRow): ProposalView {
           p.totalCostCents > 0
             ? { label: formatCents(p.totalCostCents), caption: "in vendor change fees" }
             : { label: "$0", caption: "no change fees" },
-        details: p.charges.map((c) => `${c.vendorName}: ${formatCents(c.costCents)}`),
+        details: [],
+        fees: [...p.charges]
+          .sort((a, b) => b.costCents - a.costCents)
+          .map((c) => ({
+            vendorId: c.vendorId,
+            vendorName: c.vendorName,
+            amountLabel: formatCents(c.costCents),
+            citation: c.citation,
+            clauseHref: c.clauseId ? clauseHref(c.vendorId, c.clauseId) : null,
+          })),
+        dateChange: {
+          from: formatIsoDate(p.previousDate),
+          to: formatIsoDate(p.newDate),
+          payments: p.movingPayments.map((m) => ({
+            key: `${m.vendorName}|${m.label}`,
+            title: `${m.vendorName}: ${m.label}`,
+            from: formatIsoDate(m.fromDate),
+            to: formatIsoDate(m.toDate),
+          })),
+        },
+        warning: overBudgetWarning(p),
         draft: null,
         reason: p.reason,
         paymentId: null,
