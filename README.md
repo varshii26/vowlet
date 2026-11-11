@@ -23,7 +23,8 @@ payments, due dates and cancellation and date-change terms. Vowlet:
 
 - **The first visit may take about a minute.** The free Render tier sleeps after about 15 minutes idle and wakes on the
   next request. After that it is fast.
-- **To pay a vendor**, click **Pay with PayPal** on any upcoming payment and log in with this **PayPal sandbox** buyer
+- **To pay a vendor**, click **Pay with PayPal** on the next payment at the top, or click any payment on the timeline and
+  pay from its details panel. Log in with this **PayPal sandbox** buyer
   (test money only, no real account or card involved):
 
   | | |
@@ -35,23 +36,24 @@ payments, due dates and cancellation and date-change terms. Vowlet:
 
 ### Demo script: Priya & Sam (about 3 minutes)
 
-1. **The problem.** The summary bar at the top shows the countdown, what is paid, still to pay and left in the budget.
-   Below it, Priya & Sam's 14 vendors sit on the timeline: one row per vendor, each payment a
-   diamond coloured by status (paid, due soon, overdue, refund requested), all linked to the **Wedding day**. Hover a
-   payment to see its amount and the clause behind it.
-2. **Every number has a source.** Click a payment on the timeline. The vendor's contract opens with that clause
-   highlighted, next to the payments and the cancellation and date-change terms read from it.
+1. **The problem.** The header shows the countdown, what is paid, still to pay and left in the budget, and the next
+   payment. Below it, Priya & Sam's 14 vendors sit on the timeline: one row per vendor, each payment a
+   diamond coloured by status (paid, due soon, overdue, refund requested), all linked to the **Wedding day**, with a
+   dashed **Today** line. Hover a payment to see its amount and the clause behind it.
+2. **Every number has a source.** Click a payment on the timeline. A details panel slides in with the amount, status and
+   the clause behind it; follow the clause link and the vendor's contract opens with that clause highlighted, next to
+   the payments and the cancellation and date-change terms read from it.
 3. **Reading a new contract.** Go to **Upload contracts** and upload a PDF from `seed/contracts/` (for example
    `dapper-and-co-tailoring.pdf`). The extracted payments appear for review, and the deliberately vague clause
    ("approximately one month before the Event Date") is flagged **Please confirm** instead of guessed.
-4. **Paying a vendor.** Under **Upcoming payments**, click **Pay with PayPal**, log in with the sandbox buyer above and
-   approve. The payment turns **Paid** on the timeline straight away.
+4. **Paying a vendor.** Click **Pay with PayPal** on the next payment at the top (or in a payment's details panel), log
+   in with the sandbox buyer above and approve. The payment turns **Paid** on the timeline straight away.
 5. **What if we postpone? (the main moment).** Drag the **Wedding day** diamond two months later. Every payment due
    relative to the wedding moves with it, and a panel lists each vendor's date-change fee with a clickable clause chip
    and a short written summary. Click **Cancel** to snap back; nothing is saved unless you click **Move the wedding to …**.
-6. **Ask the assistant.** In **Ask about your payments**, click "What if we move the wedding to June 12?". Watch the live
-   steps ("Calculating date-change fees for 14 vendors…"), then the answer with citations and a **Move the wedding**
-   card under **Waiting for your approval**. Approve it and the timeline reflows.
+6. **Ask the assistant.** In the **Ask Vowlet** panel on the right, click "What if we move the wedding to June 12?". Watch
+   the live steps ("Calculating date-change fees for 14 vendors…"), then the answer with citations and a **Move the
+   wedding** card right below it. Approve it and the timeline beside it reflows.
 7. **A vendor cancels.** Ask "The florist cancelled, what now?". The assistant works out what the florist owes back from
    the contract and drafts a refund request as a card. Approving it marks the florist **Cancelled**, marks the payment
    **Refund requested** and shows the message to copy. Nothing is sent and no money moves. The same flow is on every
@@ -99,7 +101,7 @@ flowchart LR
 | App | Next.js 16 (App Router), React 19, TypeScript (strict), Tailwind | `app/`, `components/` |
 | AI | Google Gemini via `@google/genai` (free tier): structured output for extraction, function calling for the agent | `lib/llm/`, `lib/extraction/`, `lib/agent/` |
 | Payments | PayPal Server SDK (`@paypal/paypal-server-sdk`, Orders v2, sandbox) and `@paypal/react-paypal-js` for the button | `lib/paypal.ts`, `lib/payments/` |
-| Timeline | Bryntum Gantt Community (MIT) via its React wrapper | `components/Gantt/`, `lib/timeline.ts` |
+| Timeline | Bryntum Gantt (Enterprise tier, on a trial key) via its React wrapper | `components/Gantt/`, `lib/timeline.ts` |
 | Data | SQLite + Prisma 7, seeded with the demo on first start | `prisma/`, `lib/seed/` |
 | Hosting | Render free tier (Blueprint in `render.yaml`) | |
 | Tests | Vitest, including a SQLite integration test | `*.test.ts(x)` |
@@ -199,6 +201,7 @@ work with an empty `.env.local`. Add keys to turn on the rest:
 | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `NEXT_PUBLIC_PAYPAL_CLIENT_ID` | Pay with PayPal | [PayPal developer dashboard](https://developer.paypal.com/dashboard/applications/sandbox), **Sandbox** → Apps & Credentials (the client id goes in both id variables) |
 | `PAYPAL_VENDOR_EMAILS` | payments that actually complete: the sandbox **business** accounts the vendors are paid as (comma-separated) | same dashboard → Sandbox accounts. Use **US** accounts; see [Paying a vendor](#paying-a-vendor-paypal-sandbox) |
 | `PAYPAL_WEBHOOK_ID` | webhook signature checks (needs a public URL, so optional locally) | see [PayPal webhook](#paypal-webhook) |
+| `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY` | optional: the Gantt without a "Trial" countdown. Without it the chart runs as Bryntum's 14-day trial per browser | trial key at [bryntum.com/download](https://bryntum.com/download/); see [Payment timeline](#payment-timeline) |
 
 Never commit `.env.local`. After changing `PAYPAL_VENDOR_EMAILS`, restart `npm run dev` and click **Reset demo** so the vendors
 pick up the new emails. To pay locally, log in at checkout as one of your sandbox **personal** accounts.
@@ -251,18 +254,26 @@ the same reload as `npm run db:seed`, so judges and rehearsals always start from
 - It undoes everything done in the app, for everyone using the hosted demo at that moment. Sandbox PayPal payments
   already captured stay in the PayPal sandbox; only Vowlet's record of them is reset.
 
+### Dashboard layout
+
+The home page (`components/Dashboard/DashboardShell.tsx`) has three parts: the header and timeline on the left, the
+**Ask Vowlet** panel on the right (see [The chat panel and proposals](#the-chat-panel-and-proposals)), and tabs under the
+timeline for **Upcoming** payments, **Vendors** (each links to its contract page) and **Activity**. Clicking a payment on
+the timeline or in the Upcoming tab opens a details panel (`components/Payments/PaymentDrawer.tsx`) with the amount,
+status, clause link and, when it is unpaid, the PayPal button.
+
 ### Dashboard summary bar
 
-The top of the home page (`components/Dashboard/SummaryBar.tsx`) shows the wedding date and countdown, **paid**,
-**still to pay** and **left in budget** (or "over budget by"), a bar of the three, the next payment, and a link to every
-vendor's contract page. The totals come from `lib/budget.ts`, which the assistant's `get_wedding` tool also uses, so the
+The header (`components/Dashboard/SummaryBar.tsx`, `NextPayment.tsx`) shows the wedding date and countdown, **paid**,
+**still to pay** and **left in budget** (or "over budget by"), a bar of the three, and the next payment with its own
+PayPal button. The totals come from `lib/budget.ts`, which the assistant's `get_wedding` tool also uses, so the
 page and the assistant always give the same numbers (a test checks this). Paid means status `paid`; still to pay means
 `scheduled` or `due` for vendors who haven't cancelled; refund-requested, refunded and void payments count in neither.
 It re-renders from the database whenever the page refreshes: after a payment, an approval or a reset.
 
 ### Activity feed
 
-"Recent activity" at the bottom of the home page shows the latest 12 `EventLog` entries, newest first
+The **Activity** tab under the timeline shows the latest 12 `EventLog` entries, newest first
 (`lib/activity.ts`, `components/Dashboard/ActivityFeed.tsx`). Entries are written by the code that does the work:
 a payment marked paid (from the capture or the webhook), a proposal created by the agent, approved (with what it
 did) or dismissed, a contract uploaded, and the demo being loaded. Payment problems the webhook finds (an amount or
@@ -272,8 +283,17 @@ To log a new kind of action, write an `EventLog` row in the same transaction as 
 
 ### Payment timeline
 
-The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://bryntum.com/products/gantt/) timeline
-(MIT licensed, so there is no trial key to expire).
+The home page (`/`) shows every payment on a [Bryntum Gantt](https://bryntum.com/products/gantt/) timeline, using the
+**Enterprise tier** (`@bryntum/gantt-react-enterprise`, exact version `8.0.0`) so features such as Baselines, Indicators,
+Labels and Summary are available.
+
+- **License key.** Bryntum 8 installs every tier from the public npm registry, so `npm install` needs no login. The
+  key is registered at the top of `components/Gantt/PaymentGanttChart.tsx` from `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY`.
+  Bryntum asks that the key stay out of public repos, so it lives only in `.env.local` and Render's environment.
+  **Without a key** the chart still works, as Bryntum's 14-day trial counted per browser (with a small "Trial" badge);
+  after that it is masked. Our hackathon trial key runs 45 days, covering judging.
+- **Keep one tier.** Never install `-community` and `-enterprise` Bryntum packages side by side, and keep all three
+  (`core`, `gantt`, `gantt-react`) on the same exact version.
 
 - One row per vendor, each payment a milestone under it at its due date, and every payment linked to a "Wedding day"
   milestone. Milestones are coloured by status: paid, due soon, overdue, refund requested (plus scheduled, refunded and
@@ -286,12 +306,17 @@ The home page (`/`) shows every payment on a [Bryntum Gantt Community](https://b
   checks the wrapper gets the right `b-color-*` class, and that every colour name exists in Bryntum's stylesheet.
 - The page reads the database on every request (`force-dynamic`) and Bryntum only renders in the browser (loaded with
   `next/dynamic`, SSR off), so a paid payment shows up on the next render and a build never freezes the data.
-- Community has no "today" line, so there is none yet.
+- **Today line and opening position.** A dashed "Today" line is drawn in our own layer beside Bryntum's canvases
+  (`useTodayLine` in `PaymentGanttChart.tsx`; it predates the Enterprise switch, and Bryntum's TimeRanges feature could
+  now replace it). The chart opens scrolled to a month before today, with narrow months so today through the wedding fits.
+- **Only the wedding day drags.** Every other editing feature is switched off; dropping the wedding day starts the
+  what-if preview (`components/WhatIf/WhatIfTimeline.tsx`), which recomputes every date in code.
 - Code: `lib/timeline.ts` (pure data), `components/Gantt/` (chart, tooltip, styles), `lib/timeline-data.ts` (query).
 
 ### Paying a vendor (PayPal sandbox)
 
-The "Upcoming payments" list under the timeline has a PayPal button for each unpaid payment. **Sandbox only: no real
+The PayPal button appears on the next payment in the header and in the details panel of any unpaid payment (click it on
+the timeline or in the Upcoming tab). **Sandbox only: no real
 money moves.** The PayPal popup is the human approval; nothing on the page, and nothing the agent can do, approves for
 the couple.
 
@@ -366,7 +391,7 @@ URL has to be edited each time.
 
 **Checking it:** with the ID set, `curl -X POST` with a made-up body and signature headers should answer `401`
 (`invalid_signature`), which proves the real PayPal check is wired up. Without the ID it answers `503`. The reliable way to
-see a real event is a real sandbox payment (the "Upcoming payments" button). Events from the dashboard's webhook
+see a real event is a real sandbox payment (any Pay with PayPal button). Events from the dashboard's webhook
 simulator may fail verification, because they aren't signed by a real transaction.
 
 ### Deploying to Render
@@ -377,7 +402,8 @@ simulator may fail verification, because they aren't signed by a real transactio
    to authorise Render). Every merge to `main` then redeploys.
 2. Render asks for the values marked secret: `GEMINI_API_KEY`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`,
    `NEXT_PUBLIC_PAYPAL_CLIENT_ID` (set it before the first build: it is baked into the page at build time),
-   `PAYPAL_VENDOR_EMAILS` (a **US** sandbox business account, see above) and `PAYPAL_WEBHOOK_ID` (leave empty for now).
+   `PAYPAL_VENDOR_EMAILS` (a **US** sandbox business account, see above), `PAYPAL_WEBHOOK_ID` (leave empty for now) and
+   `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY` (like the PayPal client id, it is baked in at build time, so set it before the build).
 3. Once it is live, create the webhook for `https://<your-service>.onrender.com/api/webhooks/paypal` (steps above),
    then paste its ID into `PAYPAL_WEBHOOK_ID` on Render and redeploy.
 
@@ -658,12 +684,12 @@ honest (`lib/agent/sources.ts`):
 
 ### The chat panel and proposals
 
-The home page has an **"Ask about your payments"** panel (`components/Agent/`, #19) above the timeline. It offers the three
+The home page has an **"Ask Vowlet"** panel (`components/Agent/`, #19) on the right of the timeline. It offers the three
 demo questions as buttons, shows what the assistant is doing as it works ("Calculating date-change fees for 14 vendors,
 moving to 2027-06-12…"), then the answer, with a **Stop** button and a "How I worked this out" list you can open. Follow-up
 questions send the earlier answered turns, so "and the florist?" works.
 
-Whatever the assistant proposes appears under **"Waiting for your approval"** (`components/Proposals/`), each as a card
+Whatever the assistant proposes appears in the same panel, right under the answer (`components/Proposals/`), each as a card
 showing what will happen, the amount, the clause it rests on (for example "Grand Oak Estate contract, page 2") and why.
 Proposals live in the database, so they are still there after a reload. The couple decides with
 `POST /api/proposals/[id]` and `{ "action": "approve" | "dismiss" }` (`lib/proposals/service.ts`). **Only a click gets

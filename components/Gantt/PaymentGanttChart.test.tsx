@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { DateHelper, Widget } from "@bryntum/core-community";
-import type { Gantt } from "@bryntum/gantt-community";
+import { DateHelper, Widget } from "@bryntum/core-enterprise";
+import type { Gantt } from "@bryntum/gantt-enterprise";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -112,6 +112,17 @@ describe("PaymentGanttChart", () => {
   it("mounts in the browser without throwing and renders a Gantt", async () => {
     await mount(input);
     expect(host!.querySelector(".b-gantt")).not.toBeNull();
+  });
+
+  it("keeps the Enterprise editing features and the project-end line switched off, even when the wedding drags", async () => {
+    await mount(input, () => {});
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    const features = gantt.features as unknown as Record<string, { disabled?: boolean } | undefined>;
+    for (const name of ["taskEdit", "taskCopyPaste", "taskSegmentDrag", "taskSegmentResize", "projectLines", "criticalPaths"]) {
+      const feature = features[name];
+      expect(feature === undefined || feature.disabled === true, name).toBe(true);
+    }
+    expect(host!.querySelector(".b-gantt-project-line")).toBeNull();
   });
 
   it("loads our tasks and links, and the scheduling engine leaves our dates alone", async () => {

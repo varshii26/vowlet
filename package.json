@@ -22,9 +22,9 @@
     "eval:agent": "tsx evals/agent/run.ts"
   },
   "dependencies": {
-    "@bryntum/core-community": "^8.0.0",
-    "@bryntum/gantt-community": "^8.0.0",
-    "@bryntum/gantt-react-community": "^8.0.0",
+    "@bryntum/core-enterprise": "8.0.0",
+    "@bryntum/gantt-enterprise": "8.0.0",
+    "@bryntum/gantt-react-enterprise": "8.0.0",
     "@google/genai": "^3.0.0",
     "@paypal/paypal-server-sdk": "^2.0.0",
     "@paypal/react-paypal-js": "^10.6.1",

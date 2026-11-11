@@ -1,17 +1,24 @@
 "use client";
 
-import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-community";
-import type { TaskModel } from "@bryntum/gantt-community";
+import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enterprise";
+import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
 
-import "@bryntum/core-community/fontawesome/css/fontawesome.css";
-import "@bryntum/core-community/fontawesome/css/solid.css";
-import "@bryntum/gantt-community/gantt.css";
-import "@bryntum/gantt-community/svalbard-light.css";
+import "@bryntum/core-enterprise/fontawesome/css/fontawesome.css";
+import "@bryntum/core-enterprise/fontawesome/css/solid.css";
+import "@bryntum/gantt-enterprise/gantt.css";
+import "@bryntum/gantt-enterprise/svalbard-light.css";
 import "@/components/Gantt/gantt.css";
+
+// Enterprise tier license (a trial key during the hackathon). It must be set
+// before the first Gantt is created. Bryntum asks that the key stay out of
+// public repos, so it comes from the environment; without it the chart runs as
+// a 14-day trial per browser.
+const licenseKey = process.env.NEXT_PUBLIC_BRYNTUM_LICENSE_KEY;
+if (licenseKey) ((globalThis as { bryntum?: { licenseKey?: string } }).bryntum ??= {}).licenseKey = licenseKey;
 
 export type PaymentSelection = Extract<TaskDetail, { kind: "payment" }>;
 
@@ -95,6 +102,15 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       scheduleMenuFeature: false,
       taskDragCreateFeature: false,
       taskResizeFeature: false,
+      // Business/Enterprise features that are on by default. Payment dates come
+      // from the contracts, so nothing may edit, paste or split a task, and the
+      // project-end line would sit on top of the wedding day.
+      taskEditFeature: false,
+      taskCopyPasteFeature: false,
+      taskSegmentDragFeature: false,
+      taskSegmentResizeFeature: false,
+      projectLinesFeature: false,
+      criticalPathsFeature: false,
       dependenciesFeature: { allowCreate: false },
       taskDragFeature: {
         disabled: !canDragWedding,
@@ -169,8 +185,8 @@ type Timeline = {
 };
 
 /**
- * A dashed "Today" line. The community edition has no time-ranges feature, so
- * the line lives in a canvas of our own beside Bryntum's canvases in the time
+ * A dashed "Today" line, hand-made (it predates the move to the Enterprise
+ * tier, whose TimeRanges feature could replace it), so the line lives in a canvas of our own beside Bryntum's canvases in the time
  * axis sub-grid (it scrolls with the timeline). Never put it inside Bryntum's
  * foreground canvas: Bryntum recycles that canvas's children as task elements.
  */
