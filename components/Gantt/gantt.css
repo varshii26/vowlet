@@ -270,3 +270,24 @@
 .vw-amount-overdue {
   color: #b91c1c;
 }
+
+/*
+ * Contract deadlines (Indicators feature, lib/deadlines.ts): a small icon in
+ * the vendor's row on the last day of the current date-change or cancellation
+ * tier. Click opens the clause.
+ */
+.b-gantt .b-indicator.vw-deadline {
+  cursor: pointer;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+.b-gantt .b-indicator.vw-deadline:hover {
+  opacity: 1;
+}
+/* Bryntum greys the icon itself, so colour the <i>. */
+.b-gantt .b-indicator.vw-deadline-date_change i {
+  color: #7c3aed;
+}
+.b-gantt .b-indicator.vw-deadline-cancellation i {
+  color: #b45309;
+}

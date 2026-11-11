@@ -82,6 +82,7 @@ describe("renderTaskTooltip", () => {
   it("describes a vendor row", () => {
     const html = renderTaskTooltip({
       kind: "vendor",
+      vendorId: "v-lumen",
       title: "Lumen Photography",
       amountLabel: "$3,200",
       summary: "2 payments, $1,000 of $3,200 paid.",

@@ -191,6 +191,43 @@ describe("the demo during judging (Dec 1-15, 2026)", () => {
   });
 });
 
+describe("contract deadlines on vendor rows", () => {
+  const terms = {
+    dateChange: [
+      { minNoticeDays: 60, feePercent: 0, flatFee: 0 },
+      { minNoticeDays: 0, feePercent: 25, flatFee: 0 },
+    ],
+    cancellation: [
+      { minNoticeDays: 90, refundPercent: 50, flatFee: 0 },
+      { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
+    ],
+    dateChangeClause: { id: "c-change", page: 2 },
+    cancellationClause: { id: "c-cancel", page: 2 },
+  };
+  const deadlinesOf = (data: ReturnType<typeof buildTimeline>) => {
+    const detail = data.details[vendorTaskId("v1")];
+    return detail.kind === "vendor" ? detail.deadlines : undefined;
+  };
+
+  it("gives each vendor its next date-change and cancellation deadline", () => {
+    const deadlines = deadlinesOf(buildTimeline(single(payment(), { terms }), today));
+    expect(deadlines?.map((x) => [x.kind, x.isoDate, x.clauseId])).toEqual([
+      ["date_change", "2027-02-16", "c-change"], // 60 days before 2027-04-17
+      ["cancellation", "2027-01-17", "c-cancel"], // 90 days before
+    ]);
+  });
+
+  it("moves them with the wedding during a what-if", () => {
+    const moved = buildTimeline({ ...single(payment(), { terms }), wedding: { coupleNames: "A & B", date: d("2027-06-12") } }, today);
+    expect(deadlinesOf(moved)?.[0].isoDate).toBe("2027-04-13");
+  });
+
+  it("has none for a cancelled vendor or one without terms", () => {
+    expect(deadlinesOf(buildTimeline(single(payment({ status: "void" }), { terms, status: "cancelled" }), today))).toBeUndefined();
+    expect(deadlinesOf(buildTimeline(single(payment()), today))).toBeUndefined();
+  });
+});
+
 describe("withBaseline (what-if ghosts)", () => {
   const flat = (data: ReturnType<typeof buildTimeline>) => data.tasks.flatMap((t) => [t, ...(t.children ?? [])]);
   const base = buildTimeline(demoInput(), today);
@@ -351,6 +388,7 @@ describe("task details", () => {
     const detail = buildTimeline(input, today).details[vendorTaskId("v1")];
     expect(detail).toEqual({
       kind: "vendor",
+      vendorId: "v1",
       title: "Vendor One",
       amountLabel: "$1,500",
       summary: "2 payments, $500 of $1,500 paid.",

@@ -30,6 +30,21 @@ describe("loadTimelineInput", () => {
     expect(input.vendors.flatMap((v) => v.payments).every((p) => p.clause !== null)).toBe(true);
   });
 
+  it("loads each vendor's terms with the clauses they come from, for the deadline indicators", async () => {
+    const input = (await loadTimelineInput(prisma))!;
+    const grandOak = input.vendors.find((v) => v.name === "Grand Oak Estate")!;
+    const clauses = await prisma.clause.findMany({ where: { vendorId: grandOak.id, kind: { in: ["cancellation", "date_change"] } } });
+    expect(grandOak.terms!.cancellation.length).toBeGreaterThan(0);
+    expect(grandOak.terms!.dateChange.length).toBeGreaterThan(0);
+    expect(grandOak.terms!.cancellationClause!.id).toBe(clauses.find((c) => c.kind === "cancellation")!.id);
+    expect(grandOak.terms!.dateChangeClause!.id).toBe(clauses.find((c) => c.kind === "date_change")!.id);
+
+    // Every active demo vendor gets at least one deadline ahead of it on 2026-11-07.
+    const data = buildTimeline(input, new Date("2026-11-07T00:00:00Z"));
+    const vendorDetails = Object.values(data.details).filter((x) => x.kind === "vendor");
+    expect(vendorDetails.every((x) => x.kind === "vendor" && (x.deadlines?.length ?? 0) > 0)).toBe(true);
+  });
+
   it("feeds buildTimeline: 14 vendor rows, 23 milestones, 23 links", async () => {
     const data = buildTimeline((await loadTimelineInput(prisma))!, new Date("2026-11-07T00:00:00Z"));
     expect(data.tasks).toHaveLength(15);

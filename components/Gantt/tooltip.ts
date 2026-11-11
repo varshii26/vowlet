@@ -1,4 +1,5 @@
 import { daysBetweenUtc } from "@/lib/schedule";
+import type { Deadline } from "@/lib/deadlines";
 import type { PreviousDate, TaskDetail } from "@/lib/timeline";
 
 const utcDay = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
@@ -95,6 +96,22 @@ export function renderWeddingDragTip(detail: TaskDetail | undefined, newIsoDate:
     `<div class="vw-tip-title">Move the wedding to ${escapeHtml(longDay(newIsoDate))}</div>`,
     shift ? `<div>${escapeHtml(shift)}</div>` : "",
     `<div class="vw-tip-muted">${valid ? "Drop to see every payment move and what each vendor charges." : "The wedding can't move into the past."}</div>`,
+    `</div>`,
+  ].join("");
+}
+
+/** HTML for the tooltip on a contract-deadline indicator (lib/deadlines.ts). */
+export function renderDeadlineTip(deadline: Deadline, vendorName: string): string {
+  const clause = deadline.clauseId
+    ? `<div class="vw-tip-muted">${escapeHtml(vendorName)} contract${deadline.clausePage ? `, page ${deadline.clausePage}` : ""}. Click to see the clause.</div>`
+    : `<div class="vw-tip-muted">No contract clause linked</div>`;
+  return [
+    `<div class="vw-tip">`,
+    `<div class="vw-tip-title">${escapeHtml(deadline.title)}</div>`,
+    `<div>${escapeHtml(vendorName)} · ${escapeHtml(longDay(deadline.isoDate))}</div>`,
+    `<div>${escapeHtml(deadline.until)}</div>`,
+    `<div class="vw-tip-move">${escapeHtml(deadline.after)}</div>`,
+    clause,
     `</div>`,
   ].join("");
 }

@@ -5,7 +5,8 @@ import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
-import { renderBaselineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import { renderBaselineTip, renderDeadlineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
+import type { Deadline, DeadlineKind } from "@/lib/deadlines";
 import { formatCents } from "@/lib/money";
 import { WEDDING_TASK_ID, type TaskDetail, type TimelineData, type TimelineTask } from "@/lib/timeline";
 import { clauseHref } from "@/lib/vendors/links";
@@ -105,6 +106,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
   });
   useTodayLine(ganttRef, todayIso, openingWeddingIso);
   useVendorProgress(ganttRef, data.tasks);
+  useDeadlineClicks(ganttRef);
 
   // The wrapper syncs new tasks into the existing records, and a field left out
   // keeps its old value. So every task states its baselines, empty when it has
@@ -206,6 +208,22 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           },
         },
       },
+      // Contract deadlines in each vendor's row (Enterprise Indicators): the
+      // last day to change the date, and to cancel, at the current tier
+      // (lib/deadlines.ts, computed in code from the extracted terms). They
+      // move with the wedding during a what-if. Bryntum's own scheduling
+      // indicators (early/late dates, constraints) mean nothing here.
+      indicatorsFeature: {
+        items: {
+          earlyDates: false,
+          lateDates: false,
+          constraintDate: false,
+          deadlineDate: false,
+          dateChange: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "date_change"),
+          cancellation: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "cancellation"),
+        },
+        tooltipTemplate: ({ indicator }: { indicator: DeadlineIndicator }) => indicator.tipHtml ?? "",
+      },
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
       subGridConfigs: { locked: { width: 400 } },
@@ -289,6 +307,55 @@ function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: Time
       if (record && record.percentDone !== task.percentDone) record.set("percentDone", task.percentDone!);
     }
   }, [ganttRef, tasks]);
+}
+
+type DeadlineIndicator = {
+  startDate: Date;
+  name: string;
+  iconCls: string;
+  cls: string;
+  /** Our own tooltip, escaped (tooltip.ts). */
+  tipHtml: string;
+  /** Where clicking the indicator goes: the clause the terms come from. */
+  href: string | null;
+};
+
+/**
+ * Clicking a deadline indicator opens the contract clause its terms come from.
+ * Bryntum keeps the indicator object on its element as `elementData`.
+ */
+function useDeadlineClicks(ganttRef: RefObject<BryntumGantt | null>) {
+  useEffect(() => {
+    const element = (ganttRef.current?.instance as unknown as { element?: HTMLElement } | undefined)?.element;
+    if (!element) return;
+    const onClick = (event: MouseEvent) => {
+      const indicator = (event.target as Element | null)?.closest?.(".b-indicator.vw-deadline") as (Element & { elementData?: DeadlineIndicator }) | null;
+      if (indicator?.elementData?.href) window.location.assign(indicator.elementData.href);
+    };
+    element.addEventListener("click", onClick);
+    return () => element.removeEventListener("click", onClick);
+  }, [ganttRef]);
+}
+
+const DEADLINE_ICON: Record<DeadlineKind, string> = {
+  date_change: "fa fa-calendar-day",
+  cancellation: "fa fa-rotate-left",
+};
+
+/** The indicator for a vendor's next deadline of one kind, or null when it has none. */
+function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind): DeadlineIndicator | null {
+  if (detail?.kind !== "vendor") return null;
+  const deadline: Deadline | undefined = detail.deadlines?.find((d) => d.kind === kind);
+  if (!deadline) return null;
+  const [y, m, d] = deadline.isoDate.split("-").map(Number);
+  return {
+    startDate: new Date(y, m - 1, d), // Bryntum dates are local midnights
+    name: deadline.title,
+    iconCls: DEADLINE_ICON[kind],
+    cls: `vw-deadline vw-deadline-${kind}`,
+    tipHtml: renderDeadlineTip(deadline, detail.title),
+    href: deadline.clauseId ? clauseHref(detail.vendorId, deadline.clauseId) : null,
+  };
 }
 
 /** A vendor with a single payment is drawn as one diamond that stands for that payment. */

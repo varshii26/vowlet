@@ -7,6 +7,7 @@
  *
  * Due dates come from lib/schedule.ts. The Gantt never decides a date.
  */
+import { nextDeadlines, type Deadline, type DeadlineTerms } from "@/lib/deadlines";
 import { formatCents } from "@/lib/money";
 import {
   addDaysUtc,
@@ -38,6 +39,8 @@ export type TimelineVendor = {
   status: "active" | "cancelled";
   signingDate: Date;
   payments: TimelinePayment[];
+  /** Cancellation and date-change terms, for the deadline indicators. */
+  terms?: DeadlineTerms;
 };
 
 export type TimelineInput = {
@@ -111,6 +114,7 @@ export type TaskDetail =
     }
   | {
       kind: "vendor";
+      vendorId: string;
       title: string;
       amountLabel: string;
       summary: string;
@@ -119,6 +123,11 @@ export type TaskDetail =
       percentPaid: number;
       /** "67% paid", for the Status column. */
       progressLabel: string;
+      /**
+       * The next date-change and cancellation deadline (lib/deadlines.ts),
+       * drawn as indicators in the vendor's row. Absent without terms.
+       */
+      deadlines?: Deadline[];
     }
   | {
       kind: "payment";
@@ -204,18 +213,30 @@ function datePayments(vendor: TimelineVendor, weddingDate: Date, today: Date): D
 /** Whole percent paid, rounded down so a vendor reads 100% only when fully paid. */
 export const percentPaid = (paidCents: number, totalCents: number) => (totalCents > 0 ? Math.floor((paidCents * 100) / totalCents) : 0);
 
-function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[]): TaskDetail {
+function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[], weddingDate: Date, today: Date): TaskDetail {
   const total = dated.reduce((sum, p) => sum + p.amountCents, 0);
   const paid = dated.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountCents, 0);
   const count = `${dated.length} payment${dated.length === 1 ? "" : "s"}`;
   return {
     kind: "vendor",
+    vendorId: vendor.id,
     title: vendor.name,
     amountLabel: formatCents(total),
     summary: vendor.status === "cancelled" ? `Cancelled. ${count}.` : `${count}, ${formatCents(paid)} of ${formatCents(total)} paid.`,
     cancelled: vendor.status === "cancelled",
     percentPaid: percentPaid(paid, total),
     progressLabel: vendor.status === "cancelled" ? "Cancelled" : `${percentPaid(paid, total)}% paid`,
+    ...(vendor.terms && vendor.status === "active"
+      ? {
+          deadlines: nextDeadlines({
+            weddingDate,
+            today,
+            totalCostCents: total,
+            payments: dated.map((p) => ({ amountCents: p.amountCents, status: p.status })),
+            terms: vendor.terms,
+          }),
+        }
+      : {}),
   };
 }
 
@@ -258,7 +279,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     });
 
   const vendorTasks = vendors.map(({ vendor, dated }): TimelineTask => {
-    const summary = vendorSummary(vendor, dated);
+    const summary = vendorSummary(vendor, dated, weddingDate, today);
     details[vendorTaskId(vendor.id)] = summary;
     addToCashByMonth(cashByMonth, vendor, dated);
 

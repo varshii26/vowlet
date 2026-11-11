@@ -191,6 +191,40 @@ describe("PaymentGanttChart", () => {
     expect(host!.querySelector(".vw-rollup-amount")!.className).toContain("vw-amount-scheduled");
   });
 
+  it("draws the vendor's contract deadlines as indicators in its row, with our tooltip", async () => {
+    await mount({
+      ...input,
+      vendors: [
+        {
+          ...input.vendors[0],
+          terms: {
+            dateChange: [
+              { minNoticeDays: 60, feePercent: 0, flatFee: 0 },
+              { minNoticeDays: 0, feePercent: 25, flatFee: 0 },
+            ],
+            cancellation: [
+              { minNoticeDays: 90, refundPercent: 50, flatFee: 0 },
+              { minNoticeDays: 0, refundPercent: 0, flatFee: 0 },
+            ],
+            dateChangeClause: { id: "c-change", page: 2 },
+            cancellationClause: { id: "c-cancel", page: 2 },
+          },
+        },
+      ],
+    });
+    await engine();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+    const indicators = [...host!.querySelectorAll<HTMLElement & { elementData?: { tipHtml: string; href: string } }>(".b-indicator.vw-deadline")];
+    expect(indicators.map((el) => el.className.match(/vw-deadline-(\w+)/)![1]).sort()).toEqual(["cancellation", "date_change"]);
+    const change = indicators.find((el) => el.className.includes("vw-deadline-date_change"))!;
+    expect(change.elementData!.tipHtml).toContain("Last day to change the date for free");
+    expect(change.elementData!.href).toContain("c-change");
+    // Bryntum's own scheduling indicators stay off.
+    expect(host!.querySelectorAll(".b-indicator:not(.vw-deadline)")).toHaveLength(0);
+  });
+
   it("picks up a changed payment status when the page re-renders with new data", async () => {
     await mount(input);
     expect((await engine()).cls("payment-p2")).toContain("payment-scheduled");
