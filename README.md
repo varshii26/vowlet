@@ -874,6 +874,24 @@ behind each.
   stored at `data/uploads/<vendorId>.pdf`; the server picks the path, never the browser.
 - On Render that folder is on the temporary disk, so uploads disappear on a restart, like everything else done in the demo.
 
+### Entering a vendor by hand (no contract)
+
+Under the upload area, **Enter a vendor by hand** is for a vendor with no contract to upload. The couple types the vendor,
+category, the date they agreed, and each payment (an amount, due *N days before the wedding*, *after the wedding*, *after
+signing*, or on a set date). Optional lines add what was agreed for **cancelling** (notice, % refunded, fee withheld) and for
+**changing the date** (notice, % of the total, flat fee), and a note for the vendor. The total is the sum of the payments.
+
+- `POST /api/vendors/manual` (`lib/manual/`) saves it like an uploaded vendor: a vendor, its payments, its terms and an
+  activity entry, in one transaction, into the caller's own wedding. There is no PDF and no clauses, since there is
+  nothing to cite, so nothing on it is marked verified. The timeline, what-if planner and refund helper all work from the
+  terms entered (with none entered, they say there are none on file). The browser and the server check the same schema
+  (`lib/manual/schema.ts`). Migration `Vendor.notes` stores the note.
+- **Print summary** (button on the saved card and on every vendor page; `/vendors/[id]/print`) shows a one-page **payment
+  summary** to give to the vendor: couple, wedding date, each payment with its due date and how it was set, any
+  cancellation and date-change terms, notes, and a signature line for each side. The page's controls are left out of the
+  printout, and the browser's print dialog also offers **Save as PDF**. It says it is a summary of what was agreed, not a
+  contract or legal advice. Other couples' vendors return 404, like everywhere else.
+
 ### Vendor page
 
 `/vendors/[id]` shows the contract page by page with each clause highlighted (rendered as text, never HTML), beside the

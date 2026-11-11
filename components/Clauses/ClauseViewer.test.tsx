@@ -26,7 +26,7 @@ const CLAUSES: ViewerClause[] = [
 ];
 
 const DATA: VendorPageData = {
-  vendor: { id: "v1", name: "Grand Oak Estate", category: "venue", status: "active", totalLabel: "$6,000", pdfUrl: "/api/vendors/v1/contract" },
+  vendor: { id: "v1", name: "Grand Oak Estate", category: "venue", status: "active", totalLabel: "$6,000", pdfUrl: "/api/vendors/v1/contract", manual: false },
   weddingDateLabel: "Apr 17, 2027",
   pages: PAGES,
   clauses: CLAUSES,

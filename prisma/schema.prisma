@@ -111,6 +111,8 @@ model Vendor {
   contractPath String
   signingDate  DateTime // resolves the `signing_date` payment anchor
   totalCost    Int // cents
+  /// A note for the vendor, printed on the summary of a vendor the couple entered by hand. Empty otherwise.
+  notes        String       @default("")
   status       VendorStatus @default(active)
   clauses      Clause[]
   payments     Payment[]

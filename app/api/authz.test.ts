@@ -83,6 +83,7 @@ const routes: Record<string, (id?: string) => Promise<Call>> = {
   "POST /api/contracts/extract": async () => { const m = await import("@/app/api/contracts/extract/route"); return () => m.POST(new Request(url("/api/contracts/extract"), { method: "POST", body: new FormData() })); },
   "POST /api/contracts/confirm": async () => { const m = await import("@/app/api/contracts/confirm/route"); return () => m.POST(new Request(url("/api/contracts/confirm"), { method: "POST", body: new FormData() })); },
   "GET /api/contracts/samples/[slug]": async () => { const m = await import("@/app/api/contracts/samples/[slug]/route"); return () => m.GET(new Request(url("/api/contracts/samples/dapper-co-tailoring")), { params: Promise.resolve({ slug: "dapper-co-tailoring" }) }); },
+  "POST /api/vendors/manual": async () => { const m = await import("@/app/api/vendors/manual/route"); return () => m.POST(new Request(url("/api/vendors/manual"), json({ vendorName: "Blossom Florals", category: "Florist", paypalEmail: "", signingDate: "2026-10-01", payments: [{ label: "Deposit", amountCents: 50000, anchor: "signing_date", offsetDays: 0, fixedDate: null }], cancellationRules: [], dateChangeRules: [], notes: "" }))); },
   "POST /api/demo/reset": async () => { const m = await import("@/app/api/demo/reset/route"); return () => m.POST(new Request(url("/api/demo/reset"), { method: "POST" })); },
 };
 
@@ -151,6 +152,7 @@ describe("authorization: another couple's id is a 404, and nothing changes", () 
     await notFound(await (await routes["POST /api/payments/[id]/order"](demoPaymentId))());
     expect((await (await routes["POST /api/whatif"]())()).status).toBe(409);
     expect((await (await routes["POST /api/whatif/apply"]())()).status).toBe(409);
+    expect((await (await routes["POST /api/vendors/manual"]())()).status).toBe(409);
   });
 });
 
@@ -187,6 +189,15 @@ describe("your own ids work", () => {
     const res = await (await routes["POST /api/whatif"]())();
     expect(res.status).toBe(200);
     expect((await res.json()).rows.map((r: { vendorName: string }) => r.vendorName)).toEqual(["Ana's Florist"]);
+  });
+
+  it("a vendor typed in by hand lands in your own wedding, and not in anyone else's", async () => {
+    asAna();
+    const res = await (await routes["POST /api/vendors/manual"]())();
+    expect(res.status).toBe(200);
+    const { vendorId } = await res.json();
+    expect((await prisma.vendor.findUniqueOrThrow({ where: { id: vendorId } })).weddingId).toBe(ana.weddingId);
+    expect(await prisma.vendor.count({ where: { name: "Blossom Florals", weddingId: { not: ana.weddingId } } })).toBe(0);
   });
 
   it("the demo account reaches its own data", async () => {

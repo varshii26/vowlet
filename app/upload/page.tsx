@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
 import { AccountHeader } from "@/components/Account/AccountHeader";
+import { ManualVendorForm } from "@/components/Manual/ManualVendorForm";
 import { UploadContracts } from "@/components/Upload/UploadContracts";
 
 export const metadata: Metadata = { title: "Upload contracts · Vowlet" };
@@ -26,6 +27,7 @@ export default async function UploadPage() {
         </p>
       </header>
       <UploadContracts />
+      <ManualVendorForm today={new Date().toISOString().slice(0, 10)} />
     </main>
   );
 }

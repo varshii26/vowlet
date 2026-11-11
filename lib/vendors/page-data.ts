@@ -34,6 +34,8 @@ export type VendorPageData = {
     status: "active" | "cancelled";
     totalLabel: string;
     pdfUrl: string;
+    /** Typed in by the couple: there is no contract on file, so no PDF and no clauses to show. */
+    manual: boolean;
   };
   weddingDateLabel: string;
   /** Text of each contract page; null if the PDF can't be read. */
@@ -129,6 +131,7 @@ export async function loadVendorPage(prisma: PrismaClient, weddingId: string, ve
       status: vendor.status,
       totalLabel: formatCents(vendor.totalCost),
       pdfUrl: contractPdfHref(vendor.id),
+      manual: vendor.contractPath === "",
     },
     weddingDateLabel: longDate(vendor.wedding.date),
     pages: await (deps.readPages ?? ((p: string) => readContractPages(p)))(vendor.contractPath),
