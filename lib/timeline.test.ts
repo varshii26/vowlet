@@ -5,6 +5,7 @@ import { computeDueDate, toIsoDate, type PaymentStatus } from "@/lib/schedule";
 import { paymentClause } from "@/lib/seed/clauses";
 import { VENDORS, WEDDING } from "@/lib/seed/demo-data";
 import {
+  percentPaid,
   STATUS_COLOR,
   WEDDING_TASK_ID,
   buildTimeline,
@@ -148,6 +149,45 @@ describe("reflow when the wedding moves", () => {
     expect(b[paymentTaskId("p-grand-oak-estate-1")]).not.toBe(a[paymentTaskId("p-grand-oak-estate-1")]); // wedding -120
     expect(b[paymentTaskId("p-grand-oak-estate-0")]).toBe(a[paymentTaskId("p-grand-oak-estate-0")]); // signing
     expect(b[paymentTaskId("p-dj-marlow-sound-0")]).toBe(a[paymentTaskId("p-dj-marlow-sound-0")]); // fixed
+  });
+});
+
+describe("vendor progress", () => {
+  it("fills each vendor bar by the share of its contract paid, by amount", () => {
+    const data = buildTimeline(demoInput(), today);
+    const grandOak = data.tasks.find((t) => t.id === vendorTaskId("v-grand-oak-estate"))!;
+    // $3,000 deposit of $9,000 paid
+    expect(grandOak.percentDone).toBe(33);
+    expect(data.details[grandOak.id]).toMatchObject({ percentPaid: 33, progressLabel: "33% paid" });
+    const quartet = data.tasks.find((t) => t.id === vendorTaskId("v-velvet-strings-quartet"))!;
+    expect(quartet.percentDone).toBe(0);
+  });
+
+  it("only reads 100% when fully paid, and says when a vendor is cancelled", () => {
+    expect(percentPaid(299_999, 300_000)).toBe(99);
+    expect(percentPaid(300_000, 300_000)).toBe(100);
+    expect(percentPaid(0, 0)).toBe(0);
+    const cancelled = buildTimeline(single(payment({ status: "void" }), { status: "cancelled" }), today);
+    expect(cancelled.details[cancelled.tasks[1].id]).toMatchObject({ progressLabel: "Cancelled" });
+  });
+});
+
+describe("the demo during judging (Dec 1-15, 2026)", () => {
+  // The seed's own dates put timing colours on screen for judges: the DJ
+  // booking fee (fixed Dec 1) and the venue second installment (Dec 18).
+  const statuses = (iso: string) =>
+    new Set(
+      Object.values(buildTimeline(demoInput(), d(iso)).details).flatMap((x) => (x.kind === "payment" ? [x.status] : [])),
+    );
+
+  it("shows a payment due soon on the first day", () => {
+    expect(statuses("2026-12-01")).toEqual(new Set(["paid", "scheduled", "due_soon"]));
+  });
+
+  it("shows one overdue and one due soon later in the window", () => {
+    const later = statuses("2026-12-08");
+    expect(later.has("overdue")).toBe(true);
+    expect(later.has("due_soon")).toBe(true);
   });
 });
 
@@ -315,6 +355,8 @@ describe("task details", () => {
       amountLabel: "$1,500",
       summary: "2 payments, $500 of $1,500 paid.",
       cancelled: false,
+      percentPaid: 33,
+      progressLabel: "33% paid",
     });
   });
 

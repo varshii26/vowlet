@@ -234,3 +234,12 @@
 .b-gantt .b-milestone-wrap.b-gantt-task-parent .b-task-rollup-wrap {
   display: none;
 }
+
+/*
+ * Vendor summary bars fill by the share of the contract paid (percentDone from
+ * lib/timeline). Tint the paid part like a paid milestone so it reads as money
+ * paid, not as generic task progress.
+ */
+.b-gantt .b-gantt-task-parent .b-task-percent-bar {
+  background: color-mix(in srgb, var(--b-color-green) 60%, white);
+}

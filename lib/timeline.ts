@@ -62,6 +62,11 @@ export type TimelineTask = {
    * collapsed vendor still shows every payment diamond in its status colour.
    */
   rollup?: boolean;
+  /**
+   * Vendor rows: share of the contract paid, 0-100, by amount. Bryntum fills
+   * that much of the summary bar, so progress reads at a glance.
+   */
+  percentDone?: number;
   /** Only the wedding day can be dragged (to run a what-if); payment dates come from the contracts. */
   draggable: boolean;
   resizable: false;
@@ -110,6 +115,10 @@ export type TaskDetail =
       amountLabel: string;
       summary: string;
       cancelled: boolean;
+      /** Share of the contract paid, 0-100, by amount. */
+      percentPaid: number;
+      /** "67% paid", for the Status column. */
+      progressLabel: string;
     }
   | {
       kind: "payment";
@@ -192,6 +201,9 @@ function datePayments(vendor: TimelineVendor, weddingDate: Date, today: Date): D
     .sort((a, b) => a.due.getTime() - b.due.getTime() || a.label.localeCompare(b.label));
 }
 
+/** Whole percent paid, rounded down so a vendor reads 100% only when fully paid. */
+export const percentPaid = (paidCents: number, totalCents: number) => (totalCents > 0 ? Math.floor((paidCents * 100) / totalCents) : 0);
+
 function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[]): TaskDetail {
   const total = dated.reduce((sum, p) => sum + p.amountCents, 0);
   const paid = dated.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountCents, 0);
@@ -202,6 +214,8 @@ function vendorSummary(vendor: TimelineVendor, dated: DatedPayment[]): TaskDetai
     amountLabel: formatCents(total),
     summary: vendor.status === "cancelled" ? `Cancelled. ${count}.` : `${count}, ${formatCents(paid)} of ${formatCents(total)} paid.`,
     cancelled: vendor.status === "cancelled",
+    percentPaid: percentPaid(paid, total),
+    progressLabel: vendor.status === "cancelled" ? "Cancelled" : `${percentPaid(paid, total)}% paid`,
   };
 }
 
@@ -244,7 +258,8 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
     });
 
   const vendorTasks = vendors.map(({ vendor, dated }): TimelineTask => {
-    details[vendorTaskId(vendor.id)] = vendorSummary(vendor, dated);
+    const summary = vendorSummary(vendor, dated);
+    details[vendorTaskId(vendor.id)] = summary;
     addToCashByMonth(cashByMonth, vendor, dated);
 
     const children = dated.map((payment): TimelineTask => {
@@ -293,6 +308,7 @@ export function buildTimeline(input: TimelineInput, today: Date): TimelineData {
       // Collapsed, so all vendors fit at once; the payments still show as
       // rollups in the vendor's row, and expanding lists them one per row.
       expanded: false,
+      percentDone: summary.kind === "vendor" ? summary.percentPaid : 0,
       draggable: false,
       resizable: false,
       eventColor: vendorColor(vendor, dated),

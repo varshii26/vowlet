@@ -48,7 +48,7 @@ const payment = (over: Partial<UpcomingPayment> = {}): UpcomingPayment => ({
 
 /** Timeline details the drawer reads, for payment p1 and its vendor. */
 const details = (over: Partial<Extract<TaskDetail, { kind: "payment" }>> = {}, cancelled = false): Record<string, TaskDetail> => ({
-  [vendorTaskId("v1")]: { kind: "vendor", title: "Grand Oak Estate", amountLabel: "$9,000", summary: "", cancelled },
+  [vendorTaskId("v1")]: { kind: "vendor", title: "Grand Oak Estate", amountLabel: "$9,000", summary: "", cancelled, percentPaid: 0, progressLabel: "0% paid" },
   [paymentTaskId("p1")]: {
     kind: "payment",
     title: "Venue second installment",

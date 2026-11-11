@@ -103,6 +103,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
     return wedding?.kind === "wedding" ? wedding.isoDate : undefined;
   });
   useTodayLine(ganttRef, todayIso, openingWeddingIso);
+  useVendorProgress(ganttRef, data.tasks);
 
   // The wrapper syncs new tasks into the existing records, and a field left out
   // keeps its old value. So every task states its baselines, empty when it has
@@ -196,6 +197,7 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           sortable: false,
           renderer: ({ record }: { record: TaskModel }) => {
             const detail = detailOf(record);
+            if (detail?.kind === "vendor") return detail.progressLabel;
             return detail?.kind === "payment" ? detail.statusLabel : "";
           },
         },
@@ -228,6 +230,30 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
       endDate={data.endDate}
     />
   );
+}
+
+type ProgressProject = {
+  autoCalculatePercentDoneForParentTasks: boolean;
+  taskStore: { getById(id: string): { percentDone: number } | undefined };
+};
+
+/**
+ * Vendor bars fill by the share of the contract paid, by amount (lib/timeline).
+ * Bryntum's engine would replace that with its own average over the payment
+ * milestones, which have no duration and so always read 0%. A `project` config
+ * can't sit beside inline tasks, so switch the engine's roll-up off once the
+ * chart exists and put our numbers back, again whenever the data changes.
+ */
+function useVendorProgress(ganttRef: RefObject<BryntumGantt | null>, tasks: TimelineTask[]) {
+  useEffect(() => {
+    const project = ganttRef.current?.instance?.project as unknown as ProgressProject | undefined;
+    if (!project) return;
+    project.autoCalculatePercentDoneForParentTasks = false;
+    for (const task of tasks) {
+      const record = task.percentDone === undefined ? undefined : project.taskStore.getById(task.id);
+      if (record && record.percentDone !== task.percentDone) record.percentDone = task.percentDone!;
+    }
+  }, [ganttRef, tasks]);
 }
 
 function withExplicitBaselines(tasks: TimelineTask[]): TimelineTask[] {

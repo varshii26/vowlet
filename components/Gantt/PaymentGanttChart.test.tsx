@@ -164,6 +164,19 @@ describe("PaymentGanttChart", () => {
     expect(barCount(".payment")).toBe(0); // the payment rows themselves are folded away
   });
 
+  it("fills the vendor bar by the share paid, not the engine's own roll-up", async () => {
+    await mount(input);
+    const { tasks } = await engine();
+    // $3,000 of $6,000 paid
+    expect((tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(50);
+
+    await rerender({
+      ...input,
+      vendors: [{ ...input.vendors[0], payments: input.vendors[0].payments.map((p) => ({ ...p, status: "paid" as const })) }],
+    });
+    expect(((await engine()).tasks.getById("vendor-v1") as unknown as { percentDone: number }).percentDone).toBe(100);
+  });
+
   it("picks up a changed payment status when the page re-renders with new data", async () => {
     await mount(input);
     expect((await engine()).cls("payment-p2")).toContain("payment-scheduled");
