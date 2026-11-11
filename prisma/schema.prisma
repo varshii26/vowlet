@@ -50,8 +50,49 @@ enum ProposalStatus {
   dismissed
 }
 
+/// A person who can sign in: with Google (an Account row) or with an email and password (passwordHash).
+/// Sessions are JWTs, not rows: Auth.js only supports email + password sign-in with JWT sessions.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  /// Always stored lower-cased (lib/auth/users.ts and the adapter), so it is unique regardless of case.
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  /// scrypt hash (lib/auth/password.ts). Null for Google-only accounts and the demo user.
+  passwordHash  String?
+  /// The shared Priya & Sam demo account: reachable only through "Try the demo", resets touch only its wedding.
+  isDemo        Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  accounts      Account[]
+  wedding       Wedding?
+}
+
+/// A linked sign-in provider (Google). Shape follows @auth/prisma-adapter.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
 model Wedding {
   id          String     @id @default(cuid())
+  /// The owner. One wedding per user; null only for data from before accounts existed (the migration assigns it to the demo user).
+  userId      String?    @unique
+  user        User?      @relation(fields: [userId], references: [id], onDelete: Cascade)
   coupleNames String
   date        DateTime
   budget      Int // cents

@@ -5,6 +5,7 @@ import {
 } from "@/lib/rules";
 import { buildVendorClauses, vendorStyle } from "@/lib/seed/clauses";
 import { VENDORS, WEDDING, vendorTotalCents } from "@/lib/seed/demo-data";
+import { DEMO_USER } from "@/lib/seed/demo-user";
 
 const utc = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
@@ -22,8 +23,17 @@ export async function seedDemo(prisma: PrismaClient, options: { message?: string
     await tx.vendor.deleteMany();
     await tx.wedding.deleteMany();
 
+    // The demo wedding belongs to the demo user. Users are never wiped here: real
+    // accounts must survive a reset (#108 stops the wipe above from touching their weddings too).
+    await tx.user.upsert({
+      where: { id: DEMO_USER.id },
+      create: { id: DEMO_USER.id, name: DEMO_USER.name, email: DEMO_USER.email, isDemo: true },
+      update: { name: DEMO_USER.name, email: DEMO_USER.email, isDemo: true },
+    });
+
     const wedding = await tx.wedding.create({
       data: {
+        userId: DEMO_USER.id,
         coupleNames: WEDDING.coupleNames,
         date: utc(WEDDING.date),
         budget: WEDDING.budgetCents,

@@ -234,6 +234,9 @@ work with an empty `.env.local`. Add keys to turn on the rest:
 | `PAYPAL_VENDOR_EMAILS` | payments that actually complete: the sandbox **business** accounts the vendors are paid as (comma-separated) | same dashboard → Sandbox accounts. Use **US** accounts; see [Paying a vendor](#paying-a-vendor-paypal-sandbox) |
 | `PAYPAL_WEBHOOK_ID` | webhook signature checks (needs a public URL, so optional locally) | see [PayPal webhook](#paypal-webhook) |
 | `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY` | optional: the Gantt without a "Trial" countdown. Without it the chart runs as Bryntum's 14-day trial per browser | trial key at [bryntum.com/download](https://bryntum.com/download/); see [Payment timeline](#payment-timeline) |
+| `AUTH_SECRET` | signs the sign-in session cookie. Required for the auth routes | `npx auth secret` or `openssl rand -base64 32`. On Render it is generated for you (`render.yaml`) |
+| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | optional: "Continue with Google". Without them only email + password is offered | a Google OAuth client; see [Accounts](#accounts-authjs) |
+| `AUTH_URL` | the site's public URL, for OAuth callbacks (`https://vowlet.onrender.com` on Render) | not needed on localhost |
 | `DEMO_AUTO_RESET_MINUTES` | optional: minutes a changed demo may sit idle before the next visit resets it (default 30; `0` = never) | see [Reset demo](#reset-demo) |
 
 Never commit `.env.local`. After changing `PAYPAL_VENDOR_EMAILS`, restart `npm run dev` and click **Reset demo** so the vendors
@@ -295,6 +298,37 @@ the dashboard reloads the seed before the page reads anything (`lib/demo/auto-re
 - `DEMO_AUTO_RESET_MINUTES` sets the delay (default 30); `0` switches it off, e.g. for local development.
 - It undoes everything done in the app, for everyone using the hosted demo at that moment. Sandbox PayPal payments
   already captured stay in the PayPal sandbox; only Vowlet's record of them is reset.
+
+### Accounts (Auth.js)
+
+Sign-in with **Google** or an **email and password**, built on [Auth.js](https://authjs.dev) v5 (`next-auth`, still
+published as a beta tag, so it is pinned to an exact version). This is the foundation (issue #101); the sign-in and
+sign-up pages, redirects, per-user access checks and the demo account follow in #102 to #108. The shared demo stays one
+click: nobody has to sign up to see it.
+
+- **Tables** (`prisma/schema.prisma`): `User` (email, name, optional `passwordHash`, `isDemo`) and `Account` (a linked
+  Google sign-in). A `Wedding` belongs to a user (`userId`, unique, so one wedding per user). The migration gives the
+  existing Priya & Sam wedding to a **demo user** so the hosted demo keeps working after the deploy, and a test runs the
+  migration on a database full of old data to prove nothing is lost.
+- **JWT sessions, not session rows.** Auth.js only supports email + password sign-in with JWT sessions. A session lasts
+  14 days; `auth()` (`lib/auth`) returns `{ user: { id, name, email, image, isDemo } }` on the server.
+- **Passwords** are hashed with scrypt from Node's crypto (`lib/auth/password.ts`): slow and memory-hard, salted per
+  user, stored with their own parameters so the cost can be raised later, and never logged or returned by any API. Sign-in
+  gives the same answer, and takes the same time, for "no such account" and "wrong password".
+- **Emails** are trimmed and lower-cased everywhere (and in the Auth.js adapter), so one address is one user.
+- **New accounts:** `POST /api/register` `{ name?, email, password }` (rate limited per caller; at least 10
+  characters). It answers 201, 400 with a message per field, 409 for an address that already has an account, or 429.
+- **No automatic linking** of a Google sign-in to an existing password account, or the reverse. This is deliberate: with
+  no email verification (the project sends no email), an attacker could sign up with a victim's address and a password
+  they know, and a later Google sign-in by the victim would link to the attacker's account. So an address that has an
+  account by one method is refused by the other, and the sign-in page says which method to use. Google must also report
+  the address as verified. Adding email verification would allow safe linking.
+- **Google sign-in setup** (optional): in [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+  create an **OAuth client ID** of type *Web application*, and add these **authorized redirect URIs**:
+  `http://localhost:3000/api/auth/callback/google` and `https://vowlet.onrender.com/api/auth/callback/google`. Put the
+  client id and secret in `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` (locally in `.env.local`, on Render as environment
+  variables). Without them, Google is simply left out. While the OAuth consent screen is in *Testing*, only the test
+  users you list there can sign in.
 
 ### Dashboard layout
 

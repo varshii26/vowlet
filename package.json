@@ -22,6 +22,7 @@
     "eval:agent": "tsx evals/agent/run.ts"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "2.11.3",
     "@bryntum/core-enterprise": "8.0.0",
     "@bryntum/gantt-enterprise": "8.0.0",
     "@bryntum/gantt-react-enterprise": "8.0.0",
@@ -34,6 +35,7 @@
     "@prisma/client": "^7.10.1",
     "dotenv": "^18.0.9",
     "next": "16.4.5",
+    "next-auth": "5.0.0-beta.32",
     "pdfkit": "^0.20.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -46,6 +48,7 @@
     "@tailwindcss/postcss": "^4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^24.19.2",
     "@types/pdfkit": "^0.17.7",
     "@types/react": "^19",
