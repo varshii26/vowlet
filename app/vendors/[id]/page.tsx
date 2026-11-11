@@ -44,7 +44,12 @@ export default async function VendorPage({ params, searchParams }: PageProps<"/v
             <span className="capitalize">{vendor.category}</span> · contract total {vendor.totalLabel} · wedding {data.weddingDateLabel}
           </p>
         </div>
-        {vendor.status === "active" && <CancelModal vendorId={vendor.id} vendorName={vendor.name} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href={`/vendors/${encodeURIComponent(vendor.id)}/print`} className="btn btn-secondary">
+            Print summary
+          </Link>
+          {vendor.status === "active" && <CancelModal vendorId={vendor.id} vendorName={vendor.name} />}
+        </div>
       </header>
       {data.suspicious.map((s) => (
         // Contract text that tries to instruct an AI (lib/injection.ts): show it, don't hide it.

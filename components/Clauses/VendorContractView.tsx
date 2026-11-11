@@ -43,6 +43,18 @@ export function VendorContractView({ data, initialClauseId }: Props) {
     </button>
   );
 
+  if (data.vendor.manual) {
+    return (
+      <div className="max-w-2xl space-y-3">
+        <h2 className="text-lg font-semibold">What you entered</h2>
+        <p className="text-sm text-muted">
+          There is no contract on file for {data.vendor.name}: you entered these payments and terms yourself, so there are no clauses to show.
+        </p>
+        <TermsPanel data={data} selectedClauseId={null} onSelect={select} />
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <aside className="space-y-3 lg:sticky lg:top-4 lg:order-2 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto" aria-label="Extracted terms">
