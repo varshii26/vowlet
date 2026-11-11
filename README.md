@@ -18,8 +18,13 @@ payments, due dates and cancellation and date-change terms. Vowlet:
 
 ## Try it
 
-**Live demo: https://vowlet.onrender.com**. No setup or sign-up. It opens on Priya & Sam's wedding: 2027-04-17,
-14 vendors, $31,000 across 23 payments, against a $36,000 budget.
+**Live demo: https://vowlet.onrender.com**. No setup or sign-up: on the sign-in page click **Try the demo (Priya & Sam)**
+and you are on Priya & Sam's wedding: 2027-04-17, 14 vendors, $31,000 across 23 payments, against a $36,000 budget.
+The demo is a dedicated demo account (no password, reachable only through that button), shared by everyone who tries it.
+
+- **To use it for your own wedding**, click **Create an account** instead (Google, or an email and password). A new
+  account starts with a short setup (your names, date and budget), then an empty dashboard where you upload your own
+  contracts. Your wedding is private to you and is never touched by the demo or its reset.
 
 - **The first visit may take about a minute.** The free Render tier sleeps after about 15 minutes idle and wakes on the
   next request. After that it is fast.
@@ -32,8 +37,9 @@ payments, due dates and cancellation and date-change terms. Vowlet:
   | Email | `vowlet-priya-sam-3fbf@personal.example.com` |
   | Password | `Vwbm17x6T77!` |
 
-- **Reset demo** (top right) puts everything back to the starting state if someone else has already paid or changed things.
-  You may not need it: a demo left changed and idle for 30 minutes resets itself on the next visit.
+- **Reset demo** (top right, only on the demo account) puts the demo wedding back to the starting state if someone else
+  has already paid or changed things. You may not need it: a demo left changed and idle for 30 minutes resets itself on
+  the next visit. A reset replaces **only the demo wedding**; real accounts and their weddings are never read or deleted.
 
 ### Demo script: Priya & Sam (about 3 minutes)
 

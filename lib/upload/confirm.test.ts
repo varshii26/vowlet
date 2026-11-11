@@ -23,6 +23,7 @@ beforeAll(async () => {
 }, 60_000);
 afterAll(async () => cleanup());
 beforeEach(async () => {
+  await prisma.user.deleteMany({ where: { isDemo: false } }); // a reseed leaves other couples alone, so clear the ones a test made
   await seedDemo(prisma);
   root = mkdtempSync(path.join(tmpdir(), "vowlet-uploads-"));
 });
