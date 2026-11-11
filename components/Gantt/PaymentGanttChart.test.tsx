@@ -343,6 +343,41 @@ describe("what-if ghosts (Baselines)", () => {
   });
 });
 
+describe("printing the schedule (Print feature)", () => {
+  it("hands over a print function that prints every row expanded, then folds the rows back", async () => {
+    let print: (() => Promise<void>) | null = null;
+    host = document.createElement("div");
+    host.style.height = "600px";
+    host.style.width = "1200px";
+    document.body.appendChild(host);
+    root = createRoot(host);
+    await act(async () => {
+      root!.render(
+        <PaymentGanttChart data={buildTimeline(input, today)} todayIso="2026-11-07" coupleNames="Priya & Sam" onPrintReady={(fn) => (print = fn)} />,
+      );
+    });
+    await engine();
+    expect(print).toBeTypeOf("function");
+
+    const gantt = Widget.fromElement(host!.querySelector(".b-gantt") as HTMLElement) as Gantt;
+    type PrintFeature = { print: (config: object) => Promise<unknown>; disabled: boolean };
+    const feature = (gantt.features as unknown as { print: PrintFeature }).print;
+    expect(feature.disabled).toBe(false);
+    const vendor = () => gantt.taskStore.getById("vendor-v1") as unknown as { isExpanded(store: unknown): boolean };
+    const expandedWhilePrinting: boolean[] = [];
+    // jsdom can't render a printout; stand in for Bryntum's print() and look at the rows it would see.
+    feature.print = vi.fn(async () => void expandedWhilePrinting.push(vendor().isExpanded(gantt.taskStore)));
+
+    expect(vendor().isExpanded(gantt.taskStore)).toBe(false);
+    await act(async () => {
+      await print!();
+    });
+    expect(feature.print).toHaveBeenCalledWith(expect.objectContaining({ rowsRange: "all", scheduleRange: "completeview" }));
+    expect(expandedWhilePrinting).toEqual([true]);
+    expect(vendor().isExpanded(gantt.taskStore)).toBe(false);
+  });
+});
+
 describe("cash needed each month (Summary footer)", () => {
   const moved = { ...input, wedding: { ...input.wedding, date: d("2027-06-12") } };
   const settle = () => act(async () => void (await new Promise((resolve) => setTimeout(resolve, 200))));

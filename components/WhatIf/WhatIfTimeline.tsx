@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { StatusLegend } from "@/components/Gantt/StatusLegend";
 import { PaymentGantt } from "@/components/Gantt/PaymentGantt";
 import { usePaymentDrawer } from "@/components/Payments/PaymentDrawer";
@@ -37,6 +37,26 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
   const baseIso = toIsoDate(input.wedding.date);
 
   const [preview, setPreview] = useState<string | null>(null);
+  // The chart hands over its print function once Bryntum has loaded.
+  const printRef = useRef<(() => Promise<void>) | null>(null);
+  const [canPrint, setCanPrint] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const onPrintReady = useCallback((print: (() => Promise<void>) | null) => {
+    printRef.current = print;
+    setCanPrint(Boolean(print));
+  }, []);
+
+  async function printSchedule() {
+    if (!printRef.current || printing) return;
+    setPrinting(true);
+    try {
+      await printRef.current();
+    } catch {
+      toast("Couldn't open the print dialog. Try again, or use your browser's Print.");
+    } finally {
+      setPrinting(false);
+    }
+  }
   const [whatIf, setWhatIf] = useState<WhatIfState>({ status: "loading" });
   const [explanation, setExplanation] = useState<ExplanationState>({ status: "none" });
   const [applying, setApplying] = useState(false);
@@ -119,7 +139,18 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           the date would cost.
         </p>
       </div>
-      <StatusLegend />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <StatusLegend />
+        <button
+          type="button"
+          className="btn btn-secondary vw-no-print px-3 py-1 text-xs"
+          onClick={() => void printSchedule()}
+          disabled={!canPrint || printing}
+          title="Print the timeline, or save it as a PDF, for a planner or family"
+        >
+          {printing ? "Preparing…" : "Print schedule"}
+        </button>
+      </div>
 
       <div className="relative min-h-0 flex-1">
         <PaymentGantt
@@ -129,6 +160,8 @@ export function WhatIfTimeline({ input, todayIso, className }: Props) {
           onWeddingDateChange={(iso) => void weddingDropped(iso)}
           minWeddingDate={todayIso}
           todayIso={todayIso}
+          onPrintReady={onPrintReady}
+          coupleNames={input.wedding.coupleNames}
         />
 
         {preview && (

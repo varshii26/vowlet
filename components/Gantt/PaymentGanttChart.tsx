@@ -4,6 +4,7 @@ import { BryntumGantt, type BryntumGanttProps } from "@bryntum/gantt-react-enter
 import type { TaskModel } from "@bryntum/gantt-enterprise";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { amountLabelFor, rollupLabels } from "@/components/Gantt/labels";
+import { PRINT_OPTIONS, renderPrintFooter, renderPrintHeader } from "@/components/Gantt/print";
 import { monthKey, renderCashCell, totalCash } from "@/components/Gantt/summary";
 import { renderBaselineTip, renderDeadlineTip, renderTaskTooltip, renderWeddingDragTip } from "@/components/Gantt/tooltip";
 import type { Deadline, DeadlineKind } from "@/lib/deadlines";
@@ -39,6 +40,10 @@ type Props = {
   minWeddingDate?: string;
   /** `YYYY-MM-DD`: draws a dashed "Today" line at this day. */
   todayIso?: string;
+  /** Called once the chart exists with a function that prints the schedule (and with null when it goes). */
+  onPrintReady?: (print: (() => Promise<void>) | null) => void;
+  /** The couple's names, for the printed page header. */
+  coupleNames?: string;
 };
 
 /** `YYYY-MM-DD` of the calendar day Bryntum shows. Its dates are local midnights, built from our `YYYY-MM-DD` strings. */
@@ -52,7 +57,7 @@ export const localIsoDay = (date: Date) =>
  * the new day. The parent recomputes every date from it and hands back new data.
  * Browser only; load it through PaymentGantt, which skips server rendering.
  */
-export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, minWeddingDate, todayIso }: Props) {
+export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, minWeddingDate, todayIso, onPrintReady, coupleNames }: Props) {
   // The chart is configured once, so it reads the latest data and callback
   // through refs instead of being rebuilt on every update.
   const ganttRef = useRef<BryntumGantt>(null);
@@ -107,6 +112,11 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
   useTodayLine(ganttRef, todayIso, openingWeddingIso);
   useVendorProgress(ganttRef, data.tasks);
   useDeadlineClicks(ganttRef);
+  usePrint(ganttRef, onPrintReady);
+  const printHeaderRef = useRef({ coupleNames: coupleNames ?? "", todayIso: todayIso ?? "" });
+  useEffect(() => {
+    printHeaderRef.current = { coupleNames: coupleNames ?? "", todayIso: todayIso ?? "" };
+  }, [coupleNames, todayIso]);
 
   // The wrapper syncs new tasks into the existing records, and a field left out
   // keeps its old value. So every task states its baselines, empty when it has
@@ -223,6 +233,16 @@ export function PaymentGanttChart({ data, onPaymentSelect, onWeddingDateChange, 
           cancellation: (taskRecord: TaskModel) => deadlineIndicator(detailOf(taskRecord), "cancellation"),
         },
         tooltipTemplate: ({ indicator }: { indicator: DeadlineIndicator }) => indicator.tipHtml ?? "",
+      },
+      // Print the schedule through the browser's print dialog (Enterprise
+      // Print feature; see print.ts and usePrint below).
+      printFeature: {
+        headerTpl: () => {
+          const wedding = detailsRef.current[WEDDING_TASK_ID];
+          const { coupleNames: names, todayIso: asOf } = printHeaderRef.current;
+          return renderPrintHeader(names, wedding?.kind === "wedding" ? wedding.isoDate : "", asOf);
+        },
+        footerTpl: ({ currentPage, totalPages }: { currentPage: number; totalPages: number }) => renderPrintFooter(currentPage, totalPages),
       },
       // Narrow months, so today through the wedding fits without scrolling.
       viewPreset: { base: "monthAndYear", tickWidth: 64 },
@@ -356,6 +376,41 @@ function deadlineIndicator(detail: TaskDetail | undefined, kind: DeadlineKind): 
     tipHtml: renderDeadlineTip(deadline, detail.title),
     href: deadline.clauseId ? clauseHref(detail.vendorId, deadline.clauseId) : null,
   };
+}
+
+type PrintableGantt = {
+  features: { print?: { print(config: object): Promise<unknown> } };
+  taskStore: { rootNode: { children?: { id: string | number; isExpanded(store: unknown): boolean }[] } };
+  expandAll(): Promise<unknown>;
+  collapse(id: string | number): Promise<unknown>;
+};
+
+/**
+ * Hands the parent a print function. Every vendor is expanded for the printout,
+ * so each payment gets its own line with its amount and status, and the rows
+ * the couple had collapsed are collapsed again afterwards.
+ */
+function usePrint(ganttRef: RefObject<BryntumGantt | null>, onPrintReady: Props["onPrintReady"]) {
+  const readyRef = useRef(onPrintReady);
+  useEffect(() => {
+    readyRef.current = onPrintReady;
+  }, [onPrintReady]);
+  useEffect(() => {
+    const gantt = ganttRef.current?.instance as unknown as PrintableGantt | undefined;
+    if (!gantt?.features.print) return;
+    const print = async () => {
+      const store = gantt.taskStore;
+      const collapsed = (store.rootNode.children ?? []).filter((row) => !row.isExpanded(store)).map((row) => row.id);
+      await gantt.expandAll();
+      try {
+        await gantt.features.print!.print(PRINT_OPTIONS);
+      } finally {
+        await Promise.all(collapsed.map((id) => gantt.collapse(id)));
+      }
+    };
+    readyRef.current?.(print);
+    return () => readyRef.current?.(null);
+  }, [ganttRef]);
 }
 
 /** A vendor with a single payment is drawn as one diamond that stands for that payment. */
