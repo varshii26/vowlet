@@ -1,9 +1,14 @@
 "use server";
 
 import { AuthError, CredentialsSignin } from "next-auth";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
+import { clientIp } from "@/lib/auth/ip";
+import { registrations } from "@/lib/auth/limits";
 import { safeNextPath } from "@/lib/auth/redirect";
+import { registerFromForm, type SignUpState } from "@/lib/auth/sign-up";
+import { prisma } from "@/lib/db";
 
 /** What the sign-in form shows after an attempt. `email` is kept so a typo doesn't mean retyping it. */
 export type SignInState = { error: string | null; email: string };
@@ -46,4 +51,29 @@ export async function startDemo(formData: FormData): Promise<void> {
     }
     throw error;
   }
+}
+
+/**
+ * Sign-up: create the account, then sign the new user in. The destination is the
+ * dashboard (or `next`); once onboarding exists (#104) a user with no wedding is
+ * sent there from any page, which is how "land on onboarding" is met.
+ */
+export async function signUp(_previous: SignUpState, formData: FormData): Promise<SignUpState> {
+  const result = await registerFromForm({ prisma, limiter: registrations, ip: clientIp({ headers: await headers() }) }, formData);
+  if (!result.ok) return result.state;
+
+  try {
+    await signIn("credentials", { email: result.email, password: result.password, redirectTo: result.redirectTo });
+  } catch (error) {
+    // The account exists, so say so, rather than leaving the person thinking sign-up failed.
+    if (error instanceof AuthError) {
+      return {
+        errors: { form: "Your account was created, but signing in didn't work. Please sign in with your new email and password." },
+        values: { name: field(formData, "name"), email: result.email },
+        emailTaken: false,
+      };
+    }
+    throw error;
+  }
+  return { errors: {}, values: { name: "", email: "" }, emailTaken: false };
 }

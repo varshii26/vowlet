@@ -1,4 +1,7 @@
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from "@/lib/auth/rules";
+
+export { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH };
 
 /**
  * Password hashing with scrypt from Node's own crypto: slow and memory-hard, so
@@ -16,10 +19,6 @@ const KEY_LENGTH = 64;
 const SALT_BYTES = 16;
 /** Node refuses scrypt jobs above 32 MiB unless told otherwise: 128 * N * r = 32 MiB at these settings, so allow some headroom. */
 const MAX_MEMORY = 64 * 1024 * 1024;
-
-export const MIN_PASSWORD_LENGTH = 10;
-/** scrypt would hash a megabyte as easily as a word; refuse silly lengths before spending CPU on them. */
-export const MAX_PASSWORD_LENGTH = 200;
 
 function derive(password: string, salt: Buffer, N: number, r: number, p: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {

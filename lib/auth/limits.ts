@@ -15,6 +15,8 @@ type Limits = {
   signInAttempts: ReturnType<typeof createAttemptTracker>;
   /** "Try the demo" has no password to guess, but it is public and creates sessions: keep one address from hammering it. */
   demoSignIns: ReturnType<typeof createRateLimiter>;
+  /** Sign-ups per address: 10 in 10 minutes is plenty for a person. Shared by the sign-up form and POST /api/register. */
+  registrations: ReturnType<typeof createRateLimiter>;
 };
 
 const shared = globalThis as unknown as { __vowletAuthLimits?: Limits };
@@ -22,6 +24,7 @@ const shared = globalThis as unknown as { __vowletAuthLimits?: Limits };
 const limits = (shared.__vowletAuthLimits ??= {
   signInAttempts: createAttemptTracker({ maxPerEmail: 5, maxPerIp: 30, windowMs: 10 * 60_000 }),
   demoSignIns: createRateLimiter({ max: 30, windowMs: 10 * 60_000 }),
+  registrations: createRateLimiter({ max: 10, windowMs: 10 * 60_000 }),
 });
 
-export const { signInAttempts, demoSignIns } = limits;
+export const { signInAttempts, demoSignIns, registrations } = limits;

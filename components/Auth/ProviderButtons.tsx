@@ -44,8 +44,19 @@ export function GoogleButton({ next, label = "Continue with Google" }: { next: s
   );
 }
 
-/** "Try the demo": one click into Priya & Sam's wedding. The primary action for anyone just looking. */
-export function DemoButton({ next }: { next: string }) {
+/**
+ * "Try the demo": one click into Priya & Sam's wedding. The primary action on the
+ * sign-in page; on the sign-up page it is a quiet link for anyone who just wants a look.
+ */
+export function DemoButton({ next, variant = "primary" }: { next: string; variant?: "primary" | "link" }) {
+  if (variant === "link") {
+    return (
+      <form action={startDemo} className="inline">
+        <input type="hidden" name="next" value={next} />
+        <Submit idle="Try the demo" busy="Opening the demo…" className="font-medium text-accent underline-offset-2 hover:underline disabled:cursor-wait" />
+      </form>
+    );
+  }
   return (
     <form action={startDemo} className="space-y-2">
       <input type="hidden" name="next" value={next} />
