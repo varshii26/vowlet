@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthFrame } from "@/components/Auth/AuthFrame";
 import { OnboardingForm } from "@/components/Onboarding/OnboardingForm";
+import { loginUrl } from "@/lib/auth/paths";
 import { requestScope } from "@/lib/auth/request-wedding";
 import { auth } from "@/lib/auth";
 
@@ -10,7 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default async function OnboardingPage() {
   const session = await auth();
-  if (!session?.user?.id) redirect("/login?next=/onboarding");
+  if (!session?.user?.id) redirect(loginUrl("/onboarding"));
   const { weddingId } = await requestScope();
   if (weddingId) redirect("/"); // already set up
   return (

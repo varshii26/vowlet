@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { VendorContractView } from "@/components/Clauses/VendorContractView";
 import { CancelModal } from "@/components/Vendors/CancelModal";
+import { requireWeddingOrOnboarding } from "@/lib/auth/require-wedding";
 import { prisma } from "@/lib/db";
 import { loadVendorPage } from "@/lib/vendors/page-data";
 
@@ -14,6 +15,7 @@ export const metadata: Metadata = { title: "Vendor contract · Vowlet" };
 export default async function VendorPage({ params, searchParams }: PageProps<"/vendors/[id]">) {
   const { id } = await params;
   const { clause } = await searchParams;
+  await requireWeddingOrOnboarding(`/vendors/${id}${typeof clause === "string" ? `?clause=${encodeURIComponent(clause)}` : ""}`);
   const data = await loadVendorPage(prisma, id);
   if (!data) notFound();
 

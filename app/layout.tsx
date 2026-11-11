@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Geist, Geist_Mono } from "next/font/google";
+import { SessionWatcher } from "@/components/Auth/SessionWatcher";
 import { PayPalProvider } from "@/components/Payments/PayButton";
 import { ToastProvider } from "@/components/ui/Toast";
 import "./globals.css";
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* One PayPal SDK load shared by every Pay button on the page. */}
         <PayPalProvider>
           <ToastProvider>{children}</ToastProvider>
+          <SessionWatcher />
         </PayPalProvider>
       </body>
     </html>

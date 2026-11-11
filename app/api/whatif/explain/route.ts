@@ -1,3 +1,4 @@
+import { withSession } from "@/lib/auth/guard";
 import { requestWeddingId } from "@/lib/auth/request-wedding";
 import { prisma } from "@/lib/db";
 import { modelChain } from "@/lib/llm/config";
@@ -11,7 +12,7 @@ import { explainWhatIfHandler } from "@/lib/whatif/handler";
 const limiter = createRateLimiter({ max: 20, windowMs: 60_000 });
 const client = createGeminiClient({ timeoutMs: 10_000, maxRetries: 0, maxWaitMs: 2_000 });
 
-export async function POST(request: Request) {
+async function handlePOST(request: Request) {
   return explainWhatIfHandler(request, {
     prisma,
     resolveWeddingId: requestWeddingId,
@@ -21,3 +22,5 @@ export async function POST(request: Request) {
     configured: Boolean(process.env.GEMINI_API_KEY),
   });
 }
+
+export const POST = withSession(handlePOST);

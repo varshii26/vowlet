@@ -29,14 +29,14 @@ import { loadTimelineInput } from "@/lib/timeline-data";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  // Signed out goes to /login, and a new account with no wedding goes to onboarding.
+  const { weddingId, isDemo } = await requireWeddingOrOnboarding("/");
   // Judges share one database: a demo left changed and idle goes back to the
   // seed before this visit reads it (lib/demo/auto-reset.ts).
   await resetIfIdle();
-  // A signed-in user with no wedding goes to onboarding; everyone else gets their own wedding (or the demo, signed out).
-  const { weddingId, isDemo } = await requireWeddingOrOnboarding();
-  const input = weddingId ? await loadTimelineInput(prisma, weddingId) : null;
+  const input = await loadTimelineInput(prisma, weddingId);
 
-  if (!weddingId || !input) {
+  if (!input) {
     return (
       <main className="mx-auto w-full max-w-6xl p-8">
         <h1 className="text-3xl">Vowlet</h1>
