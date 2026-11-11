@@ -56,6 +56,8 @@ export type WhatIfPreview = {
    */
   noticeDays: number;
   totalCents: number;
+  /** The wedding's total cost after the move, against the budget (lib/budget.ts budgetImpact). */
+  budget: { budgetCents: number; projectedCents: number; overByCents: number };
   rows: WhatIfRow[];
 };
 
@@ -91,7 +93,7 @@ export async function previewDateChange(
   if (!wedding) return failure("no_wedding", "There is no wedding set up yet.", 404);
   if (daysBetweenUtc(today, target) < 0) return failure("in_past", `${newDate} has already passed. Pick a date from today on.`);
 
-  const { result, citations, vendors } = await computeDateChange(prisma, target, today);
+  const { result, citations, vendors, budget } = await computeDateChange(prisma, target, today);
   const clauses = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, { text: v.clauses[0].text, page: v.clauses[0].page }] as const] : [])));
   const cancelled = new Set(vendors.filter((v) => v.status === "cancelled").map((v) => v.id));
   const kindOf = (row: (typeof result.rows)[number]): WhatIfRowKind =>
@@ -103,6 +105,7 @@ export async function previewDateChange(
     shiftDays: daysBetweenUtc(wedding.date, target),
     noticeDays: Math.max(0, daysBetweenUtc(today, wedding.date)),
     totalCents: result.totalCents,
+    budget: { budgetCents: budget.budgetCents, projectedCents: budget.projectedCents, overByCents: budget.overByCents },
     rows: result.rows.map((row) => ({
       vendorId: row.vendorId,
       kind: kindOf(row),

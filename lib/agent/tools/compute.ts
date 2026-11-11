@@ -1,7 +1,8 @@
 import { z } from "zod";
 import type { PrismaClient } from "@/generated/prisma/client";
-import { citation, loadWedding, resolveVendor } from "@/lib/agent/tools/data";
+import { citation, loadBudgetSummary, loadWedding, resolveVendor } from "@/lib/agent/tools/data";
 import { ToolError, defineTool, isoDateSchema, parseIsoDate } from "@/lib/agent/tools/types";
+import { budgetImpact, largestCharge } from "@/lib/budget";
 import { formatCents } from "@/lib/money";
 import { cancellationRulesSchema, dateChangeRulesSchema } from "@/lib/rules";
 import { toIsoDate } from "@/lib/schedule";
@@ -38,7 +39,9 @@ export async function computeDateChange(prisma: PrismaClient, newDate: Date, tod
     throw error;
   }
   const citations = new Map(vendors.flatMap((v) => (v.clauses[0] ? [[v.id, citation(v.name, v.clauses[0].page)] as const] : [])));
-  return { wedding, result, citations, vendors };
+  // What the move does to the budget: everything committed so far plus the fees.
+  const budget = budgetImpact(await loadBudgetSummary(prisma, wedding), result.totalCents);
+  return { wedding, result, citations, vendors, budget };
 }
 
 /** What a vendor owes back if the wedding is cancelled on `cancellationDate`. Used by the tool and by refund proposals. */
@@ -75,13 +78,24 @@ export const computeDateChangeCostTool = defineTool({
     newDate: isoDateSchema.describe("The new wedding date, written YYYY-MM-DD."),
   }),
   run: async ({ newDate }, { prisma, today }) => {
-    const { wedding, result, citations } = await computeDateChange(prisma, parseIsoDate(newDate), today);
+    const { wedding, result, citations, budget } = await computeDateChange(prisma, parseIsoDate(newDate), today);
+    const biggest = largestCharge(result.rows);
     return {
       currentDate: toIsoDate(wedding.date),
       newDate,
       today: toIsoDate(today),
       total: money(result.totalCents),
       vendorsCharging: result.rows.filter((r) => r.costCents > 0).length,
+      budget: {
+        budget: money(budget.budgetCents),
+        committedBeforeMove: money(budget.committedCents),
+        totalAfterMove: money(budget.projectedCents),
+        overBudget: budget.overBudget,
+        overBudgetBy: budget.overBudget ? money(budget.overByCents) : null,
+      },
+      biggestFee: biggest
+        ? { vendorName: biggest.vendorName, cost: money(biggest.costCents), citation: citations.get(biggest.vendorId) ?? null }
+        : null,
       rows: result.rows.map((r) => ({
         vendorId: r.vendorId,
         vendorName: r.vendorName,

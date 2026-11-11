@@ -30,6 +30,9 @@ const view = (over: Partial<ProposalView> = {}): ProposalView => ({
   clauseHref: null,
   paymentId: null,
   approvable: true,
+  fees: [],
+  dateChange: null,
+  warning: null,
   createdAt: "2026-11-07T10:00:00.000Z",
   ...over,
 });

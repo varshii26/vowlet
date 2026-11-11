@@ -48,6 +48,7 @@ const previewBody = {
   shiftDays: 56,
   noticeDays: 161,
   totalCents: 50_000,
+  budget: { budgetCents: 3_600_000, projectedCents: 3_450_000, overByCents: 0 },
   rows: [
     { vendorId: "v1", kind: "fee", vendorName: "Grand Oak Estate", costCents: 50_000, reason: "$500 (a $500 flat fee) with 161 days' notice.", basis: "a $500 flat fee", clauseId: "c1", citation: "Grand Oak Estate contract, page 2", clause: { text: "Moving the event date costs a $500 flat fee.", page: 2 } },
     { vendorId: "v2", kind: "free", vendorName: "Bloom & Vine", costCents: 0, reason: "Free with 161 days' notice (needs at least 60).", basis: "Free with at least 60 days' notice", clauseId: "c2", citation: null, clause: null },
@@ -119,6 +120,22 @@ describe("WhatIfTimeline", () => {
     expect(screen.getByText(/Check these contracts/)).toBeTruthy();
     expect(screen.getByText("Lens & Light")).toBeTruthy();
     expect(screen.getByText(/1 vendor won't charge/)).toBeTruthy();
+  });
+
+  it("warns when the move would take the wedding over budget, naming the costliest vendor", async () => {
+    stubFetch({ "/api/whatif": { body: { ...previewBody, budget: { budgetCents: 3_600_000, projectedCents: 3_620_000, overByCents: 20_000 } } } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+    expect(screen.getByTestId("whatif-over-budget").textContent).toBe(
+      "Over budget by $200: the wedding would cost $36,200 against a $36,000 budget. The biggest change fee is Grand Oak Estate ($500).",
+    );
+  });
+
+  it("shows no budget warning within budget", async () => {
+    stubFetch({ "/api/whatif": { body: previewBody } });
+    render(<WhatIfTimeline input={input} todayIso="2026-11-07" />);
+    await drop("2027-06-12");
+    expect(screen.queryByTestId("whatif-over-budget")).toBeNull();
   });
 
   it("states the notice once, and each row shows only what its fee is made of", async () => {

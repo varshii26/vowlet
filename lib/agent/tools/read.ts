@@ -1,7 +1,6 @@
 import { z } from "zod";
-import { citation, loadWedding, resolveVendor } from "@/lib/agent/tools/data";
+import { citation, loadBudgetSummary, loadWedding, resolveVendor } from "@/lib/agent/tools/data";
 import { ToolError, defineTool, isoDateSchema, parseIsoDate } from "@/lib/agent/tools/types";
-import { summarizeBudget } from "@/lib/budget";
 import { formatCents } from "@/lib/money";
 import { addDaysUtc, computeDueDate, daysBetweenUtc, getDisplayStatus, startOfUtcDay, toIsoDate } from "@/lib/schedule";
 
@@ -16,12 +15,10 @@ export const getWedding = defineTool({
   inputSchema: z.object({}),
   run: async (_input, { prisma, today }) => {
     const wedding = await loadWedding(prisma);
-    const vendors = await prisma.vendor.findMany({ where: { weddingId: wedding.id }, include: { payments: true } });
-
-    const totals = summarizeBudget(
-      wedding.budget,
-      vendors.flatMap((v) => v.payments.map((p) => ({ amountCents: p.amount, status: p.status, vendorActive: v.status === "active" }))),
-    );
+    const [vendors, totals] = await Promise.all([
+      prisma.vendor.findMany({ where: { weddingId: wedding.id }, select: { status: true } }),
+      loadBudgetSummary(prisma, wedding),
+    ]);
 
     return {
       couple: wedding.coupleNames,

@@ -18,13 +18,30 @@ export const payPayloadSchema = z.object({
   reason,
 });
 
+const cents = z.number().int().nonnegative();
+
+// Fields added after the first reschedule proposals were stored default to
+// "unknown" (null or empty), so older rows still read.
 export const reschedulePayloadSchema = z.object({
   previousDate: z.string(),
   newDate: z.string(),
-  totalCostCents: z.number().int().nonnegative(),
+  totalCostCents: cents,
   charges: z
-    .array(z.object({ vendorId: z.string(), vendorName: z.string(), costCents: z.number().int().nonnegative(), clauseId: z.string().nullable() }))
+    .array(
+      z.object({
+        vendorId: z.string(),
+        vendorName: z.string(),
+        costCents: cents,
+        clauseId: z.string().nullable(),
+        /** "Grand Oak Estate contract, page 2" */
+        citation: z.string().nullable().default(null),
+      }),
+    )
     .default([]),
+  /** The wedding's total cost before and after the move, against the budget. */
+  budget: z.object({ budgetCents: cents, committedCents: cents, projectedCents: cents, overByCents: cents }).nullable().default(null),
+  /** The next few unpaid payments that move with the wedding: due dates before and after. */
+  movingPayments: z.array(z.object({ vendorName: z.string(), label: z.string(), fromDate: z.string(), toDate: z.string() })).default([]),
   reason,
 });
 

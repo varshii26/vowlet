@@ -33,6 +33,9 @@ const view = (over: Partial<ProposalView> = {}): ProposalView => ({
   clauseHref: null,
   paymentId: null,
   approvable: true,
+  fees: [],
+  dateChange: null,
+  warning: null,
   createdAt: "2026-11-07T10:00:00.000Z",
   ...over,
 });
@@ -73,6 +76,48 @@ describe("what the card shows", () => {
     expect(screen.getByText("in vendor change fees")).toBeTruthy();
     expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Grand Oak Estate: $450", "Bloom & Thistle Florals: $150"]);
     expect(screen.getByText("Why: The couple asked to postpone.")).toBeTruthy();
+  });
+
+  it("lists each vendor's fee with its own clause chip linking to the contract", () => {
+    const fees = [
+      { vendorId: "a", vendorName: "Grand Oak Estate", amountLabel: "$450", citation: "Grand Oak Estate contract, page 2", clauseHref: "/vendors/a?clause=c1" },
+      { vendorId: "b", vendorName: "Bloom & Thistle Florals", amountLabel: "$150", citation: "Bloom & Thistle Florals contract, page 2", clauseHref: "/vendors/b?clause=c2" },
+    ];
+    render(<ProposalCard proposal={view({ details: [], fees })} onResolved={onResolved} />);
+    const list = screen.getByRole("list", { name: "Change fee per vendor" });
+    expect(Array.from(list.querySelectorAll("li")).map((li) => li.textContent)).toEqual([
+      "Grand Oak Estate$450Grand Oak Estate contract, page 2",
+      "Bloom & Thistle Florals$150Bloom & Thistle Florals contract, page 2",
+    ]);
+    expect(screen.getByRole("link", { name: "Bloom & Thistle Florals contract, page 2" }).getAttribute("href")).toBe("/vendors/b?clause=c2");
+  });
+
+  it("shows the wedding date and the next payments before and after the move", () => {
+    const dateChange = {
+      from: "Apr 17, 2027",
+      to: "Jun 12, 2027",
+      payments: [{ key: "k", title: "Grand Oak Estate: Venue balance", from: "Mar 18, 2027", to: "May 13, 2027" }],
+    };
+    render(<ProposalCard proposal={view({ details: [], dateChange })} onResolved={onResolved} />);
+    const box = screen.getByTestId("proposal-dates");
+    expect(box.textContent).toContain("Apr 17, 2027");
+    expect(box.textContent).toContain("Jun 12, 2027");
+    expect(box.textContent).toContain("Grand Oak Estate: Venue balance");
+    expect(box.textContent).toContain("Mar 18, 2027");
+    expect(box.textContent).toContain("May 13, 2027");
+  });
+
+  it("turns warning-coloured and states the overage when the move goes over budget", () => {
+    const warning = "Over budget by $700: the wedding would cost $36,700 against a $36,000 budget. The biggest change fee is Grand Oak Estate ($2,700).";
+    render(<ProposalCard proposal={view({ warning })} onResolved={onResolved} />);
+    expect(screen.getByRole("article").getAttribute("data-warning")).toBe("over-budget");
+    expect(screen.getByRole("note").textContent).toBe(warning);
+  });
+
+  it("has no warning styling within budget", () => {
+    render(<ProposalCard proposal={view()} onResolved={onResolved} />);
+    expect(screen.getByRole("article").getAttribute("data-warning")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("shows the clause it rests on, in words, as a chip", () => {

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { ToolError } from "@/lib/agent/tools/types";
+import { summarizeBudget, type BudgetSummary } from "@/lib/budget";
 
 /**
  * A human-readable reference to a clause, ready for the model to quote:
@@ -12,6 +13,15 @@ export async function loadWedding(prisma: PrismaClient) {
   const wedding = await prisma.wedding.findFirst();
   if (!wedding) throw new ToolError("There is no wedding set up yet.");
   return wedding;
+}
+
+/** Budget totals for the wedding (paid, scheduled, remaining), the same numbers the dashboard shows. */
+export async function loadBudgetSummary(prisma: PrismaClient, wedding: { id: string; budget: number }): Promise<BudgetSummary> {
+  const vendors = await prisma.vendor.findMany({ where: { weddingId: wedding.id }, include: { payments: true } });
+  return summarizeBudget(
+    wedding.budget,
+    vendors.flatMap((v) => v.payments.map((p) => ({ amountCents: p.amount, status: p.status, vendorActive: v.status === "active" }))),
+  );
 }
 
 const MAX_SUGGESTIONS = 20;

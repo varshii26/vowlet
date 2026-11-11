@@ -76,6 +76,8 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
   const fees = ready?.rows.filter((r) => r.kind === "fee") ?? [];
   const free = ready?.rows.filter((r) => r.kind === "free") ?? [];
   const check = ready?.rows.filter((r) => r.kind === "check") ?? [];
+  const overBy = ready?.budget?.overByCents ?? 0;
+  const biggest = [...fees].sort((a, b) => b.costCents - a.costCents)[0];
 
   return (
     <section aria-labelledby="whatif-heading" className="space-y-4 rounded-card border border-accent/30 bg-surface p-5">
@@ -99,6 +101,13 @@ export function WhatIfPanel({ currentDate, newDate, shiftDays, movedCount, fixed
         <p className="text-sm text-ink" data-testid="whatif-notice">
           Telling vendors today gives them {plural(ready.noticeDays, "day")}&apos; notice before {longDay(currentDate)}. Each contract sets its fee by
           that notice, so the fee is the same whichever new date you pick.
+        </p>
+      )}
+
+      {ready?.budget && overBy > 0 && (
+        <p role="note" data-testid="whatif-over-budget" className="rounded border border-amber-300 bg-amber-50 p-2 text-sm font-medium text-amber-900">
+          Over budget by {formatCents(overBy)}: the wedding would cost {formatCents(ready.budget.projectedCents)} against a {formatCents(ready.budget.budgetCents)} budget.
+          {biggest ? ` The biggest change fee is ${biggest.vendorName} (${formatCents(biggest.costCents)}).` : ""}
         </p>
       )}
 

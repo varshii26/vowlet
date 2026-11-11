@@ -26,6 +26,28 @@ describe("compute_date_change_cost", () => {
     expect(row(r, "Lumen Photography").cost).toEqual({ cents: 0, label: "$0" });
   });
 
+  it("reports the budget after the move and the biggest fee, all in code", async () => {
+    const r = await ok(prisma, "compute_date_change_cost", { newDate: "2027-06-17" });
+    const w = await ok(prisma, "get_wedding");
+    const committed = w.paid.cents + w.scheduled.cents;
+    expect(r.budget).toEqual({
+      budget: { cents: 3_600_000, label: "$36,000" },
+      committedBeforeMove: { cents: committed, label: expect.any(String) },
+      totalAfterMove: { cents: committed + 133_000, label: expect.any(String) },
+      overBudget: false,
+      overBudgetBy: null,
+    });
+    expect(r.biggestFee).toEqual({ vendorName: "Grand Oak Estate", cost: { cents: 45_000, label: "$450" }, citation: "Grand Oak Estate contract, page 2" });
+  });
+
+  it("flags an over-budget move with the overage", async () => {
+    const w = await ok(prisma, "get_wedding");
+    const wedding = await prisma.wedding.findFirstOrThrow();
+    await prisma.wedding.update({ where: { id: wedding.id }, data: { budget: w.paid.cents + w.scheduled.cents + 100_000 } });
+    const r = await ok(prisma, "compute_date_change_cost", { newDate: "2027-06-17" });
+    expect(r.budget).toMatchObject({ overBudget: true, overBudgetBy: { cents: 33_000, label: "$330" } });
+  });
+
   it("matches the pure function in lib/terms.ts: the tool adds no arithmetic of its own", async () => {
     const r = await ok(prisma, "compute_date_change_cost", { newDate: "2027-06-17" });
     expect(r.rows.reduce((sum: number, x: Row) => sum + x.cost.cents, 0)).toBe(r.total.cents);

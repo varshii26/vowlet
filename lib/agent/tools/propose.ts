@@ -77,21 +77,49 @@ async function draftPay(input: Input, { prisma }: ToolContext): Promise<Draft> {
   };
 }
 
+/** How many moving payments a reschedule card previews. */
+const MOVING_PREVIEW = 3;
+
+/** The next unpaid wedding-anchored payments, with their due dates now and after the move. */
+async function movingPayments(prisma: PrismaClient, weddingId: string, from: Date, to: Date) {
+  const payments = await prisma.payment.findMany({
+    where: { anchor: "wedding_date", status: { in: ["scheduled", "due"] }, vendor: { weddingId, status: "active" } },
+    include: { vendor: true },
+  });
+  return payments
+    .map((p) => ({
+      vendorName: p.vendor.name,
+      label: p.label,
+      fromDate: toIsoDate(computeDueDate(p, { weddingDate: from, signingDate: p.vendor.signingDate })),
+      toDate: toIsoDate(computeDueDate(p, { weddingDate: to, signingDate: p.vendor.signingDate })),
+    }))
+    .sort((a, b) => a.fromDate.localeCompare(b.fromDate) || a.vendorName.localeCompare(b.vendorName) || a.label.localeCompare(b.label))
+    .slice(0, MOVING_PREVIEW);
+}
+
 async function draftReschedule(input: Input, { prisma, today }: ToolContext): Promise<Draft> {
   const newDate = need(input.newDate, "reschedule", "newDate");
-  const { wedding, result } = await computeDateChange(prisma, parseIsoDate(newDate), today);
-  if (daysBetweenUtc(wedding.date, parseIsoDate(newDate)) === 0) throw new ToolError(`${newDate} is already the wedding date.`);
+  const target = parseIsoDate(newDate);
+  const { wedding, result, citations, budget } = await computeDateChange(prisma, target, today);
+  if (daysBetweenUtc(wedding.date, target) === 0) throw new ToolError(`${newDate} is already the wedding date.`);
+
+  // Largest fee first, the same order as the agent's answer table.
+  const charges = result.rows
+    .filter((r) => r.costCents > 0)
+    .sort((a, b) => b.costCents - a.costCents || a.vendorName.localeCompare(b.vendorName))
+    .map((r) => ({ vendorId: r.vendorId, vendorName: r.vendorName, costCents: r.costCents, clauseId: r.clauseId, citation: citations.get(r.vendorId) ?? null }));
+  const over = budget.overBudget ? `, ${formatCents(budget.overByCents)} over budget` : "";
 
   return {
     payload: {
       previousDate: toIsoDate(wedding.date),
       newDate,
       totalCostCents: result.totalCents,
-      charges: result.rows
-        .filter((r) => r.costCents > 0)
-        .map((r) => ({ vendorId: r.vendorId, vendorName: r.vendorName, costCents: r.costCents, clauseId: r.clauseId })),
+      charges,
+      budget: { budgetCents: budget.budgetCents, committedCents: budget.committedCents, projectedCents: budget.projectedCents, overByCents: budget.overByCents },
+      movingPayments: await movingPayments(prisma, wedding.id, wedding.date, target),
     },
-    summary: `Move the wedding from ${toIsoDate(wedding.date)} to ${newDate} (extra cost ${formatCents(result.totalCents)})`,
+    summary: `Move the wedding from ${toIsoDate(wedding.date)} to ${newDate} (extra cost ${formatCents(result.totalCents)}${over})`,
     key: newDate,
     defaultClauseId: null,
   };

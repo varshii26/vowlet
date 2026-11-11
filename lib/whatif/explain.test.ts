@@ -23,6 +23,7 @@ const preview: WhatIfPreview = {
   shiftDays: 56,
   noticeDays: 120,
   totalCents: 175_000,
+  budget: { budgetCents: 3_600_000, projectedCents: 3_275_000, overByCents: 0 },
   rows: [
     row({ vendorId: "a", kind: "fee", vendorName: "Grand Oak Estate", costCents: 150_000, reason: "$1,500 (10% of the contract) with 56 days' notice." }),
     row({ vendorId: "b", kind: "fee", vendorName: "Bloom & Vine", costCents: 25_000, reason: "$250 (a $250 flat fee) with 56 days' notice." }),
