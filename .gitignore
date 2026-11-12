@@ -161,3 +161,8 @@ next-env.d.ts
 
 # Contracts uploaded through the app (Vendor.contractPath = data/uploads/<vendorId>.pdf)
 data/uploads/
+
+# Private team notes
+HANDOFF.md
+notes/
+DEMO_STEPS.md
