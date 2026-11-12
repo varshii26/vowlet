@@ -139,6 +139,14 @@ flowchart LR
 - **Payment.** The server creates a PayPal order with the vendor as payee, the couple approves in the popup, and the
   server captures it and marks the payment paid. A signed webhook covers payments that complete later.
 
+## Sponsor tools
+
+| Tool | How we use it |
+|---|---|
+| **Bryntum Gantt** (Enterprise) | The payment timeline: one row per vendor, payments as milestones linked to the wedding day, drag the wedding day to reschedule. Details in [How we use Bryntum](#how-we-use-bryntum). |
+| **APIMatic Context Plugin** | Used in Claude Code while writing the PayPal integration (`lib/paypal.ts`, `lib/payments/`). We looked up the PayPal Server SDK's controllers, models and endpoints (`fetch_api`, `ask`, `endpoint_search`, `model_search`) instead of guessing, so orders, capture, webhook verification and the read-only order/capture lookups follow the SDK's real API. |
+| **Render** | Hosts the live demo at https://vowlet.onrender.com from the `render.yaml` Blueprint (free tier, demo re-seeded on every start). See [Deploying](#deploying). |
+
 ## How we use Bryntum
 
 The timeline is a [Bryntum Gantt](https://bryntum.com/products/gantt/) (Enterprise 8.0.0, React wrapper). It is the
