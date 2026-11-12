@@ -3,6 +3,8 @@
 **A wedding payment coordinator that reads your vendor contracts, so you don't miss a deposit or overpay on a change.**
 Built for the PayPal AI Hackathon.
 
+**Demo video:** [Watch on YouTube](https://youtu.be/NtRtXRwHDv8) · **Live demo:** https://vowlet.onrender.com
+
 A couple planning a wedding juggles 10 to 20 vendors. Each one has a PDF contract with its own deposits, milestone
 payments, due dates and cancellation and date-change terms. Vowlet:
 
