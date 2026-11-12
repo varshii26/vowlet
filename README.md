@@ -170,7 +170,6 @@ Notes:
 
 - **TimeRanges** is a Scheduler feature. We import its module directly and declare `@bryntum/scheduler-enterprise`, as
   Bryntum's package notes require. All Bryntum packages are pinned to the same exact version (8.0.0).
-- **Vendor progress** (`percentDone`) is set from the money paid, with the engine's parent roll-up switched off.
 - **Tier:** Enterprise on a trial key, supplied through `NEXT_PUBLIC_BRYNTUM_LICENSE_KEY` and never committed. Built
   from source without a key, the chart runs as Bryntum's 14-day trial with a small "Trial" badge.
 - **Code:** `components/Gantt/` (chart config in `PaymentGanttChart.tsx`; tooltips, labels, summary, print and
